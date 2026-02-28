@@ -14,7 +14,8 @@ import {
   Wallet, 
   ArrowRightLeft,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Lock
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -36,7 +37,8 @@ const Dashboard = () => {
     activeSubs: 0,
     pendingAmount: 0,
     churn: 0,
-    wooviBalance: 0
+    wooviAvailable: 0,
+    wooviBlocked: 0
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
@@ -72,12 +74,17 @@ const Dashboard = () => {
         });
         const walletData = await walletRes.json();
 
+        // A Woovi geralmente retorna { balance: { available: 100, blocked: 50 } }
+        const available = walletData.balance?.available || walletData.available || 0;
+        const blocked = walletData.balance?.blocked || walletData.blocked || 0;
+
         setStats({
           mrr: totalPaid,
           activeSubs: activeCount || 0,
           pendingAmount: totalPending,
           churn: 0,
-          wooviBalance: walletData.balance ? walletData.balance / 100 : 0
+          wooviAvailable: available / 100,
+          wooviBlocked: blocked / 100
         });
 
         setRecentCharges(charges.slice(0, 5));
@@ -108,28 +115,47 @@ const Dashboard = () => {
     <AppLayout>
       <div className="flex flex-col gap-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-            <p className="text-zinc-400 mt-1">Bem-vindo de volta! Aqui está o resumo real da sua operação.</p>
+            <p className="text-zinc-400 mt-1">Visão geral da sua operação financeira.</p>
           </div>
           
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/10 flex flex-col justify-between group">
-            <div className="flex justify-between items-start">
-              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
-                <Wallet className="text-white" size={20} />
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Disponível */}
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/10 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md text-white">
+                  <Wallet size={20} />
+                </div>
+                <button 
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
+                >
+                  SOLICITAR SAQUE <ChevronRight size={12} />
+                </button>
               </div>
-              <button 
-                onClick={() => setIsWithdrawModalOpen(true)}
-                className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
-              >
-                SOLICITAR SAQUE <ChevronRight size={12} />
-              </button>
+              <div className="mt-4">
+                <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Disponível (Woovi)</p>
+                <h3 className="text-3xl font-bold text-white tracking-tighter">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviAvailable)}
+                </h3>
+              </div>
             </div>
-            <div className="mt-4">
-              <p className="text-orange-100 text-xs font-bold uppercase tracking-widest mb-1">Saldo Disponível Woovi</p>
-              <h3 className="text-3xl font-bold text-white tracking-tighter">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviBalance)}
-              </h3>
+
+            {/* Bloqueado */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <div className="bg-zinc-800 p-2 rounded-lg text-zinc-500">
+                  <Lock size={20} />
+                </div>
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Processando</span>
+              </div>
+              <div className="mt-4">
+                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Bloqueado</p>
+                <h3 className="text-2xl font-bold text-zinc-100 tracking-tighter">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviBlocked)}
+                </h3>
+              </div>
             </div>
           </div>
         </div>
@@ -221,9 +247,6 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
-            <button className="w-full mt-8 py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:text-orange-500 border border-zinc-800 rounded-xl transition-all hover:border-orange-500/20">
-              Ver histórico completo
-            </button>
           </div>
         </div>
       </div>
@@ -232,7 +255,7 @@ const Dashboard = () => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         onSuccess={fetchDashboardData}
-        availableBalance={stats.wooviBalance}
+        availableBalance={stats.wooviAvailable}
       />
     </AppLayout>
   );
