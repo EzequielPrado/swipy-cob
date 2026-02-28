@@ -6,12 +6,12 @@ import { Mail, MessageCircle, Settings2, Plus, GripVertical, CheckCircle, Smartp
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
+import { cn } from "@/lib/utils";
 
 const initialTriggers = [
-  { id: 1, day: 'D-3', title: 'Lembrete de Vencimento', channel: 'E-mail', status: true, msg: 'Olá {{nome}}, sua fatura vence em 3 dias...', template: 'vencimento_proximo' },
-  { id: 2, day: 'D0', title: 'Aviso de Vencimento Hoje', channel: 'WhatsApp', status: true, msg: 'Bom dia! Sua fatura Swipy vence hoje. Acesse o link...', template: 'cobranca_vencendo_hoje' },
-  { id: 3, day: 'D+1', title: 'Primeiro Aviso de Atraso', channel: 'E-mail', status: true, msg: 'Notamos que seu pagamento ainda não foi identificado...', template: 'aviso_atraso' },
-  { id: 4, day: 'D+5', title: 'Aviso de Suspensão Próxima', channel: 'WhatsApp', status: true, msg: 'Atenção: Seu acesso poderá ser suspenso em breve...', template: 'suspenso_em_breve' },
+  { id: 1, day: 'D0', title: 'Cobrança Gerada (Imediato)', channel: 'WhatsApp', status: true, msg: 'Olá {{nome}}, sua fatura está pronta...', template: 'boleto1' },
+  { id: 2, day: 'D-3', title: 'Lembrete de Vencimento', channel: 'E-mail', status: true, msg: 'Olá {{nome}}, sua fatura vence em 3 dias...', template: 'lembrete_vencimento' },
+  { id: 3, day: 'D+1', title: 'Primeiro Aviso de Atraso', channel: 'WhatsApp', status: true, msg: 'Notamos que seu pagamento ainda não foi identificado...', template: 'aviso_atraso' },
 ];
 
 const Automation = () => {
@@ -20,13 +20,11 @@ const Automation = () => {
   const handleTestWhatsApp = async (trigger: any) => {
     if (trigger.channel !== 'WhatsApp') return;
     
+    const testPhone = prompt("Insira um número de WhatsApp com DDD para teste (ex: 11999999999):");
+    if (!testPhone) return;
+
     setSending(trigger.id);
     try {
-      // Simulação de variáveis para o template da Meta
-      // Na vida real, buscaríamos o último cliente ou pediríamos um número de teste
-      const testPhone = prompt("Insira um número de telefone com DDD para teste (ex: 11999999999):");
-      if (!testPhone) return;
-
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
         headers: {
@@ -36,14 +34,17 @@ const Automation = () => {
         body: JSON.stringify({
           to: testPhone,
           templateName: trigger.template,
-          variables: ["Cliente de Teste", "R$ 150,00", "https://swipy.com/pay/123"]
+          language: 'en', // Forçamos 'en' conforme seu template na Meta
+          variables: ["Cliente de Teste", "Minha Empresa", "150,00"],
+          buttonVariable: window.location.origin, // Link de teste
+          imageUrl: "https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=TEST_PIX&.png"
         })
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro ao enviar teste");
 
-      showSuccess(`WhatsApp enviado com sucesso para ${testPhone}!`);
+      showSuccess(`Teste enviado com sucesso para ${testPhone}!`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -57,7 +58,7 @@ const Automation = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança</h2>
-            <p className="text-zinc-400 mt-1">Configure automações inteligentes usando o número oficial da plataforma.</p>
+            <p className="text-zinc-400 mt-1">Configure o envio automático de notificações para seus clientes.</p>
           </div>
           <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 p-1.5 rounded-xl">
             <span className="text-xs text-zinc-500 px-3 font-medium uppercase tracking-wider">Status Central</span>
@@ -91,18 +92,11 @@ const Automation = () => {
                 </div>
               </div>
             </div>
-
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-6">
-              <h4 className="text-sm font-bold text-orange-400 mb-2">Configuração Global</h4>
-              <p className="text-xs text-orange-200/60 leading-relaxed">
-                As mensagens são enviadas via API Oficial (Meta). Certifique-se de que os nomes dos templates batem com os aprovados no seu Gerenciador de Negócios.
-              </p>
-            </div>
           </div>
 
           <div className="lg:col-span-3 space-y-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">Gatilhos da Régua</h3>
+              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">Gatilhos Ativos</h3>
               <button className="text-orange-500 text-sm font-medium flex items-center gap-1 hover:text-orange-400 transition-all">
                 <Plus size={16} /> Novo gatilho
               </button>
@@ -123,7 +117,7 @@ const Automation = () => {
                     <h4 className="font-semibold text-zinc-200">{trigger.title}</h4>
                     <span className={cn(
                       "text-[9px] px-2 py-0.5 rounded font-bold uppercase border",
-                      trigger.channel === 'WhatsApp' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-zinc-800 text-zinc-500 border-zinc-700"
+                      trigger.channel === 'WhatsApp' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-zinc-800 text-zinc-500 border-zinc-700"
                     )}>
                       {trigger.channel}
                     </span>
