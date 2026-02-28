@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts"
+import { writeAll } from "https://deno.land/std@0.190.0/streams/write_all.ts"
+
+// Patch para compatibilidade com Deno 2.0/Supabase atual
+// Algumas bibliotecas antigas ainda esperam que Deno.writeAll exista globalmente
+if (!(Deno as any).writeAll) {
+  (Deno as any).writeAll = writeAll;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +36,7 @@ serve(async (req) => {
 
     if (!hostname || !port || !username || !password) {
       console.error("[send-email] Configurações ausentes no Supabase Secrets");
-      return new Response(JSON.stringify({ error: "Configure SMTP_HOSTNAME, SMTP_PORT, SMTP_USERNAME e SMTP_PASSWORD nas Secrets do Supabase." }), {
+      return new Response(JSON.stringify({ error: "Configurações SMTP ausentes nas Secrets do Supabase." }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -39,9 +46,9 @@ serve(async (req) => {
     const portNum = parseInt(port);
 
     try {
-      console.log(`[send-email] Conectando a ${hostname}:${portNum}...`);
+      console.log(`[send-email] Conectando a ${hostname}:${portNum} para enviar para ${to}...`);
       
-      // Se a porta for 465, usa TLS direto. Se for 587, usa STARTTLS.
+      // Conexão SMTP
       if (portNum === 465) {
         await client.connectTLS({
           hostname,
@@ -58,6 +65,7 @@ serve(async (req) => {
         });
       }
 
+      // Envio do e-mail
       await client.send({
         from: username,
         to,
