@@ -3,15 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Filter, Mail, FileText, UserX, Plus, Loader2 } from 'lucide-react';
+import { Search, Filter, Mail, FileText, UserX, Plus, Loader2, Edit3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
+import EditCustomerModal from '@/components/customers/EditCustomerModal';
 
 const Customers = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -30,6 +33,11 @@ const Customers = () => {
     fetchCustomers();
   }, []);
 
+  const handleEditClick = (customer: any) => {
+    setSelectedCustomer(customer);
+    setIsEditModalOpen(true);
+  };
+
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
@@ -41,7 +49,7 @@ const Customers = () => {
           <div className="flex gap-3">
             <button className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-4 py-2 rounded-lg transition-all border border-zinc-800">Exportar CSV</button>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => setIsAddModalOpen(true)}
               className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2"
             >
               <Plus size={18} /> Novo Cliente
@@ -49,7 +57,6 @@ const Customers = () => {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
@@ -70,7 +77,7 @@ const Customers = () => {
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <p>Nenhum cliente cadastrado.</p>
               <button 
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setIsAddModalOpen(true)}
                 className="text-orange-500 text-sm mt-2 hover:underline"
               >
                 Cadastrar o primeiro cliente
@@ -114,7 +121,13 @@ const Customers = () => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button title="Enviar Cobrança" className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"><Mail size={16}/></button>
-                        <button title="Ver Histórico" className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"><FileText size={16}/></button>
+                        <button 
+                          onClick={() => handleEditClick(customer)}
+                          title="Editar Cliente" 
+                          className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
+                        >
+                          <Edit3 size={16}/>
+                        </button>
                         <button title="Bloquear Acesso" className="p-2 text-zinc-500 hover:text-red-400 transition-colors"><UserX size={16}/></button>
                       </div>
                     </td>
@@ -127,9 +140,19 @@ const Customers = () => {
       </div>
 
       <AddCustomerModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
         onSuccess={fetchCustomers}
+      />
+
+      <EditCustomerModal 
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        onSuccess={fetchCustomers}
+        customer={selectedCustomer}
       />
     </AppLayout>
   );
