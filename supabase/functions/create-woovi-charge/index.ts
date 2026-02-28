@@ -18,7 +18,6 @@ serve(async (req) => {
     const { customerId, amount, method, dueDate, userId } = await req.json()
     const WOOVI_API_KEY = Deno.env.get('WOOVI_API_KEY')
 
-    // 1. Buscar dados do cliente no banco
     const { data: customer, error: custError } = await supabaseClient
       .from('customers')
       .select('*')
@@ -29,7 +28,6 @@ serve(async (req) => {
 
     const correlationID = crypto.randomUUID()
 
-    // 2. Criar cobrança na Woovi
     const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
       method: 'POST',
       headers: {
@@ -38,7 +36,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         correlationID,
-        value: Math.round(amount * 100), // Em centavos
+        value: Math.round(amount * 100),
         customer: {
           name: customer.name,
           email: customer.email,
@@ -50,7 +48,7 @@ serve(async (req) => {
     const wooviData = await wooviRes.json()
     if (!wooviRes.ok) throw new Error(wooviData.error || "Erro na Woovi")
 
-    // 3. Salvar no nosso banco
+    // Salvamos também o brCode que é a string do PIX "Copia e Cola"
     const { data: charge, error: chargeError } = await supabaseClient
       .from('charges')
       .insert({
@@ -62,6 +60,7 @@ serve(async (req) => {
         woovi_id: wooviData.charge.identifier,
         correlation_id: correlationID,
         payment_link: wooviData.charge.paymentLinkUrl,
+        pix_qr_code: wooviData.charge.brCode, // NOVO CAMPO
         status: 'pendente'
       })
       .select()

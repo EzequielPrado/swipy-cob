@@ -13,19 +13,15 @@ import Automation from "./pages/Automation";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Checkout from "./pages/Checkout"; // IMPORTANTE
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
-  
-  if (loading) return null; // Or a loading spinner
-  
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-  
+  if (loading) return null;
+  if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
 };
 
@@ -39,6 +35,9 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
+            
+            {/* ROTA PÚBLICA DE PAGAMENTO */}
+            <Route path="/pagar/:id" element={<Checkout />} />
             
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/planos" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
