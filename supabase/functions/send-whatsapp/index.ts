@@ -9,7 +9,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { to, templateName, variables, imageUrl, buttonVariable } = await req.json()
+    // Adicionado parâmetro 'language'
+    const { to, templateName, variables, imageUrl, buttonVariable, language } = await req.json()
     
     const ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
     const PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
@@ -62,7 +63,8 @@ serve(async (req) => {
         type: "template",
         template: {
           name: templateName,
-          language: { code: "pt_BR" },
+          // Usa o idioma enviado ou fallback para en_US (Inglês)
+          language: { code: language || "en_US" },
           components
         }
       })

@@ -15,7 +15,8 @@ import {
   QrCode,
   MousePointer2,
   Variable,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Globe
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
 
-// Variáveis disponíveis no sistema para injetar no template
 const SYSTEM_VARIABLES = [
   { key: 'customer_name', label: 'Nome do Cliente', mock: 'João Silva' },
   { key: 'merchant_name', label: 'Nome do Lojista', mock: 'Minha Loja Ltda' },
@@ -43,13 +43,12 @@ const GlobalAutomation = () => {
       day: 'D0', 
       name: 'cobranca_gerada_v1', 
       label: 'Cobrança Gerada (Imediato)', 
-      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nSeu pagamento de *R$ {{3}}*, está pendente.\nPara pagar via PIX, clique no botão abaixo ou escaneie o QR Code enviado.\n\nDúvidas? Fale com a gente.',
+      language: 'en_US',
+      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nYour payment of *R$ {{3}}* is pending.\nTo pay via PIX, click the button below or scan the QR Code sent.\n\nQuestions? Talk to us.',
       imageUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=800&q=80',
-      primaryBtn: '🔘 Pagar agora',
+      primaryBtn: '🔘 Pay Now',
       secondaryBtn: '📷 QR Code PIX',
-      // Mapeamento do corpo da mensagem
       mapping: ['customer_name', 'merchant_name', 'amount'],
-      // Variável do botão (Link Dinâmico)
       buttonLinkVar: 'payment_link' 
     },
     { 
@@ -57,9 +56,10 @@ const GlobalAutomation = () => {
       day: 'D+3', 
       name: 'lembrete_atraso_v1', 
       label: 'Lembrete de Atraso (3 dias)', 
-      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nNotamos que seu pagamento de *R$ {{3}}* ainda não foi identificado.\n\nEvite suspensão de serviços clicando no botão abaixo.',
+      language: 'en_US',
+      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nWe noticed your payment of *R$ {{3}}* is still pending.\n\nAvoid service suspension by clicking the button below.',
       imageUrl: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80',
-      primaryBtn: '🔘 Pagar agora',
+      primaryBtn: '🔘 Pay Now',
       secondaryBtn: '📷 QR Code PIX',
       mapping: ['customer_name', 'merchant_name', 'amount'],
       buttonLinkVar: 'payment_link'
@@ -71,12 +71,13 @@ const GlobalAutomation = () => {
     setTriggers([...triggers, {
       id: newId,
       day: 'D+1',
-      name: 'novo_template_meta',
+      name: 'new_template_meta',
       label: 'Novo Gatilho',
-      msg: 'Olá *{{1}}*...',
+      language: 'en_US',
+      msg: 'Hello *{{1}}*...',
       imageUrl: '',
-      primaryBtn: 'Ver Link',
-      secondaryBtn: 'Copiar PIX',
+      primaryBtn: 'View Link',
+      secondaryBtn: 'Copy PIX',
       mapping: ['customer_name'],
       buttonLinkVar: 'payment_link'
     }]);
@@ -134,6 +135,7 @@ const GlobalAutomation = () => {
         body: JSON.stringify({
           to: testPhone,
           templateName: trigger.name,
+          language: trigger.language || 'en_US',
           imageUrl: trigger.imageUrl,
           variables: variablesToSend,
           buttonVariable: buttonVariableToSend
@@ -143,7 +145,7 @@ const GlobalAutomation = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro no envio");
 
-      showSuccess(`Teste enviado! Variáveis: ${variablesToSend.join(', ')} | Link: ${buttonVariableToSend}`);
+      showSuccess(`Teste enviado! Idioma: ${trigger.language}`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -166,7 +168,7 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure imagens, links e variáveis para a Meta.</p>
+            <p className="text-zinc-400 mt-1">Configure o mapeamento de dados para sincronizar com a Meta.</p>
           </div>
           <button 
             onClick={addTrigger}
@@ -202,12 +204,33 @@ const GlobalAutomation = () => {
                             setTriggers(newTriggers);
                           }}
                           className="h-6 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400 focus:w-64 transition-all"
-                          placeholder="nome_do_template_na_meta"
+                          placeholder="nome_do_template"
                         />
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1">
+                       <Globe size={12} className="text-zinc-500" />
+                       <Select 
+                          value={t.language} 
+                          onValueChange={(val) => {
+                            const newTriggers = [...triggers];
+                            newTriggers[tIndex].language = val;
+                            setTriggers(newTriggers);
+                          }}
+                        >
+                          <SelectTrigger className="h-5 w-20 bg-transparent border-none text-[10px] font-bold p-0 focus:ring-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 min-w-[100px]">
+                            <SelectItem value="en_US">English (US)</SelectItem>
+                            <SelectItem value="pt_BR">Português (BR)</SelectItem>
+                            <SelectItem value="es">Español</SelectItem>
+                          </SelectContent>
+                        </Select>
+                    </div>
+
                     <button 
                       onClick={() => handleSendTest(t)}
                       disabled={loadingId === t.id}
