@@ -11,36 +11,40 @@ serve(async (req) => {
     const payload = await req.json()
     const event = payload.event
     
-    console.log(`[woovi-webhook] Processando evento: ${event}`);
+    // O correlationID é o ID que nós geramos internamente
+    const correlationID = payload.charge?.correlationID;
+    const wooviId = payload.charge?.identifier;
+    
+    console.log(`[woovi-webhook] Evento: ${event} | ID Interno: ${correlationID}`);
 
-    // Verifica se o evento contém a confirmação de pagamento (independente de ser PIX ou Boleto)
     const isPaymentDone = event.includes('CHARGE_COMPLETED') || 
                           event.includes('PAYMENT_CONFIRMED') || 
                           event.includes('BILL_COMPLETED');
 
-    if (isPaymentDone) {
-      const wooviId = payload.charge?.identifier;
-      const correlationID = payload.charge?.correlationID;
-      
-      console.log(`[woovi-webhook] IDs encontrados - Woovi: ${wooviId}, Interno: ${correlationID}`);
-
-      // Tenta atualizar a cobrança usando qualquer um dos IDs disponíveis
+    if (isPaymentDone && correlationID) {
+      // 1. Primeiro tentamos atualizar pelo correlation_id que é o mais seguro
       const { data, error } = await supabaseClient
         .from('charges')
         .update({ status: 'pago' })
-        .or(`woovi_id.eq.${wooviId},correlation_id.eq.${correlationID}`)
-        .select('id, amount, customers(name)')
+        .eq('correlation_id', correlationID)
+        .select('id, customers(name)')
         .single();
 
       if (error) {
-        console.error(`[woovi-webhook] Erro ao atualizar no banco:`, error.message);
+        console.error(`[woovi-webhook] Erro ao atualizar por correlation_id:`, error.message);
+        
+        // 2. Se falhar e tivermos o wooviId, tentamos por ele (caso a coluna exista)
+        if (wooviId) {
+          const { error: error2 } = await supabaseClient
+            .from('charges')
+            .update({ status: 'pago' })
+            .eq('woovi_id', wooviId);
+          
+          if (error2) console.error(`[woovi-webhook] Erro ao atualizar por woovi_id:`, error2.message);
+        }
       } else if (data) {
-        console.log(`[woovi-webhook] SUCESSO! Cobrança ${data.id} de ${data.customers.name} atualizada para PAGA.`);
-      } else {
-        console.warn(`[woovi-webhook] Cobrança não localizada no banco de dados.`);
+        console.log(`[woovi-webhook] SUCESSO! Pagamento de ${data.customers?.name} confirmado.`);
       }
-    } else {
-      console.log(`[woovi-webhook] Evento ${event} ignorado.`);
     }
 
     return new Response(JSON.stringify({ received: true }), {
