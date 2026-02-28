@@ -29,7 +29,8 @@ const SYSTEM_VARIABLES = [
   { key: 'customer_name', label: 'Nome do Cliente', mock: 'João Silva' },
   { key: 'merchant_name', label: 'Nome do Lojista', mock: 'Minha Loja Ltda' },
   { key: 'amount', label: 'Valor da Cobrança', mock: '149,90' },
-  { key: 'payment_link', label: 'Link de Pagamento (URL)', mock: 'https://swipy.com/pay/123' },
+  { key: 'payment_id', label: 'Código de Pagamento (ID)', mock: '550e8400-e29b-41d4' },
+  { key: 'payment_link', label: 'Link Completo (URL)', mock: 'https://seusistema.com/pagar/550e8400' },
   { key: 'due_date', label: 'Data de Vencimento', mock: '15/10/2024' },
 ];
 
@@ -74,7 +75,7 @@ const GlobalAutomation = () => {
       image_url: 'https://images.unsplash.com/photo-1554224155-1696413565d3?q=80&w=600',
       primary_button_text: 'Pagar Agora',
       mapping: ['customer_name'],
-      button_link_variable: 'payment_link',
+      button_link_variable: 'payment_id',
       is_active: true
     };
     setTriggers([...triggers, newTrigger]);
@@ -255,7 +256,7 @@ const GlobalAutomation = () => {
                         </Label>
                         <div className="flex items-center gap-1.5 text-zinc-500 text-[10px]">
                           <Info size={12} />
-                          Use {"{{1}}"}, {"{{2}}"}, etc no template da Meta
+                          Use {"{{1}}"}, {"{{2}}"}, etc no corpo do template
                         </div>
                       </div>
                       
@@ -310,9 +311,9 @@ const GlobalAutomation = () => {
                           />
                        </div>
                        <div className="flex-1 space-y-2">
-                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Variável do Link Dinâmico</Label>
+                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Variável do Botão (Sufixo da URL)</Label>
                           <Select 
-                            value={t.button_link_variable}
+                            value={t.button_link_variable || 'payment_id'}
                             onValueChange={(val) => updateTrigger(tIndex, 'button_link_variable', val)}
                           >
                             <SelectTrigger className="h-10 bg-zinc-950 border-zinc-800 text-xs">
@@ -320,10 +321,13 @@ const GlobalAutomation = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                               {SYSTEM_VARIABLES.map((sv) => (
-                                <SelectItem key={sv.key} value={sv.key}>{sv.label}</SelectItem>
+                                <SelectItem key={sv.sv_key || sv.key} value={sv.key}>{sv.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          <p className="text-[9px] text-orange-500/70 italic mt-1 flex items-center gap-1">
+                            <Info size={10} /> Recomendado: Código de Pagamento (ID)
+                          </p>
                        </div>
                     </div>
                   </div>
@@ -346,26 +350,11 @@ const GlobalAutomation = () => {
                         </div>
                       </div>
                     </div>
-                    {t.day_offset === -1 && (
-                      <div className="mt-6 flex items-center gap-2 text-orange-500 text-[10px] font-bold uppercase tracking-wider bg-orange-500/10 px-4 py-2 rounded-full border border-orange-500/20">
-                        <Zap size={12} /> Disparo Automático na Criação
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
           ))}
-
-          {triggers.length === 0 && (
-            <div className="pl-16 py-20 text-center">
-              <div className="w-16 h-16 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-600">
-                <AlertTriangle size={32} />
-              </div>
-              <h3 className="text-zinc-100 font-bold">Nenhuma regra configurada</h3>
-              <p className="text-zinc-500 text-sm mt-1">Clique em "Adicionar Gatilho" para começar sua régua.</p>
-            </div>
-          )}
         </div>
       </div>
     </AppLayout>

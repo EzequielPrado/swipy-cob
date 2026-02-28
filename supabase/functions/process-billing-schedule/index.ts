@@ -15,7 +15,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 1. Buscar as regras ativas (exceto a de criação imediata que tem offset -1)
     const { data: rules } = await supabaseClient
       .from('billing_rules')
       .select('*')
@@ -30,12 +29,9 @@ serve(async (req) => {
     let processedCount = 0;
 
     for (const rule of rules) {
-      // Cálculo do dia alvo: Se offset é 3, procuramos faturas que venceram há 3 dias
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
-
-      console.log(`[billing-schedule] Processando regra ${rule.label} para data: ${dateStr}`);
 
       const { data: charges } = await supabaseClient
         .from('charges')
@@ -47,22 +43,23 @@ serve(async (req) => {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
-            
-            // Geramos o link do checkout interno
-            // Usamos uma URL base (você deve configurar a secret APP_URL no Supabase)
             const appUrl = Deno.env.get('APP_URL') || 'https://seu-app.vercel.app';
             const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
+            // Mapeamento dinâmico baseado na regra
             const variables = rule.mapping.map((key: string) => {
               if (key === 'customer_name') return charge.customers.name;
               if (key === 'merchant_name') return merchantName;
               if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(charge.amount);
               if (key === 'due_date') return new Date(charge.due_date).toLocaleDateString('pt-BR');
+              if (key === 'payment_id') return charge.id;
               if (key === 'payment_link') return internalCheckoutUrl;
               return '---';
             });
 
-            // Disparar WhatsApp
+            // Determinar o valor do botão
+            const buttonVariable = rule.button_link_variable === 'payment_link' ? internalCheckoutUrl : charge.id;
+
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
               method: 'POST',
               headers: { 
@@ -75,11 +72,10 @@ serve(async (req) => {
                 language: rule.language || 'en',
                 imageUrl: rule.image_url,
                 variables: variables,
-                buttonVariable: charge.id // O link dinâmico costuma usar o ID no final
+                buttonVariable: buttonVariable
               })
             });
 
-            // Log de Notificação
             await supabaseClient.from('notification_logs').insert({
               charge_id: charge.id,
               type: 'whatsapp',
@@ -88,7 +84,6 @@ serve(async (req) => {
             });
 
             processedCount++;
-
           } catch (err) {
             console.error(`[billing-schedule] Erro na cobrança ${charge.id}:`, err.message);
           }

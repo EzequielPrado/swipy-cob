@@ -69,7 +69,6 @@ serve(async (req) => {
 
     if (chargeError) throw chargeError
 
-    // BUSCAR REGRA DE CRIAÇÃO (Offset -1)
     const { data: creationRule } = await supabaseClient
       .from('billing_rules')
       .select('*')
@@ -82,17 +81,18 @@ serve(async (req) => {
         const merchantName = profile.company || profile.full_name || "Nossa Empresa";
         const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
         
-        // Se houver imagem na regra, usa ela, senão gera QR Code temporário
-        const imageUrl = creationRule.image_url || `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
-
         const variables = creationRule.mapping.map((key: string) => {
           if (key === 'customer_name') return customer.name;
           if (key === 'merchant_name') return merchantName;
           if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount);
           if (key === 'due_date') return new Date(dueDate).toLocaleDateString('pt-BR');
+          if (key === 'payment_id') return charge.id;
           if (key === 'payment_link') return systemCheckoutUrl;
           return '---';
         });
+
+        // O sufixo do botão é determinado pela regra
+        const buttonVariable = creationRule.button_link_variable === 'payment_link' ? systemCheckoutUrl : charge.id;
 
         const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
           method: 'POST',
@@ -104,9 +104,9 @@ serve(async (req) => {
             to: customer.phone,
             templateName: creationRule.name,
             language: creationRule.language || 'en',
-            imageUrl: imageUrl,
+            imageUrl: creationRule.image_url,
             variables: variables,
-            buttonVariable: charge.id
+            buttonVariable: buttonVariable
           })
         });
 
@@ -116,7 +116,6 @@ serve(async (req) => {
           status: waRes.ok ? 'success' : 'error',
           message: waRes.ok ? 'WhatsApp de criação enviado' : 'Falha ao enviar WhatsApp de criação'
         });
-
       } catch (waErr) {
         console.error("Erro WA:", waErr.message);
       }
@@ -126,7 +125,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
-
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
