@@ -1,22 +1,21 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   Send, 
   Image as ImageIcon,
-  ExternalLink,
   Loader2,
-  CheckCircle2,
   Plus,
   Trash2,
   GripVertical,
   Layout,
   QrCode,
-  MousePointer2,
   Variable,
   Link as LinkIcon,
-  Globe
+  Globe,
+  Save,
+  ExternalLink
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,86 +29,73 @@ const SYSTEM_VARIABLES = [
   { key: 'merchant_name', label: 'Nome do Lojista', mock: 'Minha Loja Ltda' },
   { key: 'amount', label: 'Valor da Cobrança', mock: '149,90' },
   { key: 'payment_link', label: 'Link de Pagamento (URL)', mock: 'https://swipy.com/pay/123' },
-  { key: 'payment_link_suffix', label: 'Sufixo do Link (ID)', mock: '123456' },
   { key: 'due_date', label: 'Data de Vencimento', mock: '15/10/2024' },
-  { key: 'pix_code', label: 'Código PIX (Copia e Cola)', mock: '00020126580014BR.GOV.BCB.PIX...' },
 ];
 
 const GlobalAutomation = () => {
-  const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [triggers, setTriggers] = useState([
-    { 
-      id: 1, 
-      day: 'D0', 
-      name: 'boleto1', 
-      label: 'Cobrança Gerada (Imediato)', 
-      language: 'en', // Alterado de en_US para en
-      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nSeu pagamento de *R$ {{3}}*, está pendente.\nPara pagar via PIX, clique no botão abaixo ou escaneie o QR Code enviado.\n\nDúvidas? Fale com a gente.',
-      imageUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=800&q=80',
-      primaryBtn: '🔘 Pagar agora',
-      secondaryBtn: '📷 QR Code PIX',
-      mapping: ['customer_name', 'merchant_name', 'amount'],
-      buttonLinkVar: 'payment_link' 
-    },
-    { 
-      id: 2, 
-      day: 'D+3', 
-      name: 'lembrete_atraso_v1', 
-      label: 'Lembrete de Atraso (3 dias)', 
-      language: 'en', // Alterado para en
-      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nNotamos que seu pagamento de *R$ {{3}}* ainda não foi identificado.\n\nEvite suspensão de serviços clicando no botão abaixo.',
-      imageUrl: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80',
-      primaryBtn: '🔘 Pagar agora',
-      secondaryBtn: '📷 QR Code PIX',
-      mapping: ['customer_name', 'merchant_name', 'amount'],
-      buttonLinkVar: 'payment_link'
-    },
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [triggers, setTriggers] = useState<any[]>([]);
 
-  const addTrigger = () => {
-    const newId = triggers.length > 0 ? Math.max(...triggers.map(t => t.id)) + 1 : 1;
-    setTriggers([...triggers, {
-      id: newId,
-      day: 'D+1',
-      name: 'new_template',
-      label: 'Novo Gatilho',
-      language: 'en',
-      msg: 'Olá *{{1}}*...',
-      imageUrl: '',
-      primaryBtn: 'Ver Link',
-      secondaryBtn: 'Copiar PIX',
-      mapping: ['customer_name'],
-      buttonLinkVar: 'payment_link'
-    }]);
+  const fetchRules = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from('billing_rules').select('*').order('day_offset', { ascending: true });
+    if (!error && data) setTriggers(data);
+    setLoading(false);
   };
 
-  const removeTrigger = (id: number) => {
-    if (confirm("Remover este gatilho?")) {
-      setTriggers(triggers.filter(t => t.id !== id));
+  useEffect(() => {
+    fetchRules();
+  }, []);
+
+  const saveRules = async () => {
+    setSaving(true);
+    try {
+      // Deletamos as antigas e inserimos as novas para simplificar o "upsert" em lote
+      // Ou apenas atualizamos se você preferir. Aqui vamos salvar uma por uma ou usar upsert.
+      const { error } = await supabase.from('billing_rules').upsert(triggers);
+      if (error) throw error;
+      showSuccess("Régua de cobrança salva com sucesso!");
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const updateMapping = (triggerIndex: number, varIndex: number, value: string) => {
-    const newTriggers = [...triggers];
-    newTriggers[triggerIndex].mapping[varIndex] = value;
-    setTriggers(newTriggers);
+  const addTrigger = () => {
+    const newTrigger = {
+      name: 'novo_template',
+      label: 'Novo Gatilho',
+      day_offset: 0,
+      language: 'en',
+      message_text: 'Olá *{{1}}*...',
+      image_url: '',
+      primary_button_text: 'Pagar Agora',
+      mapping: ['customer_name'],
+      button_link_variable: 'payment_link',
+      is_active: true
+    };
+    setTriggers([...triggers, newTrigger]);
   };
 
-  const updateButtonVar = (triggerIndex: number, value: string) => {
+  const removeTrigger = async (id: string, index: number) => {
+    if (!confirm("Remover este gatilho?")) return;
+    
+    if (id) {
+      await supabase.from('billing_rules').delete().eq('id', id);
+    }
+    
     const newTriggers = [...triggers];
-    newTriggers[triggerIndex].buttonLinkVar = value;
+    newTriggers.splice(index, 1);
     setTriggers(newTriggers);
+    showSuccess("Gatilho removido.");
   };
 
-  const addVariableToMapping = (triggerIndex: number) => {
+  const updateTrigger = (index: number, field: string, value: any) => {
     const newTriggers = [...triggers];
-    newTriggers[triggerIndex].mapping.push('customer_name');
-    setTriggers(newTriggers);
-  };
-
-  const removeVariableFromMapping = (triggerIndex: number) => {
-    const newTriggers = [...triggers];
-    newTriggers[triggerIndex].mapping.pop();
+    newTriggers[index] = { ...newTriggers[index], [field]: value };
     setTriggers(newTriggers);
   };
 
@@ -117,14 +103,24 @@ const GlobalAutomation = () => {
     return SYSTEM_VARIABLES.find(v => v.key === key)?.mock || '---';
   };
 
+  const renderPreviewText = (text: string, mapping: any[]) => {
+    let preview = text || '';
+    if (!Array.isArray(mapping)) return preview;
+    mapping.forEach((key, index) => {
+      const mock = getMockValue(key);
+      preview = preview.replace(`{{${index + 1}}}`, mock);
+    });
+    return preview;
+  };
+
   const handleSendTest = async (trigger: any) => {
     const testPhone = prompt("Número para teste (com DDD):");
     if (!testPhone) return;
 
-    setLoadingId(trigger.id);
+    setLoadingId(trigger.id || 'test');
     try {
       const variablesToSend = trigger.mapping.map((key: string) => getMockValue(key));
-      const buttonVariableToSend = getMockValue(trigger.buttonLinkVar);
+      const buttonVariableToSend = getMockValue(trigger.button_link_variable);
 
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
@@ -135,17 +131,15 @@ const GlobalAutomation = () => {
         body: JSON.stringify({
           to: testPhone,
           templateName: trigger.name,
-          language: trigger.language || 'en', // Fallback para en
-          imageUrl: trigger.imageUrl,
+          language: trigger.language,
+          imageUrl: trigger.image_url,
           variables: variablesToSend,
           buttonVariable: buttonVariableToSend
         })
       });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(result));
-
-      showSuccess(`Teste enviado com sucesso! Idioma usado: ${trigger.language}`);
+      if (!response.ok) throw new Error("Erro ao enviar teste");
+      showSuccess("Teste enviado!");
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -153,14 +147,7 @@ const GlobalAutomation = () => {
     }
   };
 
-  const renderPreviewText = (text: string, mapping: string[]) => {
-    let preview = text;
-    mapping.forEach((key, index) => {
-      const mock = getMockValue(key);
-      preview = preview.replace(`{{${index + 1}}}`, mock);
-    });
-    return preview;
-  };
+  if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
 
   return (
     <AppLayout>
@@ -168,19 +155,29 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure o mapeamento para templates registrados como "English" (en) na Meta.</p>
+            <p className="text-zinc-400 mt-1">Configure as mensagens automáticas baseadas no vencimento.</p>
           </div>
-          <button 
-            onClick={addTrigger}
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
-          >
-            <Plus size={20} /> ADICIONAR GATILHO
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={saveRules}
+              disabled={saving}
+              className="bg-zinc-100 hover:bg-white text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+              SALVAR ALTERAÇÕES
+            </button>
+            <button 
+              onClick={addTrigger}
+              className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+            >
+              <Plus size={20} /> ADICIONAR GATILHO
+            </button>
+          </div>
         </div>
 
         <div className="space-y-12 relative before:absolute before:left-8 before:top-4 before:bottom-4 before:w-0.5 before:bg-zinc-800">
           {triggers.map((t, tIndex) => (
-            <div key={t.id} className="relative pl-16 group">
+            <div key={tIndex} className="relative pl-16 group">
               <div className="absolute left-0 top-0 w-16 h-16 flex items-center justify-center">
                 <div className="w-4 h-4 rounded-full bg-zinc-900 border-4 border-orange-500 z-10 shadow-[0_0_15px_rgba(249,115,22,0.3)]" />
               </div>
@@ -189,209 +186,150 @@ const GlobalAutomation = () => {
                 <div className="p-6 border-b border-zinc-800 bg-zinc-950/30 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <GripVertical className="text-zinc-700" size={20} />
-                    <div>
-                      <h3 className="font-bold text-zinc-100 flex items-center gap-2">
-                        {t.label}
-                        <span className="text-[10px] bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded border border-orange-500/20">{t.day}</span>
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Template Name:</p>
-                        <Input 
-                          value={t.name}
-                          onChange={(e) => {
-                            const newTriggers = [...triggers];
-                            newTriggers[tIndex].name = e.target.value;
-                            setTriggers(newTriggers);
-                          }}
-                          className="h-6 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400 focus:w-64 transition-all"
-                          placeholder="template_name"
-                        />
-                      </div>
+                    <div className="flex items-center gap-4">
+                       <div className="space-y-1">
+                          <Label className="text-[9px] uppercase text-zinc-500 font-bold">Dia (Offset)</Label>
+                          <Select 
+                            value={t.day_offset?.toString()} 
+                            onValueChange={(val) => updateTrigger(tIndex, 'day_offset', parseInt(val))}
+                          >
+                            <SelectTrigger className="h-8 w-24 bg-zinc-950 border-zinc-800 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                              <SelectItem value="0">D0 (Vence Hoje)</SelectItem>
+                              <SelectItem value="1">D+1 (1 dia após)</SelectItem>
+                              <SelectItem value="3">D+3 (3 dias após)</SelectItem>
+                              <SelectItem value="5">D+5 (5 dias após)</SelectItem>
+                              <SelectItem value="7">D+7 (1 semana)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                       </div>
+                       <div className="space-y-1">
+                          <Label className="text-[9px] uppercase text-zinc-500 font-bold">Nome do Template</Label>
+                          <Input 
+                            value={t.name}
+                            onChange={(e) => updateTrigger(tIndex, 'name', e.target.value)}
+                            className="h-8 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400"
+                          />
+                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1">
-                       <Globe size={12} className="text-zinc-500" />
-                       <Select 
-                          value={t.language} 
-                          onValueChange={(val) => {
-                            const newTriggers = [...triggers];
-                            newTriggers[tIndex].language = val;
-                            setTriggers(newTriggers);
-                          }}
-                        >
-                          <SelectTrigger className="h-5 w-24 bg-transparent border-none text-[10px] font-bold p-0 focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 min-w-[100px]">
-                            <SelectItem value="en">English (en)</SelectItem>
-                            <SelectItem value="en_US">English (en_US)</SelectItem>
-                            <SelectItem value="pt_BR">Português (pt_BR)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                    </div>
-
                     <button 
                       onClick={() => handleSendTest(t)}
                       disabled={loadingId === t.id}
-                      className="text-emerald-400 text-xs font-bold flex items-center gap-2 hover:bg-emerald-500/10 px-4 py-2 rounded-xl transition-all border border-emerald-500/20"
+                      className="text-emerald-400 text-xs font-bold flex items-center gap-2 hover:bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20"
                     >
                       {loadingId === t.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                      SEND TEST
+                      TESTE
                     </button>
-                    <button onClick={() => removeTrigger(t.id)} className="p-2.5 text-zinc-600 hover:text-red-400 transition-all">
+                    <button onClick={() => removeTrigger(t.id, tIndex)} className="p-2.5 text-zinc-600 hover:text-red-400 transition-all">
                       <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12">
-                  <div className="lg:col-span-7 p-8 space-y-8 border-r border-zinc-800">
-                    
-                    {/* Header Image Section */}
+                  <div className="lg:col-span-7 p-8 space-y-6 border-r border-zinc-800">
                     <div className="space-y-2">
                        <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
-                          <ImageIcon size={14} className="text-orange-500" />
-                          Header (Image URL)
+                          <ImageIcon size={14} className="text-orange-500" /> Imagem do Cabeçalho
                         </Label>
-                        <div className="flex gap-2">
-                          <Input 
-                            value={t.imageUrl}
-                            onChange={(e) => {
-                              const newTriggers = [...triggers];
-                              newTriggers[tIndex].imageUrl = e.target.value;
-                              setTriggers(newTriggers);
-                            }}
-                            className="bg-zinc-950 border-zinc-800 text-xs h-10 flex-1" 
-                            placeholder="https://example.com/image.jpg"
-                          />
-                        </div>
+                       <Input 
+                          value={t.image_url}
+                          onChange={(e) => updateTrigger(tIndex, 'image_url', e.target.value)}
+                          className="bg-zinc-950 border-zinc-800 text-xs h-10" 
+                          placeholder="URL da Imagem..."
+                        />
                     </div>
 
-                    {/* Body Mapping */}
                     <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
-                          <Variable size={14} className="text-orange-500" />
-                          Message Body (Variables Mapping)
-                        </Label>
-                        <div className="flex gap-2">
-                          <button onClick={() => removeVariableFromMapping(tIndex)} className="text-[10px] text-red-400 hover:underline" disabled={t.mapping.length === 0}>- Remove</button>
-                          <button onClick={() => addVariableToMapping(tIndex)} className="text-[10px] text-emerald-400 hover:underline">+ Add</button>
-                        </div>
-                      </div>
-                      
+                      <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
+                        <Variable size={14} className="text-orange-500" /> Variáveis da Mensagem
+                      </Label>
                       <div className="grid grid-cols-1 gap-3">
-                        {t.mapping.map((variableKey, vIndex) => (
+                        {t.mapping?.map((variableKey: string, vIndex: number) => (
                           <div key={vIndex} className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center text-xs font-mono text-zinc-400 shrink-0">
                               {`{{${vIndex + 1}}}`}
                             </div>
-                            <div className="flex-1">
-                              <Select 
-                                value={variableKey} 
-                                onValueChange={(val) => updateMapping(tIndex, vIndex, val)}
-                              >
-                                <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                                  {SYSTEM_VARIABLES.map((sv) => (
-                                    <SelectItem key={sv.key} value={sv.key}>
-                                      {sv.label} (Mock: {sv.mock})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <Textarea 
-                          value={t.msg}
-                          onChange={(e) => {
-                            const newTriggers = [...triggers];
-                            newTriggers[tIndex].msg = e.target.value;
-                            setTriggers(newTriggers);
-                          }}
-                          className="bg-zinc-950 border-zinc-800 text-xs min-h-[100px] leading-relaxed font-sans mt-3" 
-                        />
-                    </div>
-
-                    {/* Button Link Section */}
-                    <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
-                      <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
-                        <LinkIcon size={14} className="text-orange-500" />
-                        Call to Action (Dynamic Link)
-                      </Label>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Button Text</Label>
-                           <Input 
-                            value={t.primaryBtn}
-                            onChange={(e) => {
-                              const newTriggers = [...triggers];
-                              newTriggers[tIndex].primaryBtn = e.target.value;
-                              setTriggers(newTriggers);
-                            }}
-                            className="bg-zinc-950 border-zinc-800 text-xs h-10" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Link Variable</Label>
-                           <Select 
-                              value={t.buttonLinkVar} 
-                              onValueChange={(val) => updateButtonVar(tIndex, val)}
+                            <Select 
+                              value={variableKey} 
+                              onValueChange={(val) => {
+                                const newMapping = [...t.mapping];
+                                newMapping[vIndex] = val;
+                                updateTrigger(tIndex, 'mapping', newMapping);
+                              }}
                             >
-                              <SelectTrigger className="h-10 bg-zinc-950 border-zinc-800 text-xs">
+                              <SelectTrigger className="h-9 bg-zinc-900 border-zinc-800 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                                 {SYSTEM_VARIABLES.map((sv) => (
-                                  <SelectItem key={sv.key} value={sv.key}>
-                                    {sv.label}
-                                  </SelectItem>
+                                  <SelectItem key={sv.key} value={sv.key}>{sv.label}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                        </div>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => updateTrigger(tIndex, 'mapping', [...(t.mapping || []), 'customer_name'])}
+                          className="text-[10px] text-orange-500 font-bold hover:underline"
+                        >
+                          + ADICIONAR VARIÁVEL
+                        </button>
                       </div>
+                      <Textarea 
+                        value={t.message_text}
+                        onChange={(e) => updateTrigger(tIndex, 'message_text', e.target.value)}
+                        className="bg-zinc-950 border-zinc-800 text-xs min-h-[100px] mt-3" 
+                        placeholder="Texto da mensagem..."
+                      />
                     </div>
 
+                    <div className="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50 flex gap-4">
+                       <div className="flex-1 space-y-2">
+                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Texto do Botão</Label>
+                          <Input 
+                            value={t.primary_button_text}
+                            onChange={(e) => updateTrigger(tIndex, 'primary_button_text', e.target.value)}
+                            className="bg-zinc-950 border-zinc-800 text-xs h-10"
+                          />
+                       </div>
+                       <div className="flex-1 space-y-2">
+                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Variável do Link</Label>
+                          <Select 
+                            value={t.button_link_variable}
+                            onValueChange={(val) => updateTrigger(tIndex, 'button_link_variable', val)}
+                          >
+                            <SelectTrigger className="h-10 bg-zinc-950 border-zinc-800 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                              {SYSTEM_VARIABLES.map((sv) => (
+                                <SelectItem key={sv.key} value={sv.key}>{sv.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                       </div>
+                    </div>
                   </div>
 
-                  {/* Preview Mobile */}
-                  <div className="lg:col-span-5 bg-zinc-950 p-8 flex flex-col items-center justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 opacity-50" />
-                    
-                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-6 flex items-center gap-2 relative z-10">
-                      <Layout size={12} /> Smartphone Preview
-                    </p>
-                    
-                    <div className="w-full max-w-[280px] bg-[#0b141a] rounded-[2.5rem] border-[6px] border-[#1f2c33] p-1.5 shadow-2xl relative z-10">
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-[#1f2c33] rounded-b-xl z-20" />
-                      
-                      <div className="bg-[#0b141a] h-full rounded-[2rem] overflow-hidden p-4 pt-8 space-y-4">
-                        <div className="bg-[#1f2c33] rounded-2xl rounded-tl-none overflow-hidden shadow-lg border border-zinc-800/30">
-                          {t.imageUrl && <img src={t.imageUrl} alt="Header" className="w-full h-32 object-cover" />}
-                          <div className="p-3 space-y-2">
+                  {/* Preview */}
+                  <div className="lg:col-span-5 bg-zinc-950 p-8 flex flex-col items-center">
+                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-6">WhatsApp Preview</p>
+                    <div className="w-full max-w-[280px] bg-[#0b141a] rounded-3xl border-[6px] border-[#1f2c33] p-1.5 shadow-2xl">
+                      <div className="bg-[#0b141a] h-full rounded-[1.8rem] overflow-hidden p-3 pt-6 space-y-4">
+                        <div className="bg-[#1f2c33] rounded-2xl rounded-tl-none overflow-hidden border border-zinc-800/30">
+                          {t.image_url && <img src={t.image_url} alt="Header" className="w-full h-32 object-cover" />}
+                          <div className="p-3">
                             <p className="text-[12px] text-zinc-100 leading-relaxed whitespace-pre-wrap">
-                              {renderPreviewText(t.msg, t.mapping)}
+                              {renderPreviewText(t.message_text, t.mapping)}
                             </p>
-                            <p className="text-[9px] text-zinc-500 text-right">09:41</p>
                           </div>
-                          
-                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer group">
-                            <ExternalLink size={14} />
-                            {t.primaryBtn}
-                            <div className="hidden group-hover:block absolute bg-black text-white text-[9px] p-1 rounded -mt-8">
-                               Link: {getMockValue(t.buttonLinkVar)}
-                            </div>
-                          </div>
-                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer">
-                            <QrCode size={14} />
-                            {t.secondaryBtn}
+                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium">
+                            <ExternalLink size={14} /> {t.primary_button_text}
                           </div>
                         </div>
                       </div>
