@@ -36,7 +36,7 @@ const Login = () => {
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-6">
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20 text-xl">S</div>
-            <span className="text-2xl font-bold tracking-tight">swipy <span className="text-orange-500">cob</span></span>
+            <span className="text-2xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
           <h2 className="text-3xl font-bold tracking-tight">Bem-vindo de volta</h2>
           <p className="text-zinc-400 mt-2 text-sm">Acesse sua conta para gerenciar suas cobranças.</p>

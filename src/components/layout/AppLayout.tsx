@@ -33,7 +33,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
             <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20">S</div>
-            <span className="text-xl font-bold tracking-tight">swipy <span className="text-orange-500">cob</span></span>
+            <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
           
           <nav className="space-y-1">

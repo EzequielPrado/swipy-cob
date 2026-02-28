@@ -75,7 +75,7 @@ const Checkout = () => {
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950">S</div>
-            <span className="text-xl font-bold tracking-tight">swipy <span className="text-orange-500">cob</span></span>
+            <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
           <p className="text-zinc-500 text-sm">Ambiente de Pagamento Seguro</p>
         </div>
