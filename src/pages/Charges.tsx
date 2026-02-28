@@ -7,11 +7,13 @@ import { Search, Copy, Download, Share2, History, AlertTriangle, Loader2, Plus }
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import AddChargeModal from '@/components/charges/AddChargeModal';
 
 const Charges = () => {
   const navigate = useNavigate();
   const [charges, setCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchCharges = async () => {
     setLoading(true);
@@ -43,7 +45,10 @@ const Charges = () => {
             <h2 className="text-3xl font-bold tracking-tight">Cobranças</h2>
             <p className="text-zinc-400 mt-1">Gerencie faturas e acompanhe recebimentos reais da Woovi.</p>
           </div>
-          <button className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10"
+          >
             <Plus size={18} /> Nova Cobrança Avulsa
           </button>
         </div>
@@ -89,9 +94,10 @@ const Charges = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight",
-                          charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400" :
-                          charge.status === 'atrasado' ? "bg-red-500/10 text-red-400" : "bg-orange-500/10 text-orange-400"
+                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
+                          charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                          charge.status === 'atrasado' ? "bg-red-500/10 text-red-400 border-red-500/20" : 
+                          "bg-orange-500/10 text-orange-400 border-orange-500/20"
                         )}>
                           {charge.status}
                         </span>
@@ -99,11 +105,11 @@ const Charges = () => {
                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {charge.payment_link && (
-                            <button onClick={() => copyToClipboard(charge.payment_link)} title="Copiar Link" className="p-2 text-zinc-500 hover:text-orange-400 transition-colors">
+                            <button onClick={() => copyToClipboard(charge.payment_link)} title="Copiar Link de Pagamento" className="p-2 text-zinc-500 hover:text-orange-400 transition-colors">
                               <Copy size={16}/>
                             </button>
                           )}
-                          <button title="Enviar" className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"><Share2 size={16}/></button>
+                          <button title="Enviar via E-mail/WhatsApp" className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"><Share2 size={16}/></button>
                         </div>
                       </td>
                     </tr>
@@ -114,6 +120,12 @@ const Charges = () => {
           )}
         </div>
       </div>
+
+      <AddChargeModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={fetchCharges}
+      />
     </AppLayout>
   );
 };
