@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import StatCard from '@/components/dashboard/StatCard';
+import WithdrawModal from '@/components/dashboard/WithdrawModal';
 import { cn } from "@/lib/utils";
 import { 
   DollarSign, 
@@ -29,6 +30,7 @@ import {
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [stats, setStats] = useState({
     mrr: 0,
     activeSubs: 0,
@@ -45,7 +47,6 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Buscar Cobranças Reais
       const { data: charges } = await supabase
         .from('charges')
         .select('*, customers(name)')
@@ -59,14 +60,13 @@ const Dashboard = () => {
         const totalPaid = paid.reduce((acc, curr) => acc + Number(curr.amount), 0);
         const totalPending = pending.reduce((acc, curr) => acc + Number(curr.amount), 0);
         
-        // 2. Buscar Clientes Ativos
         const { count: activeCount } = await supabase
           .from('customers')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('status', 'em dia');
 
-        // 3. Buscar Saldo Woovi via Edge Function
+        // Busca saldo real via API Woovi
         const walletRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
           headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
         });
@@ -76,13 +76,12 @@ const Dashboard = () => {
           mrr: totalPaid,
           activeSubs: activeCount || 0,
           pendingAmount: totalPending,
-          churn: 0, // Cálculo de churn pode ser implementado depois
+          churn: 0,
           wooviBalance: walletData.balance ? walletData.balance / 100 : 0
         });
 
         setRecentCharges(charges.slice(0, 5));
 
-        // 4. Preparar dados do gráfico (últimos 6 meses simplificado)
         setChartData([
           { name: 'Jan', value: totalPaid * 0.7 },
           { name: 'Fev', value: totalPaid * 0.8 },
@@ -103,17 +102,11 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const handleWithdraw = () => {
-    showSuccess("Solicitação de saque enviada para processamento!");
-    // Aqui chamaria a action=withdraw da Edge Function
-  };
-
   if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        {/* Top Section: Welcome & Woovi Wallet */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
@@ -126,8 +119,8 @@ const Dashboard = () => {
                 <Wallet className="text-white" size={20} />
               </div>
               <button 
-                onClick={handleWithdraw}
-                className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5"
+                onClick={() => setIsWithdrawModalOpen(true)}
+                className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
               >
                 SOLICITAR SAQUE <ChevronRight size={12} />
               </button>
@@ -141,7 +134,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title="Faturamento (Mês)" 
@@ -168,7 +160,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Chart */}
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-8">
               <h3 className="font-semibold text-zinc-200">Evolução de Faturamento</h3>
@@ -199,7 +190,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Recent List */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h3 className="font-semibold text-zinc-200 mb-6 flex items-center justify-between">
               Últimas Atividades
@@ -237,6 +227,13 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      <WithdrawModal 
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        onSuccess={fetchDashboardData}
+        availableBalance={stats.wooviBalance}
+      />
     </AppLayout>
   );
 };
