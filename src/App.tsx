@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 import Dashboard from "./pages/Dashboard";
-import Plans from "./pages/Plans";
+import Subscriptions from "./pages/Subscriptions";
 import Customers from "./pages/Customers";
 import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
@@ -40,7 +40,7 @@ const App = () => (
             <Route path="/pagar/:id" element={<Checkout />} />
             
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/planos" element={<ProtectedRoute><Plans /></ProtectedRoute>} />
+            <Route path="/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} /> {/* Rota Atualizada */}
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
             <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />

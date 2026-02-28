@@ -6,13 +6,13 @@ import {
   CreditCard, 
   Users, 
   Receipt, 
-  Settings, 
   LogOut,
   Bell,
   UserCog,
   BarChart3,
   MessagesSquare,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCcw
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ import {
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Receipt, label: 'Cobranças', path: '/cobrancas' },
-  { icon: CreditCard, label: 'Planos', path: '/planos' },
+  { icon: RefreshCcw, label: 'Assinaturas', path: '/assinaturas' }, // Atualizado
   { icon: Users, label: 'Clientes', path: '/clientes' },
 ];
 
