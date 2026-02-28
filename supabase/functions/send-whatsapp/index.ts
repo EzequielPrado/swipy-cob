@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { to, templateName, variables, imageUrl } = await req.json()
+    const { to, templateName, variables, imageUrl, buttonVariable } = await req.json()
     
     const ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
     const PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
@@ -22,7 +22,7 @@ serve(async (req) => {
     // Montando os componentes do template
     const components = []
 
-    // Adiciona imagem no header se houver
+    // 1. Header (Imagem)
     if (imageUrl) {
       components.push({
         type: "header",
@@ -30,11 +30,25 @@ serve(async (req) => {
       })
     }
 
-    // Adiciona as variáveis do corpo (body)
-    components.push({
-      type: "body",
-      parameters: variables.map((val: string) => ({ type: "text", text: val }))
-    })
+    // 2. Body (Texto com variáveis)
+    if (variables && variables.length > 0) {
+      components.push({
+        type: "body",
+        parameters: variables.map((val: string) => ({ type: "text", text: String(val) }))
+      })
+    }
+
+    // 3. Botão (URL Dinâmica) - Geralmente o índice 0 é o primeiro botão
+    if (buttonVariable) {
+      components.push({
+        type: "button",
+        sub_type: "url",
+        index: 0, 
+        parameters: [
+          { type: "text", text: String(buttonVariable) } 
+        ]
+      })
+    }
 
     const response = await fetch(`https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
@@ -55,9 +69,12 @@ serve(async (req) => {
     })
 
     const result = await response.json()
-    if (!response.ok) throw new Error(result.error?.message || "Erro API Meta")
+    if (!response.ok) {
+      console.error("Erro Meta:", JSON.stringify(result));
+      throw new Error(result.error?.message || "Erro API Meta")
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, id: result.messages?.[0]?.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })

@@ -29,7 +29,8 @@ const SYSTEM_VARIABLES = [
   { key: 'customer_name', label: 'Nome do Cliente', mock: 'João Silva' },
   { key: 'merchant_name', label: 'Nome do Lojista', mock: 'Minha Loja Ltda' },
   { key: 'amount', label: 'Valor da Cobrança', mock: '149,90' },
-  { key: 'payment_link', label: 'Link de Pagamento', mock: 'https://swipy.com/pay/123' },
+  { key: 'payment_link', label: 'Link de Pagamento (URL)', mock: 'https://swipy.com/pay/123' },
+  { key: 'payment_link_suffix', label: 'Sufixo do Link (ID)', mock: '123456' },
   { key: 'due_date', label: 'Data de Vencimento', mock: '15/10/2024' },
   { key: 'pix_code', label: 'Código PIX (Copia e Cola)', mock: '00020126580014BR.GOV.BCB.PIX...' },
 ];
@@ -46,8 +47,10 @@ const GlobalAutomation = () => {
       imageUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=800&q=80',
       primaryBtn: '🔘 Pagar agora',
       secondaryBtn: '📷 QR Code PIX',
-      // Define a ordem das variáveis {{1}}, {{2}}, {{3}}
-      mapping: ['customer_name', 'merchant_name', 'amount']
+      // Mapeamento do corpo da mensagem
+      mapping: ['customer_name', 'merchant_name', 'amount'],
+      // Variável do botão (Link Dinâmico)
+      buttonLinkVar: 'payment_link' 
     },
     { 
       id: 2, 
@@ -58,7 +61,8 @@ const GlobalAutomation = () => {
       imageUrl: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80',
       primaryBtn: '🔘 Pagar agora',
       secondaryBtn: '📷 QR Code PIX',
-      mapping: ['customer_name', 'merchant_name', 'amount']
+      mapping: ['customer_name', 'merchant_name', 'amount'],
+      buttonLinkVar: 'payment_link'
     },
   ]);
 
@@ -73,7 +77,8 @@ const GlobalAutomation = () => {
       imageUrl: '',
       primaryBtn: 'Ver Link',
       secondaryBtn: 'Copiar PIX',
-      mapping: ['customer_name']
+      mapping: ['customer_name'],
+      buttonLinkVar: 'payment_link'
     }]);
   };
 
@@ -89,6 +94,12 @@ const GlobalAutomation = () => {
     setTriggers(newTriggers);
   };
 
+  const updateButtonVar = (triggerIndex: number, value: string) => {
+    const newTriggers = [...triggers];
+    newTriggers[triggerIndex].buttonLinkVar = value;
+    setTriggers(newTriggers);
+  };
+
   const addVariableToMapping = (triggerIndex: number) => {
     const newTriggers = [...triggers];
     newTriggers[triggerIndex].mapping.push('customer_name');
@@ -101,7 +112,6 @@ const GlobalAutomation = () => {
     setTriggers(newTriggers);
   };
 
-  // Função auxiliar para pegar o valor de exemplo (mock) baseado na chave selecionada
   const getMockValue = (key: string) => {
     return SYSTEM_VARIABLES.find(v => v.key === key)?.mock || '---';
   };
@@ -112,8 +122,8 @@ const GlobalAutomation = () => {
 
     setLoadingId(trigger.id);
     try {
-      // Monta o array de variáveis reais baseados na seleção do usuário
       const variablesToSend = trigger.mapping.map((key: string) => getMockValue(key));
+      const buttonVariableToSend = getMockValue(trigger.buttonLinkVar);
 
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
@@ -123,16 +133,17 @@ const GlobalAutomation = () => {
         },
         body: JSON.stringify({
           to: testPhone,
-          templateName: trigger.name, // Nome exato da Meta
+          templateName: trigger.name,
           imageUrl: trigger.imageUrl,
-          variables: variablesToSend // Array dinâmico ordenado
+          variables: variablesToSend,
+          buttonVariable: buttonVariableToSend
         })
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro no envio");
 
-      showSuccess(`Teste enviado para ${testPhone}! Variáveis: ${variablesToSend.join(', ')}`);
+      showSuccess(`Teste enviado! Variáveis: ${variablesToSend.join(', ')} | Link: ${buttonVariableToSend}`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -140,7 +151,6 @@ const GlobalAutomation = () => {
     }
   };
 
-  // Função para gerar o preview do texto substituindo {{1}} pelos valores mockados
   const renderPreviewText = (text: string, mapping: string[]) => {
     let preview = text;
     mapping.forEach((key, index) => {
@@ -156,7 +166,7 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure o mapeamento de dados para sincronizar com a Meta.</p>
+            <p className="text-zinc-400 mt-1">Configure imagens, links e variáveis para a Meta.</p>
           </div>
           <button 
             onClick={addTrigger}
@@ -213,15 +223,35 @@ const GlobalAutomation = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12">
-                  {/* Coluna de Configuração */}
                   <div className="lg:col-span-7 p-8 space-y-8 border-r border-zinc-800">
                     
-                    {/* Mapeamento de Variáveis */}
+                    {/* Header Image Section */}
+                    <div className="space-y-2">
+                       <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
+                          <ImageIcon size={14} className="text-orange-500" />
+                          Cabeçalho (Imagem)
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            value={t.imageUrl}
+                            onChange={(e) => {
+                              const newTriggers = [...triggers];
+                              newTriggers[tIndex].imageUrl = e.target.value;
+                              setTriggers(newTriggers);
+                            }}
+                            className="bg-zinc-950 border-zinc-800 text-xs h-10 flex-1" 
+                            placeholder="https://exemplo.com/imagem.jpg"
+                          />
+                        </div>
+                        <p className="text-[10px] text-zinc-600 italic">URL direta da imagem que aparecerá no topo da mensagem.</p>
+                    </div>
+
+                    {/* Body Mapping */}
                     <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
                       <div className="flex items-center justify-between">
                         <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
                           <Variable size={14} className="text-orange-500" />
-                          Mapeamento de Variáveis (Body)
+                          Corpo da Mensagem (Variáveis)
                         </Label>
                         <div className="flex gap-2">
                           <button onClick={() => removeVariableFromMapping(tIndex)} className="text-[10px] text-red-400 hover:underline" disabled={t.mapping.length === 0}>- Remover</button>
@@ -255,45 +285,28 @@ const GlobalAutomation = () => {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[10px] text-zinc-600 italic">
-                        Selecione qual dado do sistema substituirá cada variável numérica no texto do WhatsApp.
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-zinc-500 text-[10px] uppercase font-bold">URL da Imagem (Header)</Label>
-                        <div className="relative">
-                          <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
-                          <Input 
-                            value={t.imageUrl}
-                            onChange={(e) => {
-                              const newTriggers = [...triggers];
-                              newTriggers[tIndex].imageUrl = e.target.value;
-                              setTriggers(newTriggers);
-                            }}
-                            className="bg-zinc-950 border-zinc-800 pl-9 text-xs h-10" 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="text-zinc-500 text-[10px] uppercase font-bold">Corpo da Mensagem (Referência)</Label>
-                        <Textarea 
+                      <Textarea 
                           value={t.msg}
                           onChange={(e) => {
                             const newTriggers = [...triggers];
                             newTriggers[tIndex].msg = e.target.value;
                             setTriggers(newTriggers);
                           }}
-                          className="bg-zinc-950 border-zinc-800 text-xs min-h-[120px] leading-relaxed font-sans" 
+                          className="bg-zinc-950 border-zinc-800 text-xs min-h-[100px] leading-relaxed font-sans mt-3" 
                         />
-                      </div>
+                    </div>
+
+                    {/* Button Link Section */}
+                    <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
+                      <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
+                        <LinkIcon size={14} className="text-orange-500" />
+                        Botão de Ação (Link Dinâmico)
+                      </Label>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-zinc-500 text-[10px] uppercase font-bold">Botão Principal</Label>
-                          <Input 
+                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Texto do Botão</Label>
+                           <Input 
                             value={t.primaryBtn}
                             onChange={(e) => {
                               const newTriggers = [...triggers];
@@ -304,19 +317,29 @@ const GlobalAutomation = () => {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-zinc-500 text-[10px] uppercase font-bold">Botão Secundário</Label>
-                          <Input 
-                            value={t.secondaryBtn}
-                            onChange={(e) => {
-                              const newTriggers = [...triggers];
-                              newTriggers[tIndex].secondaryBtn = e.target.value;
-                              setTriggers(newTriggers);
-                            }}
-                            className="bg-zinc-950 border-zinc-800 text-xs h-10" 
-                          />
+                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Variável do Link</Label>
+                           <Select 
+                              value={t.buttonLinkVar} 
+                              onValueChange={(val) => updateButtonVar(tIndex, val)}
+                            >
+                              <SelectTrigger className="h-10 bg-zinc-950 border-zinc-800 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                                {SYSTEM_VARIABLES.map((sv) => (
+                                  <SelectItem key={sv.key} value={sv.key}>
+                                    {sv.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                         </div>
                       </div>
+                      <p className="text-[10px] text-zinc-600 italic">
+                        A variável selecionada será anexada ao final da URL do botão configurado na Meta (ou substituirá a URL inteira, dependendo da configuração do template).
+                      </p>
                     </div>
+
                   </div>
 
                   {/* Preview Mobile */}
@@ -334,16 +357,19 @@ const GlobalAutomation = () => {
                         <div className="bg-[#1f2c33] rounded-2xl rounded-tl-none overflow-hidden shadow-lg border border-zinc-800/30">
                           {t.imageUrl && <img src={t.imageUrl} alt="Header" className="w-full h-32 object-cover" />}
                           <div className="p-3 space-y-2">
-                            {/* Renderização Inteligente do Preview substituindo variáveis */}
                             <p className="text-[12px] text-zinc-100 leading-relaxed whitespace-pre-wrap">
                               {renderPreviewText(t.msg, t.mapping)}
                             </p>
                             <p className="text-[9px] text-zinc-500 text-right">09:41</p>
                           </div>
                           
-                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer">
-                            <MousePointer2 size={14} />
+                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer group">
+                            <ExternalLink size={14} />
                             {t.primaryBtn}
+                            {/* Tooltip simulado do link */}
+                            <div className="hidden group-hover:block absolute bg-black text-white text-[9px] p-1 rounded -mt-8">
+                               Link: {getMockValue(t.buttonLinkVar)}
+                            </div>
                           </div>
                           <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer">
                             <QrCode size={14} />
@@ -351,17 +377,6 @@ const GlobalAutomation = () => {
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="mt-8 text-center relative z-10">
-                       <p className="text-[10px] text-zinc-600 mb-2">Simulação de dados:</p>
-                       <div className="flex flex-wrap justify-center gap-2">
-                         {t.mapping.map((m, i) => (
-                           <span key={i} className="text-[9px] bg-zinc-900 border border-zinc-800 px-2 py-1 rounded text-zinc-400">
-                             {`{{${i+1}}}`} = <span className="text-emerald-500">{getMockValue(m)}</span>
-                           </span>
-                         ))}
-                       </div>
                     </div>
                   </div>
                 </div>
