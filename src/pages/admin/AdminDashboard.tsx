@@ -12,18 +12,12 @@ import {
   Loader2, 
   Building2,
   TrendingUp,
-  Search
+  Play,
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
-} from 'recharts';
+import { showError, showSuccess } from '@/utils/toast';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -34,6 +28,7 @@ const AdminDashboard = () => {
   });
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   const fetchGlobalData = async () => {
     setLoading(true);
@@ -73,14 +68,61 @@ const AdminDashboard = () => {
     fetchGlobalData();
   }, []);
 
+  const handleForceProcess = async () => {
+    if (!confirm("Isso irá gerar cobranças para todas as assinaturas agendadas para HOJE. Deseja continuar?")) return;
+    
+    setProcessing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/process-recurring-charges`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({})
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) throw new Error(result.error || "Erro ao processar");
+
+      showSuccess(`Processamento concluído! ${result.results?.length || 0} assinaturas verificadas.`);
+      fetchGlobalData(); // Atualiza a lista de cobranças recentes
+    } catch (err: any) {
+      showError("Erro no processamento: " + err.message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h2>
-          <p className="text-zinc-400 mt-1">Monitoramento global de faturamento e engajamento dos parceiros.</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h2>
+            <p className="text-zinc-400 mt-1">Monitoramento global de faturamento e engajamento dos parceiros.</p>
+          </div>
+          
+          {/* Seção de Controles Manuais */}
+          <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Rotinas do Sistema</p>
+              <p className="text-xs text-zinc-400">Processamento de assinaturas</p>
+            </div>
+            <button 
+              onClick={handleForceProcess}
+              disabled={processing}
+              className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10 text-sm"
+            >
+              {processing ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
+              EXECUTAR AGORA
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -108,13 +150,14 @@ const AdminDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main List of All System Charges */}
           <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
             <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
               <h3 className="font-bold text-zinc-100 flex items-center gap-2">
                 <TrendingUp size={18} className="text-orange-500" /> Fluxo de Caixa Global
               </h3>
-              <div className="text-xs text-zinc-500">Últimas 10 movimentações em tempo real</div>
+              <button onClick={fetchGlobalData} className="text-zinc-500 hover:text-zinc-100 transition-colors">
+                <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+              </button>
             </div>
             
             <table className="w-full text-left">
@@ -128,35 +171,41 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800">
-                {recentCharges.map((charge) => (
-                  <tr key={charge.id} className="hover:bg-zinc-800/20 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Building2 size={14} className="text-zinc-600" />
-                        <span className="text-sm font-medium text-zinc-200">
-                          {charge.profiles?.company || charge.profiles?.full_name || 'Usuário'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-mono text-sm font-bold text-zinc-100">
-                      R$ {Number(charge.amount).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-xs text-zinc-500">
-                      {new Date(charge.created_at).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tight border",
-                        charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                      )}>
-                        {charge.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-[10px] text-zinc-600 font-mono">{charge.woovi_id || '---'}</span>
-                    </td>
+                {recentCharges.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-10 text-center text-zinc-500 italic text-sm">Nenhuma movimentação registrada.</td>
                   </tr>
-                ))}
+                ) : (
+                  recentCharges.map((charge) => (
+                    <tr key={charge.id} className="hover:bg-zinc-800/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Building2 size={14} className="text-zinc-600" />
+                          <span className="text-sm font-medium text-zinc-200">
+                            {charge.profiles?.company || charge.profiles?.full_name || 'Usuário'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 font-mono text-sm font-bold text-zinc-100">
+                        R$ {Number(charge.amount).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-zinc-500">
+                        {new Date(charge.created_at).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tight border",
+                          charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                        )}>
+                          {charge.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-[10px] text-zinc-600 font-mono">{charge.woovi_id || '---'}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
