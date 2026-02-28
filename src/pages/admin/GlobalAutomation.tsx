@@ -14,8 +14,7 @@ import {
   ExternalLink,
   Info,
   Zap,
-  Clock,
-  AlertTriangle
+  Clock
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,10 +53,13 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      // Limpa os triggers para não enviar IDs nulos ou vazios
+      // Remove campos nulos ou IDs vazios antes de enviar
       const formattedTriggers = triggers.map(t => {
-        const cleaned = { ...t };
-        if (!cleaned.id) delete cleaned.id;
+        const cleaned: any = { ...t };
+        // Se o ID for falso (null, undefined, ou string vazia), removemos para o banco gerar um novo
+        if (!cleaned.id || cleaned.id === "") {
+          delete cleaned.id;
+        }
         return cleaned;
       });
 
