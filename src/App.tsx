@@ -16,13 +16,12 @@ import Register from "./pages/Register";
 import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
 import UserManagement from "./pages/admin/UserManagement";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { session, loading } = useAuth();
-  // Nota: Para verificar adminOnly, em um app real precisaríamos do perfil aqui também.
-  // Por simplicidade neste MVP, o layout já oculta o acesso visual.
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -50,7 +49,8 @@ const App = () => (
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ROTAS ADMIN */}
-            <Route path="/admin" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/usuarios" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />

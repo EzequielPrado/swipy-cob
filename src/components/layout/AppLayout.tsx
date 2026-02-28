@@ -11,7 +11,8 @@ import {
   LogOut,
   Bell,
   ShieldCheck,
-  UserCog
+  UserCog,
+  BarChart3
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ const menuItems = [
 ];
 
 const adminItems = [
-  { icon: ShieldCheck, label: 'Painel Admin', path: '/admin' },
+  { icon: BarChart3, label: 'Visão Global', path: '/admin/dashboard' },
   { icon: UserCog, label: 'Gerenciar Usuários', path: '/admin/usuarios' },
 ];
 
