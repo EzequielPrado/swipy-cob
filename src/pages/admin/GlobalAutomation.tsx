@@ -53,15 +53,27 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      // Remove campos nulos ou IDs vazios antes de enviar
+      // Limpeza agressiva: Se não tem ID válido, a chave 'id' é COMPLETAMENTE REMOVIDA do objeto
       const formattedTriggers = triggers.map(t => {
-        const cleaned: any = { ...t };
-        // Se o ID for falso (null, undefined, ou string vazia), removemos para o banco gerar um novo
-        if (!cleaned.id || cleaned.id === "") {
-          delete cleaned.id;
+        // Criamos um novo objeto apenas com o que é necessário
+        const { id, created_at, ...rest } = t;
+        
+        const item: any = { ...rest };
+        
+        // Só incluímos o ID se ele for um UUID válido (não vazio/nulo)
+        if (id && id.length > 10) {
+          item.id = id;
         }
-        return cleaned;
+
+        // Garantir valores padrão para campos obrigatórios
+        if (!item.name) item.name = 'template_sem_nome';
+        if (!item.label) item.label = 'Gatilho sem Rótulo';
+        if (item.day_offset === undefined) item.day_offset = 0;
+
+        return item;
       });
+
+      console.log("[GlobalAutomation] Payload sendo enviado:", formattedTriggers);
 
       const { error } = await supabase.from('billing_rules').upsert(formattedTriggers);
       if (error) throw error;
@@ -69,7 +81,8 @@ const GlobalAutomation = () => {
       showSuccess("Régua de cobrança salva com sucesso!");
       fetchRules();
     } catch (err: any) {
-      showError(err.message);
+      console.error("[GlobalAutomation] Erro ao salvar:", err);
+      showError(err.message || "Erro ao salvar as regras no banco.");
     } finally {
       setSaving(false);
     }
@@ -87,6 +100,7 @@ const GlobalAutomation = () => {
       mapping: ['customer_name'],
       button_link_variable: 'payment_id',
       is_active: true
+      // Note que não definimos a chave 'id' aqui
     };
     setTriggers([...triggers, newTrigger]);
   };
@@ -190,7 +204,7 @@ const GlobalAutomation = () => {
 
         <div className="space-y-12 relative before:absolute before:left-8 before:top-4 before:bottom-4 before:w-0.5 before:bg-zinc-800">
           {triggers.map((t, tIndex) => (
-            <div key={tIndex} className="relative pl-16 group">
+            <div key={t.id || `new-${tIndex}`} className="relative pl-16 group">
               <div className="absolute left-0 top-0 w-16 h-16 flex items-center justify-center">
                 <div className={cn(
                   "w-4 h-4 rounded-full border-4 z-10 shadow-lg",
