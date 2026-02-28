@@ -11,13 +11,14 @@ import {
   AlertCircle, 
   RefreshCcw, 
   Landmark, 
-  CreditCard as CardIcon, 
   Loader2,
   QrCode,
   ExternalLink,
   FileText,
   Mail,
-  Copy
+  Copy,
+  Calendar,
+  DollarSign
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
@@ -89,24 +90,11 @@ const ChargeDetail = () => {
         body: JSON.stringify({
           to: charge.customers.email,
           subject: `Fatura disponível: ${charge.customers.name}`,
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-              <h2 style="color: #f97316;">Sua fatura está disponível</h2>
-              <p>Olá, <strong>${charge.customers.name}</strong>,</p>
-              <p>Uma nova cobrança no valor de <strong>R$ ${charge.amount.toFixed(2)}</strong> foi gerada.</p>
-              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #64748b;">Vencimento: ${new Date(charge.due_date).toLocaleDateString('pt-BR')}</p>
-                <p style="margin: 10px 0 0 0; font-size: 20px; font-weight: bold;">R$ ${charge.amount.toFixed(2)}</p>
-              </div>
-              <p>Para realizar o pagamento via PIX ou Boleto, acesse o link abaixo:</p>
-              <a href="${internalPaymentLink}" style="display: inline-block; background: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Pagar na Swipy Cob</a>
-              <p style="font-size: 12px; color: #94a3b8; margin-top: 30px;">ID da Cobrança: ${charge.woovi_id}</p>
-            </div>
-          `
+          html: `<h1>Olá, ${charge.customers.name}</h1><p>Sua fatura de R$ ${charge.amount.toFixed(2)} está disponível.</p><a href="${internalPaymentLink}">Pagar Agora</a>`
         })
       });
 
-      if (!response.ok) throw new Error("Erro ao reenviar e-mail");
+      if (!response.ok) throw new Error("Erro ao enviar e-mail");
       showSuccess("E-mail reenviado com sucesso!");
     } catch (err: any) {
       showError(err.message);
@@ -120,97 +108,144 @@ const ChargeDetail = () => {
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 print:p-0">
-        <div className="flex items-center gap-4 print:hidden">
-          <Link to="/cobrancas" className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 transition-colors">
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Detalhes da Fatura</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-zinc-500 text-sm">ID: <span className="text-zinc-300 font-mono text-xs uppercase">{charge.woovi_id || charge.id.slice(0, 8)}</span></span>
-              <span className="w-1 h-1 bg-zinc-700 rounded-full"></span>
-              <span className={cn(
-                "text-xs font-bold uppercase tracking-wider",
-                charge.status === 'pago' ? "text-emerald-400" : 
-                charge.status === 'atrasado' ? "text-red-400" : "text-orange-400"
-              )}>
-                {charge.status}
-              </span>
+        <div className="flex items-center justify-between print:hidden">
+          <div className="flex items-center gap-4">
+            <Link to="/cobrancas" className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 transition-colors">
+              <ArrowLeft size={20} />
+            </Link>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Gestão da Cobrança</h2>
+              <p className="text-xs text-zinc-500 mt-1 uppercase font-mono">{charge.woovi_id || charge.id}</p>
             </div>
+          </div>
+          <div className={cn(
+            "px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border",
+            charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+          )}>
+            {charge.status}
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl">
-              <div className="flex justify-between border-b border-zinc-800 pb-8 mb-8">
-                <div>
-                  <p className="text-zinc-500 text-sm mb-1 uppercase tracking-widest font-bold">Valor Total</p>
-                  <h3 className="text-4xl font-bold text-orange-400">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
-                  </h3>
+            {/* Resumo da Fatura */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <DollarSign size={120} />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-1">Valor da Cobrança</p>
+                    <h3 className="text-4xl font-bold text-zinc-100">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div>
+                      <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Vencimento</p>
+                      <p className="text-sm font-semibold text-zinc-300 flex items-center gap-2">
+                        <Calendar size={14} className="text-orange-500" />
+                        {new Date(charge.due_date).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Método</p>
+                      <p className="text-sm font-semibold text-zinc-300 uppercase">{charge.method}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-zinc-500 text-sm mb-1 uppercase tracking-widest font-bold">Vencimento</p>
-                  <p className="text-xl font-semibold text-zinc-100">
-                    {new Date(charge.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                  </p>
+
+                <div className="bg-zinc-950/50 border border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+                  {charge.pix_qr_image_base64 ? (
+                    <img src={charge.pix_qr_image_base64} alt="QR Code" className="w-32 h-32 mb-4 bg-white p-2 rounded-lg" />
+                  ) : (
+                    <QrCode size={48} className="text-zinc-800 mb-4" />
+                  )}
+                  <p className="text-xs font-bold text-zinc-400 mb-4">Link de Pagamento Ativo</p>
+                  <button onClick={copyLink} className="w-full flex items-center justify-center gap-2 bg-orange-500 text-zinc-950 text-[10px] font-bold py-2.5 rounded-lg hover:bg-orange-600 transition-all">
+                    COPIAR LINK <Copy size={12} />
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-[0.2em] mb-6">Dados do Pagador</h4>
-                  <div className="space-y-4">
-                    <div><p className="text-xs text-zinc-600 font-bold uppercase">Nome</p><p className="text-sm font-medium text-zinc-200">{charge.customers.name}</p></div>
-                    <div><p className="text-xs text-zinc-600 font-bold uppercase">E-mail</p><p className="text-sm font-medium text-zinc-200">{charge.customers.email}</p></div>
-                    <div><p className="text-xs text-zinc-600 font-bold uppercase">CPF/CNPJ</p><p className="text-sm font-medium text-zinc-200 font-mono">{charge.customers.tax_id}</p></div>
+            {/* Timeline / Histórico */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
+              <h3 className="font-bold text-zinc-200 mb-8 flex items-center gap-2 text-sm uppercase tracking-widest">
+                <RefreshCcw size={16} className="text-orange-500" /> Histórico de Atualizações
+              </h3>
+              
+              <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-zinc-800">
+                {/* Evento: Criação */}
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                    <Clock size={16} />
+                  </div>
+                  <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-zinc-800 bg-zinc-950/30">
+                    <div className="flex items-center justify-between space-x-2 mb-1">
+                      <div className="font-bold text-zinc-200 text-sm">Cobrança Criada</div>
+                      <time className="font-mono text-[10px] text-zinc-500">{new Date(charge.created_at).toLocaleString('pt-BR')}</time>
+                    </div>
+                    <div className="text-zinc-500 text-xs text-left">Fatura gerada via sistema para {charge.customers.name}.</div>
                   </div>
                 </div>
 
-                <div className="bg-zinc-950/50 rounded-2xl p-6 border border-zinc-800 flex flex-col items-center justify-center text-center gap-4">
-                  <QrCode size={48} className="text-zinc-700" />
-                  <div>
-                    <p className="text-sm font-bold text-zinc-300">Link de Pagamento Próprio</p>
-                    <p className="text-xs text-zinc-500 mt-1">Seu cliente pagará através da interface Swipy.</p>
+                {/* Evento: Pagamento (se houver) */}
+                {charge.status === 'pago' && (
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5">
+                      <div className="flex items-center justify-between space-x-2 mb-1">
+                        <div className="font-bold text-emerald-400 text-sm">Pagamento Confirmado</div>
+                        <time className="font-mono text-[10px] text-emerald-500/50">Concluído</time>
+                      </div>
+                      <div className="text-emerald-500/60 text-xs text-left">O valor foi identificado e a fatura liquidada.</div>
+                    </div>
                   </div>
-                  <div className="flex flex-col w-full gap-2">
-                    <button 
-                      onClick={copyLink}
-                      className="w-full flex items-center justify-center gap-2 bg-orange-500 text-zinc-950 text-xs font-bold py-3 rounded-xl hover:bg-orange-600 transition-all"
-                    >
-                      Copiar Link Swipy <Copy size={14} />
-                    </button>
-                    <a 
-                      href={internalPaymentLink} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="text-[10px] text-zinc-500 hover:underline flex items-center justify-center gap-1"
-                    >
-                      Visualizar página <ExternalLink size={10} />
-                    </a>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="space-y-6 print:hidden">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h3 className="font-bold text-zinc-200 mb-6 text-xs uppercase tracking-widest">Ações Administrativas</h3>
+              <h3 className="font-bold text-zinc-200 mb-6 text-xs uppercase tracking-widest">Painel Administrativo</h3>
               <div className="space-y-3">
-                <button onClick={handleResendEmail} disabled={!!actionLoading} className="w-full flex items-center justify-between p-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-all group">
+                <button onClick={handleResendEmail} disabled={!!actionLoading} className="w-full flex items-center justify-between p-3.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 rounded-xl transition-all border border-zinc-700/50">
                   <div className="flex items-center gap-3">
-                    {actionLoading === 'email' ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} className="text-zinc-500 group-hover:text-orange-400" />}
-                    <span className="text-sm font-semibold">Reenviar E-mail</span>
+                    {actionLoading === 'email' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} className="text-zinc-500" />}
+                    <span className="text-sm font-semibold">Notificar Cliente</span>
                   </div>
                 </button>
-
-                <div className="pt-3 mt-3 border-t border-zinc-800">
-                  <button onClick={handleMarkAsPaid} disabled={charge.status === 'pago' || !!actionLoading} className={cn("w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all shadow-lg", charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-orange-500 text-zinc-950 hover:bg-orange-600")}>
-                    {actionLoading === 'paid' ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
-                    {charge.status === 'pago' ? "Cobrança já paga" : "Marcar como Pago"}
+                <button onClick={() => window.print()} className="w-full flex items-center justify-between p-3.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 rounded-xl transition-all border border-zinc-700/50">
+                  <div className="flex items-center gap-3">
+                    <FileText size={16} className="text-zinc-500" />
+                    <span className="text-sm font-semibold">Exportar PDF</span>
+                  </div>
+                </button>
+                <div className="pt-4 mt-4 border-t border-zinc-800">
+                  <button onClick={handleMarkAsPaid} disabled={charge.status === 'pago' || !!actionLoading} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2", charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-orange-500 text-zinc-950 hover:bg-orange-600 shadow-lg shadow-orange-500/10")}>
+                    {actionLoading === 'paid' ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                    {charge.status === 'pago' ? "Cobrança Paga" : "Confirmar Recebimento"}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Dados do Cliente</h4>
+              <div className="space-y-3">
+                <div className="text-xs">
+                  <span className="text-zinc-600 block mb-0.5">Nome/Razão</span>
+                  <span className="text-zinc-200 font-medium">{charge.customers.name}</span>
+                </div>
+                <div className="text-xs">
+                  <span className="text-zinc-600 block mb-0.5">E-mail</span>
+                  <span className="text-zinc-200 font-medium">{charge.customers.email}</span>
                 </div>
               </div>
             </div>
