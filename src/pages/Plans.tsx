@@ -2,6 +2,7 @@
 
 import React from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import { cn } from "@/lib/utils";
 import { Plus, Search, MoreVertical, Edit3, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 

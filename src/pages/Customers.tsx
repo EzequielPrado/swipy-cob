@@ -2,6 +2,7 @@
 
 import React from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import { cn } from "@/lib/utils";
 import { Search, Filter, MoreHorizontal, UserX, Mail, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 

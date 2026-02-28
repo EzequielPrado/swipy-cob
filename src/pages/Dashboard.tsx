@@ -3,6 +3,7 @@
 import React from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import StatCard from '@/components/dashboard/StatCard';
+import { cn } from "@/lib/utils";
 import { DollarSign, UserCheck, AlertCircle, BarChart3, TrendingUp } from 'lucide-react';
 import { 
   BarChart, 
