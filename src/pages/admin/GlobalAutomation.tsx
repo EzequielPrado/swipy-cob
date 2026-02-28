@@ -41,10 +41,10 @@ const GlobalAutomation = () => {
     { 
       id: 1, 
       day: 'D0', 
-      name: 'cobranca_gerada_v1', 
+      name: 'boleto1', 
       label: 'Cobrança Gerada (Imediato)', 
       language: 'en_US',
-      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nYour payment of *R$ {{3}}* is pending.\nTo pay via PIX, click the button below or scan the QR Code sent.\n\nQuestions? Talk to us.',
+      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nYour payment of *R$ {{3}}* is pending.\nTo pay via PIX, click the button below.\n\nQuestions? Talk to us.',
       imageUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=800&q=80',
       primaryBtn: '🔘 Pay Now',
       secondaryBtn: '📷 QR Code PIX',
@@ -71,7 +71,7 @@ const GlobalAutomation = () => {
     setTriggers([...triggers, {
       id: newId,
       day: 'D+1',
-      name: 'new_template_meta',
+      name: 'new_template',
       label: 'Novo Gatilho',
       language: 'en_US',
       msg: 'Hello *{{1}}*...',
@@ -143,9 +143,9 @@ const GlobalAutomation = () => {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro no envio");
+      if (!response.ok) throw new Error(JSON.stringify(result));
 
-      showSuccess(`Teste enviado! Idioma: ${trigger.language}`);
+      showSuccess(`Teste enviado com sucesso (Idioma: ${trigger.language})!`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -168,7 +168,7 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure o mapeamento de dados para sincronizar com a Meta.</p>
+            <p className="text-zinc-400 mt-1">Configure o mapeamento de dados para templates em Inglês na Meta.</p>
           </div>
           <button 
             onClick={addTrigger}
@@ -195,7 +195,7 @@ const GlobalAutomation = () => {
                         <span className="text-[10px] bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded border border-orange-500/20">{t.day}</span>
                       </h3>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Template:</p>
+                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Template Name:</p>
                         <Input 
                           value={t.name}
                           onChange={(e) => {
@@ -204,7 +204,7 @@ const GlobalAutomation = () => {
                             setTriggers(newTriggers);
                           }}
                           className="h-6 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400 focus:w-64 transition-all"
-                          placeholder="nome_do_template"
+                          placeholder="template_name"
                         />
                       </div>
                     </div>
@@ -220,13 +220,13 @@ const GlobalAutomation = () => {
                             setTriggers(newTriggers);
                           }}
                         >
-                          <SelectTrigger className="h-5 w-20 bg-transparent border-none text-[10px] font-bold p-0 focus:ring-0">
+                          <SelectTrigger className="h-5 w-24 bg-transparent border-none text-[10px] font-bold p-0 focus:ring-0">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 min-w-[100px]">
                             <SelectItem value="en_US">English (US)</SelectItem>
+                            <SelectItem value="en">English (Generic)</SelectItem>
                             <SelectItem value="pt_BR">Português (BR)</SelectItem>
-                            <SelectItem value="es">Español</SelectItem>
                           </SelectContent>
                         </Select>
                     </div>
@@ -237,7 +237,7 @@ const GlobalAutomation = () => {
                       className="text-emerald-400 text-xs font-bold flex items-center gap-2 hover:bg-emerald-500/10 px-4 py-2 rounded-xl transition-all border border-emerald-500/20"
                     >
                       {loadingId === t.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                      TESTAR ENVIO
+                      SEND TEST
                     </button>
                     <button onClick={() => removeTrigger(t.id)} className="p-2.5 text-zinc-600 hover:text-red-400 transition-all">
                       <Trash2 size={18} />
@@ -252,7 +252,7 @@ const GlobalAutomation = () => {
                     <div className="space-y-2">
                        <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
                           <ImageIcon size={14} className="text-orange-500" />
-                          Cabeçalho (Imagem)
+                          Header (Image URL)
                         </Label>
                         <div className="flex gap-2">
                           <Input 
@@ -263,10 +263,9 @@ const GlobalAutomation = () => {
                               setTriggers(newTriggers);
                             }}
                             className="bg-zinc-950 border-zinc-800 text-xs h-10 flex-1" 
-                            placeholder="https://exemplo.com/imagem.jpg"
+                            placeholder="https://example.com/image.jpg"
                           />
                         </div>
-                        <p className="text-[10px] text-zinc-600 italic">URL direta da imagem que aparecerá no topo da mensagem.</p>
                     </div>
 
                     {/* Body Mapping */}
@@ -274,11 +273,11 @@ const GlobalAutomation = () => {
                       <div className="flex items-center justify-between">
                         <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
                           <Variable size={14} className="text-orange-500" />
-                          Corpo da Mensagem (Variáveis)
+                          Message Body (Variables Mapping)
                         </Label>
                         <div className="flex gap-2">
-                          <button onClick={() => removeVariableFromMapping(tIndex)} className="text-[10px] text-red-400 hover:underline" disabled={t.mapping.length === 0}>- Remover</button>
-                          <button onClick={() => addVariableToMapping(tIndex)} className="text-[10px] text-emerald-400 hover:underline">+ Adicionar</button>
+                          <button onClick={() => removeVariableFromMapping(tIndex)} className="text-[10px] text-red-400 hover:underline" disabled={t.mapping.length === 0}>- Remove</button>
+                          <button onClick={() => addVariableToMapping(tIndex)} className="text-[10px] text-emerald-400 hover:underline">+ Add</button>
                         </div>
                       </div>
                       
@@ -299,7 +298,7 @@ const GlobalAutomation = () => {
                                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                                   {SYSTEM_VARIABLES.map((sv) => (
                                     <SelectItem key={sv.key} value={sv.key}>
-                                      {sv.label} (Ex: {sv.mock})
+                                      {sv.label} (Mock: {sv.mock})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -323,12 +322,12 @@ const GlobalAutomation = () => {
                     <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
                       <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
                         <LinkIcon size={14} className="text-orange-500" />
-                        Botão de Ação (Link Dinâmico)
+                        Call to Action (Dynamic Link)
                       </Label>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Texto do Botão</Label>
+                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Button Text</Label>
                            <Input 
                             value={t.primaryBtn}
                             onChange={(e) => {
@@ -340,7 +339,7 @@ const GlobalAutomation = () => {
                           />
                         </div>
                         <div className="space-y-2">
-                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Variável do Link</Label>
+                           <Label className="text-[10px] text-zinc-500 font-bold uppercase">Link Variable</Label>
                            <Select 
                               value={t.buttonLinkVar} 
                               onValueChange={(val) => updateButtonVar(tIndex, val)}
@@ -358,9 +357,6 @@ const GlobalAutomation = () => {
                             </Select>
                         </div>
                       </div>
-                      <p className="text-[10px] text-zinc-600 italic">
-                        A variável selecionada será anexada ao final da URL do botão configurado na Meta (ou substituirá a URL inteira, dependendo da configuração do template).
-                      </p>
                     </div>
 
                   </div>
@@ -389,7 +385,6 @@ const GlobalAutomation = () => {
                           <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium hover:bg-[#2a3942] cursor-pointer group">
                             <ExternalLink size={14} />
                             {t.primaryBtn}
-                            {/* Tooltip simulado do link */}
                             <div className="hidden group-hover:block absolute bg-black text-white text-[9px] p-1 rounded -mt-8">
                                Link: {getMockValue(t.buttonLinkVar)}
                             </div>
