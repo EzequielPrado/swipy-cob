@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -15,42 +14,49 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || !body.to || !body.subject || !body.html) {
-      throw new Error("Payload inválido. Certifique-se de enviar 'to', 'subject' e 'html'.");
+      console.error("[send-email] Payload inválido:", body);
+      return new Response(JSON.stringify({ error: "Dados de envio incompletos (to, subject, html)" }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const { to, subject, html } = body;
-    
     const hostname = Deno.env.get('SMTP_HOSTNAME');
     const port = Deno.env.get('SMTP_PORT');
     const username = Deno.env.get('SMTP_USERNAME');
     const password = Deno.env.get('SMTP_PASSWORD');
 
-    // Logs para debug (verificando se as variáveis existem sem mostrar a senha)
-    console.log("[send-email] Verificando configurações:", { 
-      hasHost: !!hostname, 
-      hasPort: !!port, 
-      hasUser: !!username, 
-      hasPass: !!password 
-    });
-
     if (!hostname || !port || !username || !password) {
-      throw new Error("Configurações SMTP incompletas nas Secrets do Supabase (HOSTNAME, PORT, USERNAME, PASSWORD).");
+      console.error("[send-email] Configurações ausentes no Supabase Secrets");
+      return new Response(JSON.stringify({ error: "Configure SMTP_HOSTNAME, SMTP_PORT, SMTP_USERNAME e SMTP_PASSWORD nas Secrets do Supabase." }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const client = new SmtpClient();
+    const portNum = parseInt(port);
 
     try {
-      console.log(`[send-email] Conectando ao servidor: ${hostname}:${port}`);
+      console.log(`[send-email] Conectando a ${hostname}:${portNum}...`);
       
-      // Tenta conexão TLS (porta 465)
-      await client.connectTLS({
-        hostname,
-        port: parseInt(port),
-        username,
-        password,
-      });
-
-      console.log("[send-email] Autenticado. Enviando e-mail para:", to);
+      // Se a porta for 465, usa TLS direto. Se for 587, usa STARTTLS.
+      if (portNum === 465) {
+        await client.connectTLS({
+          hostname,
+          port: portNum,
+          username,
+          password,
+        });
+      } else {
+        await client.connect({
+          hostname,
+          port: portNum,
+          username,
+          password,
+        });
+      }
 
       await client.send({
         from: username,
@@ -61,23 +67,26 @@ serve(async (req) => {
       });
 
       await client.close();
-      console.log("[send-email] E-mail enviado com sucesso!");
+      console.log("[send-email] Sucesso!");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
 
-    } catch (connError: any) {
-      console.error("[send-email] Erro na conexão SMTP:", connError.message);
-      throw new Error(`Falha na conexão SMTP: ${connError.message}`);
+    } catch (smtpErr) {
+      console.error("[send-email] Erro na comunicação SMTP:", smtpErr.message);
+      return new Response(JSON.stringify({ error: `SMTP Error: ${smtpErr.message}` }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-  } catch (error: any) {
-    console.error("[send-email] Erro na função:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  } catch (err) {
+    console.error("[send-email] Erro interno:", err.message);
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 })
