@@ -23,38 +23,48 @@ serve(async (req) => {
     
     if (authError || !user) throw new Error("Não autorizado")
 
-    // Busca o AppID configurado no perfil do usuário
+    // Busca o AppID no perfil
     const { data: profile, error: profileErr } = await supabaseClient
       .from('profiles')
       .select('woovi_api_key')
       .eq('id', user.id)
       .single()
 
-    if (profileErr || !profile?.woovi_api_key) {
+    // Importante: .trim() para remover espaços acidentais
+    const appID = profile?.woovi_api_key?.trim();
+
+    if (!appID) {
       return new Response(JSON.stringify({ error: "MISSING_KEY" }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
 
-    const appID = profile.woovi_api_key;
-    // LOG DE SEGURANÇA: Mostra apenas o início da chave para conferência
-    console.log(`[woovi-wallet] Usando AppID (início): ${appID.substring(0, 8)}... para o usuário ${user.id}`);
+    console.log(`[woovi-wallet] Usuário ${user.id} chamando API. Chave: ${appID.substring(0, 8)}...`);
 
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'balance'
-
-    // Usando o domínio primário da OpenPix (mais estável para saldo)
-    const API_BASE = 'https://api.openpix.com.br/api/v1'
+    
+    // Tentando api.woovi.com como primário
+    const API_BASE = 'https://api.woovi.com/api/v1'
 
     if (action === 'balance') {
-      const response = await fetch(`${API_BASE}/balance`, {
+      const endpoint = `${API_BASE}/balance`;
+      console.log(`[woovi-wallet] Chamando GET ${endpoint}`);
+
+      const response = await fetch(endpoint, {
         headers: { 'Authorization': appID }
       })
       
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`[woovi-wallet] Woovi Error ${response.status}:`, errorText)
-        throw new Error(`Woovi 404: Verifique se o AppID tem permissão de Wallet e se o endpoint está ativo.`)
+        console.error(`[woovi-wallet] Woovi Error ${response.status} em ${endpoint}:`, errorText)
+        
+        // Se der 404, pode ser que a Woovi exija o domínio openpix
+        if (response.status === 404) {
+          throw new Error("API Woovi retornou 404. Verifique se este AppID tem permissão de Wallet ativada no painel da Woovi (Menu API -> Editar AppID -> Permissões).")
+        }
+        
+        throw new Error(`Erro Woovi ${response.status}: ${errorText}`)
       }
 
       const data = await response.json()
@@ -89,7 +99,7 @@ serve(async (req) => {
     throw new Error("Ação inválida")
 
   } catch (error: any) {
-    console.error("[woovi-wallet] Erro:", error.message)
+    console.error("[woovi-wallet] Erro crítico:", error.message)
     return new Response(JSON.stringify({ error: "API_ERROR", message: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
