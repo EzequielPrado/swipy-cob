@@ -20,37 +20,47 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || !body.to || !body.subject || !body.html) {
-      return new Response(JSON.stringify({ error: "Dados incompletos (to, subject, html)" }), {
+      return new Response(JSON.stringify({ error: "Dados incompletos" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     const { to, subject, html } = body;
-    const hostname = Deno.env.get('SMTP_HOSTNAME');
-    const port = Deno.env.get('SMTP_PORT');
-    const username = Deno.env.get('SMTP_USERNAME');
-    const password = Deno.env.get('SMTP_PASSWORD');
+    const hostname = Deno.env.get('SMTP_HOSTNAME')?.trim();
+    const port = Deno.env.get('SMTP_PORT')?.trim();
+    const username = Deno.env.get('SMTP_USERNAME')?.trim();
+    const password = Deno.env.get('SMTP_PASSWORD')?.trim();
 
     if (!hostname || !port || !username || !password) {
-      throw new Error("Configurações SMTP ausentes nas Secrets do Supabase.");
+      throw new Error("Faltam configurações SMTP nas Secrets do Supabase.");
     }
 
-    const client = new SmtpClient();
     const portNum = parseInt(port);
+    const client = new SmtpClient();
 
-    console.log(`[send-email] DIAGNÓSTICO: Tentando conectar a ${hostname} na porta ${portNum}...`);
+    console.log(`[send-email] Tentando conexão: ${hostname}:${portNum} (Modo: ${portNum === 465 ? 'SSL/TLS' : 'STARTTLS'})`);
 
     try {
-      // Tenta a conexão com timeout manual para evitar travamento infinito
-      const connectPromise = portNum === 465 
-        ? client.connectTLS({ hostname, port: portNum, username, password })
-        : client.connect({ hostname, port: portNum, username, password });
+      if (portNum === 465) {
+        // SSL Direto
+        await client.connectTLS({
+          hostname,
+          port: portNum,
+          username,
+          password,
+        });
+      } else {
+        // STARTTLS (Porta 587 ou 25)
+        await client.connect({
+          hostname,
+          port: portNum,
+          username,
+          password,
+        });
+      }
 
-      // Aguarda a conexão (Timeout implícito do Deno é de ~30s)
-      await connectPromise;
-      
-      console.log(`[send-email] Conexão estabelecida com sucesso. Enviando e-mail para ${to}...`);
+      console.log(`[send-email] Autenticado. Enviando para ${to}...`);
 
       await client.send({
         from: username,
@@ -61,22 +71,22 @@ serve(async (req) => {
       });
 
       await client.close();
-      console.log("[send-email] E-mail enviado!");
+      console.log("[send-email] Sucesso!");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
 
-    } catch (smtpErr) {
-      console.error("[send-email] Erro de Conexão:", smtpErr.message);
+    } catch (netErr) {
+      console.error("[send-email] Erro de Rede/Conexão:", netErr.message);
       
-      let friendlyMessage = smtpErr.message;
-      if (smtpErr.message.includes("TimedOut") || smtpErr.message.includes("connection timed out")) {
-        friendlyMessage = `Tempo de conexão esgotado. Verifique se a porta ${portNum} está correta para o host ${hostname} e se o firewall do seu servidor permite conexões externas.`;
+      let msg = "Não foi possível conectar ao servidor de e-mail.";
+      if (netErr.message.includes("TimedOut")) {
+        msg = `Timeout na porta ${portNum}. O firewall do seu servidor (${hostname}) pode estar bloqueando o Supabase. Tente alternar entre as portas 465 e 587.`;
       }
 
-      return new Response(JSON.stringify({ error: friendlyMessage }), {
+      return new Response(JSON.stringify({ error: msg, details: netErr.message }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
