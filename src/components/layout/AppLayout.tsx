@@ -9,10 +9,15 @@ import {
   Zap, 
   Settings, 
   LogOut,
-  Bell
+  Bell,
+  ShieldCheck,
+  UserCog
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/integrations/supabase/auth';
+import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState } from 'react';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -23,8 +28,28 @@ const menuItems = [
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
+const adminItems = [
+  { icon: ShieldCheck, label: 'Painel Admin', path: '/admin' },
+  { icon: UserCog, label: 'Gerenciar Usuários', path: '/admin/usuarios' },
+];
+
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (user) {
+      supabase.from('profiles').select('*').eq('id', user.id).single()
+        .then(({ data }) => setProfile(data));
+    }
+  }, [user]);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
@@ -36,29 +61,58 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
           
-          <nav className="space-y-1">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                  location.pathname === item.path 
-                    ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
-                    : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                )}
-              >
-                <item.icon size={18} className={cn(
-                  location.pathname === item.path ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
-                )} />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="space-y-6">
+            <nav className="space-y-1">
+              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-2">Menu Principal</p>
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                    location.pathname === item.path 
+                      ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
+                      : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                  )}
+                >
+                  <item.icon size={18} className={cn(
+                    location.pathname === item.path ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
+                  )} />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            {profile?.is_admin && (
+              <nav className="space-y-1">
+                <p className="text-[10px] font-bold text-orange-500/50 uppercase tracking-widest px-3 mb-2">Administração</p>
+                {adminItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                      location.pathname === item.path 
+                        ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
+                        : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                    )}
+                  >
+                    <item.icon size={18} className={cn(
+                      location.pathname === item.path ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
+                    )} />
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
         </div>
 
         <div className="mt-auto p-6 border-t border-zinc-800">
-          <button className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-red-400 transition-colors w-full">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-red-400 transition-colors w-full"
+          >
             <LogOut size={18} />
             Sair da conta
           </button>
@@ -69,7 +123,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-900/30">
           <div className="flex items-center gap-4">
-            <h1 className="text-sm font-medium text-zinc-400">Olá, <span className="text-zinc-100 font-semibold">Empresa XPTO</span></h1>
+            <h1 className="text-sm font-medium text-zinc-400">
+              Olá, <span className="text-zinc-100 font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span>
+              {profile?.is_admin && <span className="ml-2 text-[10px] bg-orange-500 text-zinc-950 px-2 py-0.5 rounded-full font-bold">ADMIN</span>}
+            </h1>
           </div>
           <div className="flex items-center gap-4">
             <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative">
@@ -77,7 +134,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-zinc-900"></span>
             </button>
             <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" />
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
             </div>
           </div>
         </header>

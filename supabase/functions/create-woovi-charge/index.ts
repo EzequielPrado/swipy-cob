@@ -16,8 +16,23 @@ serve(async (req) => {
     )
 
     const { customerId, amount, method, dueDate, userId, description } = await req.json()
-    const WOOVI_API_KEY = Deno.env.get('WOOVI_API_KEY')
 
+    // 1. Busca o token da Woovi no perfil do usuário
+    const { data: profile, error: profileErr } = await supabaseClient
+      .from('profiles')
+      .select('woovi_api_key, status')
+      .eq('id', userId)
+      .single()
+
+    if (profileErr || !profile?.woovi_api_key) {
+      throw new Error("Usuário não possui Token Woovi configurado. Entre em contato com o suporte.")
+    }
+
+    if (profile.status !== 'active') {
+      throw new Error("Sua conta está suspensa ou aguardando aprovação.")
+    }
+
+    // 2. Busca o cliente
     const { data: customer, error: custError } = await supabaseClient
       .from('customers')
       .select('*')
@@ -28,11 +43,11 @@ serve(async (req) => {
 
     const correlationID = crypto.randomUUID()
 
-    // Enviamos a descrição como 'comment' para a Woovi
+    // 3. Cria na Woovi usando o token do usuário
     const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
       method: 'POST',
       headers: {
-        'Authorization': WOOVI_API_KEY!,
+        'Authorization': profile.woovi_api_key,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -50,6 +65,7 @@ serve(async (req) => {
     const wooviData = await wooviRes.json()
     if (!wooviRes.ok) throw new Error(wooviData.error || "Erro na Woovi")
 
+    // 4. Salva localmente
     const { data: charge, error: chargeError } = await supabaseClient
       .from('charges')
       .insert({

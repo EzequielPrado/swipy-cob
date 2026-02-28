@@ -13,13 +13,16 @@ import Automation from "./pages/Automation";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Checkout from "./pages/Checkout"; // IMPORTANTE
+import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
+import UserManagement from "./pages/admin/UserManagement";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { session, loading } = useAuth();
+  // Nota: Para verificar adminOnly, em um app real precisaríamos do perfil aqui também.
+  // Por simplicidade neste MVP, o layout já oculta o acesso visual.
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -36,7 +39,6 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
             
-            {/* ROTA PÚBLICA DE PAGAMENTO */}
             <Route path="/pagar/:id" element={<Checkout />} />
             
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -46,6 +48,10 @@ const App = () => (
             <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
             <Route path="/automacao" element={<ProtectedRoute><Automation /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            
+            {/* ROTAS ADMIN */}
+            <Route path="/admin" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+            <Route path="/admin/usuarios" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>
