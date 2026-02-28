@@ -15,7 +15,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Pegar usuário pelo token JWT
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error("Autorização ausente")
 
@@ -24,7 +23,7 @@ serve(async (req) => {
     
     if (authError || !user) throw new Error("Não autorizado")
 
-    // Pegar o token específico deste usuário configurado no painel
+    // Busca o AppID configurado no perfil do usuário
     const { data: profile, error: profileErr } = await supabaseClient
       .from('profiles')
       .select('woovi_api_key')
@@ -37,23 +36,25 @@ serve(async (req) => {
       })
     }
 
+    const appID = profile.woovi_api_key;
+    // LOG DE SEGURANÇA: Mostra apenas o início da chave para conferência
+    console.log(`[woovi-wallet] Usando AppID (início): ${appID.substring(0, 8)}... para o usuário ${user.id}`);
+
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'balance'
 
-    // Endpoint oficial: api.woovi.com ou api.openpix.com.br
-    const API_BASE = 'https://api.woovi.com/api/v1'
+    // Usando o domínio primário da OpenPix (mais estável para saldo)
+    const API_BASE = 'https://api.openpix.com.br/api/v1'
 
     if (action === 'balance') {
-      console.log(`[woovi-wallet] Consultando saldo para: ${user.id}`)
-      
       const response = await fetch(`${API_BASE}/balance`, {
-        headers: { 'Authorization': profile.woovi_api_key }
+        headers: { 'Authorization': appID }
       })
       
       if (!response.ok) {
         const errorText = await response.text()
-        console.error(`[woovi-wallet] Woovi Error (${response.status}):`, errorText)
-        throw new Error(`Woovi retornou erro ${response.status}: ${errorText.substring(0, 50)}`)
+        console.error(`[woovi-wallet] Woovi Error ${response.status}:`, errorText)
+        throw new Error(`Woovi 404: Verifique se o AppID tem permissão de Wallet e se o endpoint está ativo.`)
       }
 
       const data = await response.json()
@@ -68,7 +69,7 @@ serve(async (req) => {
       const response = await fetch(`${API_BASE}/cashout`, {
         method: 'POST',
         headers: { 
-          'Authorization': profile.woovi_api_key,
+          'Authorization': appID,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ value: Math.round(amount * 100), pixKey, pixKeyType })
