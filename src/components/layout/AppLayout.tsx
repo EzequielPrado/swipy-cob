@@ -1,32 +1,38 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, 
   CreditCard, 
   Users, 
   Receipt, 
-  Zap, 
   Settings, 
   LogOut,
   Bell,
-  ShieldCheck,
   UserCog,
   BarChart3,
-  MessagesSquare
+  MessagesSquare,
+  CheckCircle2
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/integrations/supabase/auth';
 import { supabase } from '@/integrations/supabase/client';
-import { useEffect, useState } from 'react';
+import { showSuccess } from '@/utils/toast';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Receipt, label: 'Cobranças', path: '/cobrancas' },
   { icon: CreditCard, label: 'Planos', path: '/planos' },
   { icon: Users, label: 'Clientes', path: '/clientes' },
-  // Removido Régua de Cobrança daqui para centralizar no Admin
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
@@ -41,17 +47,59 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<any>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [hasNew, setHasNew] = useState(false);
 
   useEffect(() => {
     if (user) {
+      // 1. Carregar Perfil
       supabase.from('profiles').select('*').eq('id', user.id).single()
         .then(({ data }) => setProfile(data));
+
+      // 2. Escutar Pagamentos em Tempo Real
+      const channel = supabase
+        .channel('realtime-payments')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'charges',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            // Se o status mudou para pago
+            if (payload.new.status === 'pago' && payload.old.status !== 'pago') {
+              const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload.new.amount);
+              
+              const newNotification = {
+                id: Date.now(),
+                title: 'Pagamento Confirmado!',
+                message: `Recebemos o pagamento de ${amount}.`,
+                time: new Date().toLocaleTimeString('pt-BR', { hour: '2-刻', minute: '2-digit' })
+              };
+
+              setNotifications(prev => [newNotification, ...prev].slice(0, 5));
+              setHasNew(true);
+              showSuccess(`💰 Pagamento de ${amount} confirmado agora!`);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
+  };
+
+  const clearNotifications = () => {
+    setHasNew(false);
   };
 
   return (
@@ -132,10 +180,37 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-zinc-900"></span>
-            </button>
+            <DropdownMenu onOpenChange={(open) => open && clearNotifications()}>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative focus:outline-none">
+                  <Bell size={20} />
+                  {hasNew && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-zinc-900 animate-pulse"></span>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 bg-zinc-900 border-zinc-800 text-zinc-100 p-2">
+                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-widest text-zinc-500 px-2 py-3">Notificações</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-zinc-800" />
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-zinc-600 italic">Nenhuma notificação recente.</div>
+                ) : (
+                  notifications.map(n => (
+                    <DropdownMenuItem key={n.id} className="focus:bg-zinc-800 rounded-lg p-3 cursor-default flex items-start gap-3">
+                      <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                        <CheckCircle2 size={16} />
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-bold text-zinc-100">{n.title}</p>
+                        <p className="text-xs text-zinc-400 leading-snug">{n.message}</p>
+                        <p className="text-[10px] text-zinc-600 mt-1 font-mono">{n.time}</p>
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
             </div>
