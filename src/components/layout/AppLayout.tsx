@@ -33,7 +33,6 @@ const menuItems = [
   { icon: Receipt, label: 'Cobranças', path: '/cobrancas' },
   { icon: CreditCard, label: 'Planos', path: '/planos' },
   { icon: Users, label: 'Clientes', path: '/clientes' },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
 const adminItems = [
@@ -76,7 +75,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 id: Date.now(),
                 title: 'Pagamento Confirmado!',
                 message: `Recebemos o pagamento de ${amount}.`,
-                time: new Date().toLocaleTimeString('pt-BR', { hour: '2-刻', minute: '2-digit' })
+                time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               };
 
               setNotifications(prev => [newNotification, ...prev].slice(0, 5));
