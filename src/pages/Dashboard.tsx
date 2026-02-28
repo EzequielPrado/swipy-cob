@@ -31,7 +31,8 @@ const Dashboard = () => {
     totalPaid: 0,
     activeSubs: 0,
     pendingAmount: 0,
-    overdueAmount: 0
+    overdueAmount: 0,
+    overdueCount: 0
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
@@ -42,7 +43,6 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Buscar todas as cobranças do usuário
       const { data: charges } = await supabase
         .from('charges')
         .select('*, customers(name)')
@@ -50,15 +50,30 @@ const Dashboard = () => {
         .order('created_at', { ascending: false });
 
       if (charges) {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
         const paid = charges.filter(c => c.status === 'pago');
-        const pending = charges.filter(c => c.status === 'pendente');
-        const overdue = charges.filter(c => c.status === 'atrasado');
+        
+        // Uma fatura é considerada atrasada se o status não for pago E o vencimento for menor que hoje
+        const overdue = charges.filter(c => {
+          if (c.status === 'pago') return false;
+          const dueDate = new Date(c.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate < now || c.status === 'atrasado';
+        });
+
+        const pending = charges.filter(c => {
+          if (c.status !== 'pendente') return false;
+          const dueDate = new Date(c.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate >= now;
+        });
 
         const totalPaid = paid.reduce((acc, curr) => acc + Number(curr.amount), 0);
         const totalPending = pending.reduce((acc, curr) => acc + Number(curr.amount), 0);
         const totalOverdue = overdue.reduce((acc, curr) => acc + Number(curr.amount), 0);
         
-        // 2. Contar clientes ativos
         const { count: activeCount } = await supabase
           .from('customers')
           .select('*', { count: 'exact', head: true })
@@ -69,12 +84,12 @@ const Dashboard = () => {
           totalPaid,
           activeSubs: activeCount || 0,
           pendingAmount: totalPending,
-          overdueAmount: totalOverdue
+          overdueAmount: totalOverdue,
+          overdueCount: overdue.length
         });
 
         setRecentCharges(charges.slice(0, 5));
         
-        // Dados fictícios para o gráfico baseados no faturamento real
         setChartData([
           { name: 'Jan', value: totalPaid * 0.4 },
           { name: 'Fev', value: totalPaid * 0.6 },
@@ -105,7 +120,6 @@ const Dashboard = () => {
           <p className="text-zinc-400 mt-1">Acompanhe o desempenho das suas cobranças em tempo real.</p>
         </div>
 
-        {/* Grade de Estatísticas Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title="Total Recebido" 
@@ -121,18 +135,18 @@ const Dashboard = () => {
           <StatCard 
             title="Aguardando Pagamento" 
             value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.pendingAmount)} 
-            label="Faturas pendentes"
+            label="Faturas dentro do prazo"
             icon={<BarChart3 className="text-orange-500" size={18} />} 
           />
           <StatCard 
             title="Total Atrasado" 
-            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.overdueAmount)} 
+            value={`${stats.overdueCount} faturas`}
+            label={`Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.overdueAmount)}`}
             icon={<AlertCircle className="text-red-500" size={18} />} 
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Gráfico de Evolução */}
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-8">
               <h3 className="font-semibold text-zinc-200">Evolução de Recebimentos</h3>
@@ -163,7 +177,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Últimas Atividades */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h3 className="font-semibold text-zinc-200 mb-6 flex items-center justify-between">
               Atividades Recentes
@@ -172,32 +185,37 @@ const Dashboard = () => {
             <div className="space-y-6">
               {recentCharges.length === 0 ? (
                 <div className="text-center py-8 text-zinc-500 text-sm italic">Nenhuma atividade recente.</div>
-              ) : recentCharges.map((charge) => (
-                <div key={charge.id} className="flex items-center justify-between group">
-                  <div className="flex gap-3 overflow-hidden">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                      charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : 
-                      charge.status === 'atrasado' ? "bg-red-500/10 text-red-500" : "bg-zinc-800 text-zinc-500"
-                    )}>
-                      <DollarSign size={18} />
+              ) : recentCharges.map((charge) => {
+                const isOverdue = charge.status !== 'pago' && new Date(charge.due_date) < new Date();
+                return (
+                  <div key={charge.id} className="flex items-center justify-between group">
+                    <div className="flex gap-3 overflow-hidden">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                        charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : 
+                        isOverdue ? "bg-red-500/10 text-red-500" : "bg-zinc-800 text-zinc-500"
+                      )}>
+                        <DollarSign size={18} />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-medium text-zinc-200 truncate">{charge.customers?.name || 'Cliente Removido'}</p>
+                        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tight">
+                          {isOverdue ? 'Atrasado' : charge.status}
+                        </p>
+                      </div>
                     </div>
-                    <div className="overflow-hidden">
-                      <p className="text-sm font-medium text-zinc-200 truncate">{charge.customers?.name || 'Cliente Removido'}</p>
-                      <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tight">{charge.status}</p>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-zinc-100">
+                        R$ {Number(charge.amount).toFixed(2)}
+                      </p>
+                      <p className="text-[9px] text-zinc-600 flex items-center justify-end gap-1">
+                        <Calendar size={10} />
+                        {new Date(charge.created_at).toLocaleDateString('pt-BR')}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-zinc-100">
-                      R$ {Number(charge.amount).toFixed(2)}
-                    </p>
-                    <p className="text-[9px] text-zinc-600 flex items-center justify-end gap-1">
-                      <Calendar size={10} />
-                      {new Date(charge.created_at).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
