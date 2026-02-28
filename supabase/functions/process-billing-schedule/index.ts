@@ -10,17 +10,32 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
-    const { data: rules } = await supabaseClient.from('billing_rules').select('*').eq('is_active', true);
-    if (!rules) return new Response("Sem regras");
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '', 
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // 1. Buscar as regras ativas (exceto a de criação imediata que tem offset -1)
+    const { data: rules } = await supabaseClient
+      .from('billing_rules')
+      .select('*')
+      .eq('is_active', true)
+      .neq('day_offset', -1); 
+
+    if (!rules) return new Response("Nenhuma regra para processar.");
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    let processedCount = 0;
+
     for (const rule of rules) {
+      // Cálculo do dia alvo: Se offset é 3, procuramos faturas que venceram há 3 dias
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
+
+      console.log(`[billing-schedule] Processando regra ${rule.label} para data: ${dateStr}`);
 
       const { data: charges } = await supabaseClient
         .from('charges')
@@ -28,47 +43,67 @@ serve(async (req) => {
         .eq('status', 'pendente')
         .eq('due_date', dateStr);
 
-      if (charges) {
+      if (charges && charges.length > 0) {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
+            
+            // Geramos o link do checkout interno
+            // Usamos uma URL base (você deve configurar a secret APP_URL no Supabase)
+            const appUrl = Deno.env.get('APP_URL') || 'https://seu-app.vercel.app';
+            const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
+
             const variables = rule.mapping.map((key: string) => {
               if (key === 'customer_name') return charge.customers.name;
               if (key === 'merchant_name') return merchantName;
               if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(charge.amount);
               if (key === 'due_date') return new Date(charge.due_date).toLocaleDateString('pt-BR');
-              if (key === 'payment_link') return `${Deno.env.get('APP_URL')}/pagar/${charge.id}`;
+              if (key === 'payment_link') return internalCheckoutUrl;
               return '---';
             });
 
+            // Disparar WhatsApp
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` },
+              headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` 
+              },
               body: JSON.stringify({
                 to: charge.customers.phone,
                 templateName: rule.name,
-                language: rule.language,
+                language: rule.language || 'en',
                 imageUrl: rule.image_url,
                 variables: variables,
-                buttonVariable: charge.id // ID para o link
+                buttonVariable: charge.id // O link dinâmico costuma usar o ID no final
               })
             });
 
-            // Log da régua
+            // Log de Notificação
             await supabaseClient.from('notification_logs').insert({
               charge_id: charge.id,
               type: 'whatsapp',
               status: waRes.ok ? 'success' : 'error',
-              message: waRes.ok ? `Lembrete ${rule.label} enviado` : `Falha no lembrete ${rule.label}`
+              message: waRes.ok ? `Régua: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
             });
 
-          } catch (err) { console.error("Erro log régua:", err); }
+            processedCount++;
+
+          } catch (err) {
+            console.error(`[billing-schedule] Erro na cobrança ${charge.id}:`, err.message);
+          }
         }
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ success: true, processed: processedCount }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
+
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: error.message }), { 
+      status: 400, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 })

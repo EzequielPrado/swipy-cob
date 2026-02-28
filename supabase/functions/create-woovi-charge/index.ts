@@ -62,45 +62,64 @@ serve(async (req) => {
         correlation_id: correlationID,
         payment_link: wooviData.charge.paymentLinkUrl,
         pix_qr_code: wooviData.charge.brCode, 
-        pix_qr_image_base64: wooviData.charge.qrCodeImage || null, 
+        pix_qr_image_base64: wooviData.charge.qrCodeImage, 
         status: 'pendente'
       })
       .select().single()
 
     if (chargeError) throw chargeError
 
-    // WHATSAPP + LOG
-    try {
-      const merchantName = profile.company || profile.full_name || "Nossa Empresa";
-      const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
-      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
+    // BUSCAR REGRA DE CRIAÇÃO (Offset -1)
+    const { data: creationRule } = await supabaseClient
+      .from('billing_rules')
+      .select('*')
+      .eq('day_offset', -1)
+      .eq('is_active', true)
+      .single();
 
-      const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': req.headers.get('Authorization') || ''
-        },
-        body: JSON.stringify({
-          to: customer.phone,
-          templateName: 'boleto1',
-          language: 'en',
-          imageUrl: qrImageUrl,
-          variables: [customer.name, merchantName, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount)],
-          buttonVariable: systemCheckoutUrl
-        })
-      });
+    if (creationRule) {
+      try {
+        const merchantName = profile.company || profile.full_name || "Nossa Empresa";
+        const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
+        
+        // Se houver imagem na regra, usa ela, senão gera QR Code temporário
+        const imageUrl = creationRule.image_url || `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
 
-      // Salvar log no banco
-      await supabaseClient.from('notification_logs').insert({
-        charge_id: charge.id,
-        type: 'whatsapp',
-        status: waRes.ok ? 'success' : 'error',
-        message: waRes.ok ? 'WhatsApp de criação enviado' : 'Falha ao enviar WhatsApp de criação'
-      });
+        const variables = creationRule.mapping.map((key: string) => {
+          if (key === 'customer_name') return customer.name;
+          if (key === 'merchant_name') return merchantName;
+          if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount);
+          if (key === 'due_date') return new Date(dueDate).toLocaleDateString('pt-BR');
+          if (key === 'payment_link') return systemCheckoutUrl;
+          return '---';
+        });
 
-    } catch (waErr) {
-      console.error("Erro WA:", waErr.message);
+        const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': req.headers.get('Authorization') || ''
+          },
+          body: JSON.stringify({
+            to: customer.phone,
+            templateName: creationRule.name,
+            language: creationRule.language || 'en',
+            imageUrl: imageUrl,
+            variables: variables,
+            buttonVariable: charge.id
+          })
+        });
+
+        await supabaseClient.from('notification_logs').insert({
+          charge_id: charge.id,
+          type: 'whatsapp',
+          status: waRes.ok ? 'success' : 'error',
+          message: waRes.ok ? 'WhatsApp de criação enviado' : 'Falha ao enviar WhatsApp de criação'
+        });
+
+      } catch (waErr) {
+        console.error("Erro WA:", waErr.message);
+      }
     }
 
     return new Response(JSON.stringify(charge), {
