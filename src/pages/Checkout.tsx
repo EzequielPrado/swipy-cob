@@ -1,42 +1,75 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Copy, CheckCircle2, Loader2, ShieldCheck, Landmark, Building2, User, FileText } from 'lucide-react';
-import { showSuccess } from '@/utils/toast';
+import { Copy, CheckCircle2, Loader2, ShieldCheck, Landmark, Building2, User, FileText, AlertTriangle } from 'lucide-react';
+import { showSuccess, showError } from '@/utils/toast';
 
 const Checkout = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [charge, setCharge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCharge = async () => {
-      const { data, error } = await supabase
-        .from('charges')
-        .select(`
-          *, 
-          customers(name, email, tax_id),
-          profiles:user_id(company, full_name)
-        `)
-        .eq('id', id)
-        .single();
+      if (!id) return;
+      
+      setLoading(true);
+      setError(null);
 
-      if (!error && data) {
+      try {
+        // Buscamos a cobrança e os dados do cliente
+        // Nota: A relação com 'profiles' pode falhar se não houver política pública de leitura em profiles
+        const { data, error: fetchError } = await supabase
+          .from('charges')
+          .select(`
+            *, 
+            customers(name, email, tax_id)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        if (!data) throw new Error("Cobrança não encontrada");
+
         setCharge(data);
+
+        // Tentamos buscar o nome do vendedor separadamente para não travar a página se o RLS bloquear
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('company, full_name')
+          .eq('id', data.user_id)
+          .single();
+        
+        if (profileData) {
+          setCharge((prev: any) => ({ ...prev, merchant: profileData }));
+        }
+
+      } catch (err: any) {
+        console.error("Erro ao carregar checkout:", err.message);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchCharge();
     
+    // Escuta atualizações de status (pagamento confirmado em tempo real)
     const channel = supabase
       .channel(`checkout-${id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'charges', filter: `id=eq.${id}` }, 
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'charges', 
+        filter: `id=eq.${id}` 
+      }, 
         (payload) => {
           if (payload.new.status === 'pago') {
-            setCharge(prev => ({ ...prev, status: 'pago' }));
+            setCharge((prev: any) => ({ ...prev, status: 'pago' }));
           }
         }
       ).subscribe();
@@ -53,17 +86,30 @@ const Checkout = () => {
 
   if (loading) return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <Loader2 className="animate-spin text-orange-500" size={32} />
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-orange-500" size={40} />
+        <p className="text-zinc-500 text-sm animate-pulse">Carregando sua fatura...</p>
+      </div>
     </div>
   );
 
-  if (!charge) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">
-      Cobrança não encontrada.
+  if (error || !charge) return (
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
+        <AlertTriangle size={32} className="text-red-500" />
+      </div>
+      <h1 className="text-xl font-bold text-zinc-100">Ops! Link Inválido</h1>
+      <p className="text-zinc-400 mt-2 max-w-xs">Não conseguimos localizar esta cobrança. Verifique o link ou entre em contato com o emissor.</p>
+      <button 
+        onClick={() => window.location.reload()}
+        className="mt-6 text-orange-500 hover:underline text-sm font-medium"
+      >
+        Tentar novamente
+      </button>
     </div>
   );
 
-  const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Estabelecimento";
+  const merchantName = charge.merchant?.company || charge.merchant?.full_name || "Estabelecimento";
 
   if (charge.status === 'pago') return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-1000">
@@ -71,7 +117,7 @@ const Checkout = () => {
         <CheckCircle2 size={48} className="text-emerald-500" />
       </div>
       <h1 className="text-2xl font-bold text-zinc-100">Pagamento Confirmado!</h1>
-      <p className="text-zinc-400 mt-2">Obrigado {charge.customers.name}, seu pagamento para <strong>{merchantName}</strong> foi processado.</p>
+      <p className="text-zinc-400 mt-2">Obrigado {charge.customers?.name}, seu pagamento para <strong>{merchantName}</strong> foi processado com sucesso.</p>
     </div>
   );
 
@@ -90,9 +136,9 @@ const Checkout = () => {
           <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center text-orange-500">
             <Building2 size={24} />
           </div>
-          <div>
+          <div className="overflow-hidden">
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Você está pagando a:</p>
-            <p className="text-sm font-bold text-zinc-100">{merchantName}</p>
+            <p className="text-sm font-bold text-zinc-100 truncate">{merchantName}</p>
           </div>
         </div>
 
@@ -122,8 +168,11 @@ const Checkout = () => {
                   className="w-[200px] h-[200px]"
                 />
               ) : (
-                <div className="w-[200px] h-[200px] flex items-center justify-center text-zinc-400">
-                  <Loader2 className="animate-spin" />
+                <div className="w-[200px] h-[200px] flex items-center justify-center text-zinc-400 border border-dashed border-zinc-300 rounded-xl">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="animate-spin" size={24} />
+                    <span className="text-[10px]">Gerando QR Code...</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -151,7 +200,7 @@ const Checkout = () => {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Dados do Pagador</p>
             <div className="flex items-center gap-3 text-sm text-zinc-400">
               <User size={14} className="text-zinc-600" />
-              <span>{charge.customers.name} • {charge.customers.tax_id}</span>
+              <span>{charge.customers?.name} • {charge.customers?.tax_id}</span>
             </div>
           </div>
         </div>
