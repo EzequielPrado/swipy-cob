@@ -17,22 +17,18 @@ serve(async (req) => {
 
     const { customerId, amount, method, dueDate, userId, description } = await req.json()
 
-    // 1. Busca o token da Woovi no perfil do usuário
+    // 1. Busca perfil do lojista
     const { data: profile, error: profileErr } = await supabaseClient
       .from('profiles')
-      .select('woovi_api_key, status')
+      .select('woovi_api_key, status, company, full_name')
       .eq('id', userId)
       .single()
 
     if (profileErr || !profile?.woovi_api_key) {
-      throw new Error("Usuário não possui Token Woovi configurado. Entre em contato com o suporte.")
+      throw new Error("Configuração Woovi ausente no perfil.")
     }
 
-    if (profile.status !== 'active') {
-      throw new Error("Sua conta está suspensa ou aguardando aprovação.")
-    }
-
-    // 2. Busca o cliente
+    // 2. Busca dados do cliente
     const { data: customer, error: custError } = await supabaseClient
       .from('customers')
       .select('*')
@@ -43,7 +39,7 @@ serve(async (req) => {
 
     const correlationID = crypto.randomUUID()
 
-    // 3. Cria na Woovi usando o token do usuário
+    // 3. Cria na Woovi
     const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
       method: 'POST',
       headers: {
@@ -86,6 +82,45 @@ serve(async (req) => {
       .single()
 
     if (chargeError) throw chargeError
+
+    // 5. DISPARO AUTOMÁTICO WHATSAPP (Régua de Cobrança)
+    try {
+      console.log(`[create-woovi-charge] Iniciando disparo de WhatsApp para ${customer.phone || customer.email}`);
+      
+      const merchantName = profile.company || profile.full_name || "Nossa Empresa";
+      const checkoutUrl = `https://mxkorxmazthagjaqwrfk.supabase.co/pagar/${charge.id}`;
+      
+      // Geramos um QR Code público que a Meta consegue acessar (necessário para o Header Image)
+      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
+
+      // Chamamos a função de envio interna
+      const whatsappRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': req.headers.get('Authorization') || ''
+        },
+        body: JSON.stringify({
+          to: customer.phone,
+          templateName: 'boleto1',
+          language: 'en', // Sincronizado com seu template na Meta
+          imageUrl: qrImageUrl,
+          variables: [
+            customer.name, 
+            merchantName, 
+            new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount)
+          ],
+          buttonVariable: checkoutUrl
+        })
+      });
+
+      const waResult = await whatsappRes.json();
+      console.log("[create-woovi-charge] Resposta WhatsApp:", waResult);
+      
+    } catch (waErr) {
+      console.error("[create-woovi-charge] Falha no disparo automático:", waErr.message);
+      // Não travamos a criação da cobrança se o WhatsApp falhar
+    }
 
     return new Response(JSON.stringify(charge), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
