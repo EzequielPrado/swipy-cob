@@ -255,7 +255,7 @@ const GlobalAutomation = () => {
                         </Label>
                         <div className="flex items-center gap-1.5 text-zinc-500 text-[10px]">
                           <Info size={12} />
-                          Use {{'{{1}}'}}, {{'{{2}}'}}, etc no template da Meta
+                          Use {"{{1}}"}, {"{{2}}"}, etc no template da Meta
                         </div>
                       </div>
                       
