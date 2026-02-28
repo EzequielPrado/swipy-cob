@@ -3,15 +3,16 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Filter, Mail, FileText, UserX, Plus, Loader2, Edit3 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Search, Mail, UserX, Plus, Loader2, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
 import EditCustomerModal from '@/components/customers/EditCustomerModal';
+import { showError, showSuccess } from '@/utils/toast';
 
 const Customers = () => {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -36,6 +37,66 @@ const Customers = () => {
   const handleEditClick = (customer: any) => {
     setSelectedCustomer(customer);
     setIsEditModalOpen(true);
+  };
+
+  const handleDelete = async (customer: any) => {
+    if (!confirm(`Tem certeza que deseja excluir o cliente ${customer.name}?`)) return;
+
+    setActionLoading(customer.id);
+    try {
+      // 1. Deletar na Woovi se tiver ID
+      if (customer.woovi_id) {
+        await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-customer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ wooviId: customer.woovi_id })
+        });
+      }
+
+      // 2. Deletar no Supabase
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customer.id);
+
+      if (error) throw error;
+
+      showSuccess('Cliente excluído com sucesso');
+      fetchCustomers();
+    } catch (error: any) {
+      showError(error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSendEmail = async (customer: any) => {
+    setActionLoading(`email-${customer.id}`);
+    try {
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          to: customer.email,
+          subject: 'Atualização de Cadastro - Swipy Cob',
+          html: `<h1>Olá, ${customer.name}!</h1><p>Confirmamos que seus dados foram atualizados em nosso sistema.</p>`
+        })
+      });
+
+      if (!response.ok) throw new Error('Erro ao enviar e-mail');
+      
+      showSuccess(`E-mail enviado para ${customer.email}`);
+    } catch (error: any) {
+      showError(error.message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -101,7 +162,10 @@ const Customers = () => {
                         <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
                           {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
-                        <span className="text-sm font-semibold text-zinc-100">{customer.name}</span>
+                        <div>
+                          <p className="text-sm font-semibold text-zinc-100">{customer.name}</p>
+                          <p className="text-xs text-zinc-500">{customer.email}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-zinc-400 font-mono">{customer.tax_id}</td>
@@ -120,7 +184,14 @@ const Customers = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button title="Enviar Cobrança" className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"><Mail size={16}/></button>
+                        <button 
+                          onClick={() => handleSendEmail(customer)}
+                          disabled={actionLoading === `email-${customer.id}`}
+                          title="Enviar E-mail" 
+                          className="p-2 text-zinc-500 hover:text-orange-400 transition-colors disabled:opacity-50"
+                        >
+                          {actionLoading === `email-${customer.id}` ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16}/>}
+                        </button>
                         <button 
                           onClick={() => handleEditClick(customer)}
                           title="Editar Cliente" 
@@ -128,7 +199,14 @@ const Customers = () => {
                         >
                           <Edit3 size={16}/>
                         </button>
-                        <button title="Bloquear Acesso" className="p-2 text-zinc-500 hover:text-red-400 transition-colors"><UserX size={16}/></button>
+                        <button 
+                          onClick={() => handleDelete(customer)}
+                          disabled={actionLoading === customer.id}
+                          title="Excluir Cliente" 
+                          className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                        >
+                          {actionLoading === customer.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
+                        </button>
                       </div>
                     </td>
                   </tr>
