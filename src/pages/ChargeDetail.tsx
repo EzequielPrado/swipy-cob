@@ -35,33 +35,38 @@ const ChargeDetail = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const fetchChargeDetails = async () => {
-    setLoading(true);
+  const fetchChargeDetails = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     
-    // 1. Cobrança
-    const { data, error } = await supabase
-      .from('charges')
-      .select('*, customers(*)')
-      .eq('id', id)
-      .single();
+    try {
+      // 1. Cobrança
+      const { data, error } = await supabase
+        .from('charges')
+        .select('*, customers(*)')
+        .eq('id', id)
+        .single();
 
-    if (error) {
-      showError("Cobrança não encontrada");
-      navigate('/cobrancas');
-      return;
+      if (error) {
+        showError("Cobrança não encontrada");
+        navigate('/cobrancas');
+        return;
+      }
+      
+      setCharge(data);
+
+      // 2. Logs de Notificação
+      const { data: logData } = await supabase
+        .from('notification_logs')
+        .select('*')
+        .eq('charge_id', id)
+        .order('created_at', { ascending: false });
+      
+      setLogs(logData || []);
+    } catch (err: any) {
+      console.error("Erro ao carregar detalhes:", err);
+    } finally {
+      setLoading(false);
     }
-    
-    setCharge(data);
-
-    // 2. Logs de Notificação
-    const { data: logData } = await supabase
-      .from('notification_logs')
-      .select('*')
-      .eq('charge_id', id)
-      .order('created_at', { ascending: false });
-    
-    setLogs(logData || []);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -85,7 +90,7 @@ const ChargeDetail = () => {
 
       if (error) throw error;
       showSuccess("Cobrança marcada como paga!");
-      fetchChargeDetails();
+      await fetchChargeDetails(true);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -133,21 +138,24 @@ const ChargeDetail = () => {
         body: JSON.stringify({
           to: charge.customers.email,
           subject: `Fatura disponível: ${charge.customers.name}`,
-          html: `<h1>Olá, ${charge.customers.name}</h1><p>Sua fatura de R$ ${charge.amount.toFixed(2)} está disponível.</p><a href="${internalPaymentLink}">Pagar Agora</a>`
+          html: `<h1>Olá, ${charge.customers.name}</h1><p>Sua fatura de R$ ${charge.amount.toFixed(2)} está disponível.</p><p>Pague agora através do link: <a href="${internalPaymentLink}">${internalPaymentLink}</a></p>`
         })
       });
+
+      const result = await response.json();
 
       // Registrar log manual
       await supabase.from('notification_logs').insert({
         charge_id: id,
         type: 'email',
         status: response.ok ? 'success' : 'error',
-        message: response.ok ? 'E-mail enviado manualmente' : 'Falha no envio do e-mail manual'
+        message: response.ok ? 'E-mail enviado manualmente' : `Falha no envio: ${result.error || 'Erro desconhecido'}`
       });
 
-      if (!response.ok) throw new Error("Erro ao enviar e-mail");
-      showSuccess("Notificação enviada!");
-      fetchChargeDetails();
+      if (!response.ok) throw new Error(result.error || "Erro ao enviar e-mail");
+      
+      showSuccess("Notificação enviada com sucesso!");
+      await fetchChargeDetails(true); // Atualização silenciosa
     } catch (err: any) {
       showError(err.message);
     } finally {
