@@ -43,10 +43,10 @@ const GlobalAutomation = () => {
       day: 'D0', 
       name: 'boleto1', 
       label: 'Cobrança Gerada (Imediato)', 
-      language: 'en_US',
-      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nYour payment of *R$ {{3}}* is pending.\nTo pay via PIX, click the button below.\n\nQuestions? Talk to us.',
+      language: 'en', // Alterado de en_US para en
+      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nSeu pagamento de *R$ {{3}}*, está pendente.\nPara pagar via PIX, clique no botão abaixo ou escaneie o QR Code enviado.\n\nDúvidas? Fale com a gente.',
       imageUrl: 'https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=800&q=80',
-      primaryBtn: '🔘 Pay Now',
+      primaryBtn: '🔘 Pagar agora',
       secondaryBtn: '📷 QR Code PIX',
       mapping: ['customer_name', 'merchant_name', 'amount'],
       buttonLinkVar: 'payment_link' 
@@ -56,10 +56,10 @@ const GlobalAutomation = () => {
       day: 'D+3', 
       name: 'lembrete_atraso_v1', 
       label: 'Lembrete de Atraso (3 dias)', 
-      language: 'en_US',
-      msg: 'Hello *{{1}}* 😊\n\nThis is from *{{2}}*.\nWe noticed your payment of *R$ {{3}}* is still pending.\n\nAvoid service suspension by clicking the button below.',
+      language: 'en', // Alterado para en
+      msg: 'Olá, *{{1}}* 😊\n\nAqui é da *{{2}}*.\nNotamos que seu pagamento de *R$ {{3}}* ainda não foi identificado.\n\nEvite suspensão de serviços clicando no botão abaixo.',
       imageUrl: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80',
-      primaryBtn: '🔘 Pay Now',
+      primaryBtn: '🔘 Pagar agora',
       secondaryBtn: '📷 QR Code PIX',
       mapping: ['customer_name', 'merchant_name', 'amount'],
       buttonLinkVar: 'payment_link'
@@ -73,11 +73,11 @@ const GlobalAutomation = () => {
       day: 'D+1',
       name: 'new_template',
       label: 'Novo Gatilho',
-      language: 'en_US',
-      msg: 'Hello *{{1}}*...',
+      language: 'en',
+      msg: 'Olá *{{1}}*...',
       imageUrl: '',
-      primaryBtn: 'View Link',
-      secondaryBtn: 'Copy PIX',
+      primaryBtn: 'Ver Link',
+      secondaryBtn: 'Copiar PIX',
       mapping: ['customer_name'],
       buttonLinkVar: 'payment_link'
     }]);
@@ -135,7 +135,7 @@ const GlobalAutomation = () => {
         body: JSON.stringify({
           to: testPhone,
           templateName: trigger.name,
-          language: trigger.language || 'en_US',
+          language: trigger.language || 'en', // Fallback para en
           imageUrl: trigger.imageUrl,
           variables: variablesToSend,
           buttonVariable: buttonVariableToSend
@@ -145,7 +145,7 @@ const GlobalAutomation = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(result));
 
-      showSuccess(`Teste enviado com sucesso (Idioma: ${trigger.language})!`);
+      showSuccess(`Teste enviado com sucesso! Idioma usado: ${trigger.language}`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -168,7 +168,7 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure o mapeamento de dados para templates em Inglês na Meta.</p>
+            <p className="text-zinc-400 mt-1">Configure o mapeamento para templates registrados como "English" (en) na Meta.</p>
           </div>
           <button 
             onClick={addTrigger}
@@ -224,9 +224,9 @@ const GlobalAutomation = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 min-w-[100px]">
-                            <SelectItem value="en_US">English (US)</SelectItem>
-                            <SelectItem value="en">English (Generic)</SelectItem>
-                            <SelectItem value="pt_BR">Português (BR)</SelectItem>
+                            <SelectItem value="en">English (en)</SelectItem>
+                            <SelectItem value="en_US">English (en_US)</SelectItem>
+                            <SelectItem value="pt_BR">Português (pt_BR)</SelectItem>
                           </SelectContent>
                         </Select>
                     </div>
