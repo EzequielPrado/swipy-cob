@@ -11,11 +11,14 @@ serve(async (req) => {
     const payload = await req.json()
     console.log("[woovi-webhook] Evento recebido:", payload.event)
 
-    // Eventos comuns da Woovi: CHARGE_COMPLETED, CHARGE_EXPIRED
+    // Eventos de sucesso da Woovi: CHARGE_COMPLETED (Cobrança paga)
+    // O identificador da Woovi vem em payload.charge.identifier
     if (payload.event === 'OPEN_PIX_CHARGE_COMPLETED' || payload.event === 'CHARGE_COMPLETED') {
       const wooviId = payload.charge.identifier
       
-      // Atualizar status da cobrança
+      console.log(`[woovi-webhook] Processando pagamento para Woovi ID: ${wooviId}`);
+
+      // Atualizar status da cobrança no banco de dados
       const { data, error } = await supabaseClient
         .from('charges')
         .update({ status: 'pago' })
@@ -23,11 +26,26 @@ serve(async (req) => {
         .select('*, customers(name, email)')
         .single()
 
-      if (!error && data) {
-        console.log(`[woovi-webhook] Cobrança ${wooviId} marcada como PAGA.`);
+      if (error) {
+        console.error(`[woovi-webhook] Erro ao atualizar cobrança ${wooviId}:`, error.message);
+      } else if (data) {
+        console.log(`[woovi-webhook] Cobrança ${wooviId} de ${data.customers.name} marcada como PAGA com sucesso.`);
         
-        // AQUI: Você pode disparar o e-mail de confirmação automaticamente
-        // fazendo um fetch interno para a sua função send-email
+        // Opcional: Aqui você poderia disparar um e-mail de confirmação usando a função send-email
+        /*
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+          },
+          body: JSON.stringify({
+            to: data.customers.email,
+            subject: 'Pagamento Confirmado - Swipy Cob',
+            html: `<h1>Olá, ${data.customers.name}!</h1><p>Recebemos seu pagamento de R$ ${data.amount.toFixed(2)}. Obrigado!</p>`
+          })
+        });
+        */
       }
     }
 
@@ -36,7 +54,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error: any) {
-    console.error("[woovi-webhook] Erro:", error.message)
+    console.error("[woovi-webhook] Erro crítico:", error.message)
     return new Response(error.message, { status: 400 })
   }
 })
