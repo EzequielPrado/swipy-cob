@@ -3,7 +3,6 @@ import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts"
 import { writeAll } from "https://deno.land/std@0.190.0/streams/write_all.ts"
 
 // Patch para compatibilidade com Deno 2.0/Supabase atual
-// Algumas bibliotecas antigas ainda esperam que Deno.writeAll exista globalmente
 if (!(Deno as any).writeAll) {
   (Deno as any).writeAll = writeAll;
 }
@@ -21,8 +20,7 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || !body.to || !body.subject || !body.html) {
-      console.error("[send-email] Payload inválido:", body);
-      return new Response(JSON.stringify({ error: "Dados de envio incompletos (to, subject, html)" }), {
+      return new Response(JSON.stringify({ error: "Dados incompletos" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -35,20 +33,17 @@ serve(async (req) => {
     const password = Deno.env.get('SMTP_PASSWORD');
 
     if (!hostname || !port || !username || !password) {
-      console.error("[send-email] Configurações ausentes no Supabase Secrets");
-      return new Response(JSON.stringify({ error: "Configurações SMTP ausentes nas Secrets do Supabase." }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      throw new Error("Configurações SMTP ausentes nas Secrets.");
     }
 
     const client = new SmtpClient();
     const portNum = parseInt(port);
 
+    console.log(`[send-email] Iniciando envio para ${to} via ${hostname}:${portNum}...`);
+
     try {
-      console.log(`[send-email] Conectando a ${hostname}:${portNum} para enviar para ${to}...`);
-      
-      // Conexão SMTP
+      // Se a porta for 465, usamos SSL implícito (connectTLS)
+      // Para 587, usamos STARTTLS (connect)
       if (portNum === 465) {
         await client.connectTLS({
           hostname,
@@ -65,7 +60,6 @@ serve(async (req) => {
         });
       }
 
-      // Envio do e-mail
       await client.send({
         from: username,
         to,
@@ -75,7 +69,7 @@ serve(async (req) => {
       });
 
       await client.close();
-      console.log("[send-email] Sucesso!");
+      console.log("[send-email] E-mail enviado com sucesso!");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -83,15 +77,20 @@ serve(async (req) => {
       });
 
     } catch (smtpErr) {
-      console.error("[send-email] Erro na comunicação SMTP:", smtpErr.message);
-      return new Response(JSON.stringify({ error: `SMTP Error: ${smtpErr.message}` }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      // Log detalhado para depuração
+      console.error("[send-email] Erro na biblioteca SMTP:", smtpErr);
+      
+      // Se o erro for a resposta 250, tentamos uma mensagem mais clara
+      const errorMsg = smtpErr.message || String(smtpErr);
+      if (errorMsg.includes("250")) {
+        throw new Error("O servidor SMTP enviou uma saudação que a biblioteca não conseguiu processar. Tente mudar a porta de 465 para 587 (ou vice-versa) nas Secrets.");
+      }
+      
+      throw smtpErr;
     }
 
   } catch (err) {
-    console.error("[send-email] Erro interno:", err.message);
+    console.error("[send-email] Falha geral:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
