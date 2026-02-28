@@ -26,7 +26,7 @@ const menuItems = [
   { icon: Receipt, label: 'Cobranças', path: '/cobrancas' },
   { icon: CreditCard, label: 'Planos', path: '/planos' },
   { icon: Users, label: 'Clientes', path: '/clientes' },
-  { icon: Zap, label: 'Régua de Cobrança', path: '/automacao' },
+  // Removido Régua de Cobrança daqui para centralizar no Admin
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 

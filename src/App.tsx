@@ -9,7 +9,6 @@ import Plans from "./pages/Plans";
 import Customers from "./pages/Customers";
 import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
-import Automation from "./pages/Automation";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -21,7 +20,7 @@ import GlobalAutomation from "./pages/admin/GlobalAutomation";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
@@ -46,7 +45,6 @@ const App = () => (
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
             <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
-            <Route path="/automacao" element={<ProtectedRoute><Automation /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ROTAS ADMIN */}
