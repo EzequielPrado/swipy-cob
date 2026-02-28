@@ -15,10 +15,12 @@ import {
   ArrowRightLeft,
   Loader2,
   ChevronRight,
-  Lock
+  Lock,
+  Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import { Link } from 'react-router-dom';
 import { 
   XAxis, 
   YAxis, 
@@ -32,6 +34,7 @@ import {
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [stats, setStats] = useState({
     mrr: 0,
     activeSubs: 0,
@@ -49,6 +52,7 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // 1. Cobranças
       const { data: charges } = await supabase
         .from('charges')
         .select('*, customers(name)')
@@ -57,10 +61,8 @@ const Dashboard = () => {
 
       if (charges) {
         const paid = charges.filter(c => c.status === 'pago');
-        const pending = charges.filter(c => c.status === 'pendente');
-        
         const totalPaid = paid.reduce((acc, curr) => acc + Number(curr.amount), 0);
-        const totalPending = pending.reduce((acc, curr) => acc + Number(curr.amount), 0);
+        const totalPending = charges.filter(c => c.status === 'pendente').reduce((acc, curr) => acc + Number(curr.amount), 0);
         
         const { count: activeCount } = await supabase
           .from('customers')
@@ -68,27 +70,31 @@ const Dashboard = () => {
           .eq('user_id', user.id)
           .eq('status', 'em dia');
 
-        // Busca saldo real via API Woovi
+        // 2. Saldo Woovi
         const walletRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
           headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
         });
         const walletData = await walletRes.json();
 
-        // A Woovi geralmente retorna { balance: { available: 100, blocked: 50 } }
-        const available = walletData.balance?.available || walletData.available || 0;
-        const blocked = walletData.balance?.blocked || walletData.blocked || 0;
+        if (walletData.error === 'MISSING_KEY') {
+          setErrorStatus('MISSING_KEY');
+        } else {
+          // Ajuste para formatos comuns da API Woovi
+          const available = walletData.balance?.available || walletData.available || 0;
+          const blocked = walletData.balance?.blocked || walletData.blocked || 0;
 
-        setStats({
-          mrr: totalPaid,
-          activeSubs: activeCount || 0,
-          pendingAmount: totalPending,
-          churn: 0,
-          wooviAvailable: available / 100,
-          wooviBlocked: blocked / 100
-        });
+          setStats({
+            mrr: totalPaid,
+            activeSubs: activeCount || 0,
+            pendingAmount: totalPending,
+            churn: 0,
+            wooviAvailable: available / 100,
+            wooviBlocked: blocked / 100
+          });
+          setErrorStatus(null);
+        }
 
         setRecentCharges(charges.slice(0, 5));
-
         setChartData([
           { name: 'Jan', value: totalPaid * 0.7 },
           { name: 'Fev', value: totalPaid * 0.8 },
@@ -121,45 +127,68 @@ const Dashboard = () => {
           </div>
           
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Disponível */}
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/10 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md text-white">
-                  <Wallet size={20} />
+            {errorStatus === 'MISSING_KEY' ? (
+              <div className="sm:col-span-2 bg-zinc-900 border border-orange-500/20 rounded-2xl p-6 flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-orange-500/10 rounded-xl text-orange-500">
+                    <Settings size={24} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-zinc-100">Configure sua conta</h3>
+                    <p className="text-sm text-zinc-500 leading-relaxed">Você ainda não inseriu sua API Key da Woovi. Isso é necessário para ver seu saldo e realizar saques.</p>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => setIsWithdrawModalOpen(true)}
-                  className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
+                <Link 
+                  to="/configuracoes" 
+                  className="bg-orange-500 text-zinc-950 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-orange-600 transition-all"
                 >
-                  SOLICITAR SAQUE <ChevronRight size={12} />
-                </button>
+                  Configurar agora
+                </Link>
               </div>
-              <div className="mt-4">
-                <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Disponível (Woovi)</p>
-                <h3 className="text-3xl font-bold text-white tracking-tighter">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviAvailable)}
-                </h3>
-              </div>
-            </div>
-
-            {/* Bloqueado */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div className="bg-zinc-800 p-2 rounded-lg text-zinc-500">
-                  <Lock size={20} />
+            ) : (
+              <>
+                {/* Disponível */}
+                <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/10 flex flex-col justify-between">
+                  <div className="flex justify-between items-start">
+                    <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md text-white">
+                      <Wallet size={20} />
+                    </div>
+                    <button 
+                      onClick={() => setIsWithdrawModalOpen(true)}
+                      className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      SOLICITAR SAQUE <ChevronRight size={12} />
+                    </button>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Disponível (Woovi)</p>
+                    <h3 className="text-3xl font-bold text-white tracking-tighter">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviAvailable)}
+                    </h3>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Processando</span>
-              </div>
-              <div className="mt-4">
-                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Bloqueado</p>
-                <h3 className="text-2xl font-bold text-zinc-100 tracking-tighter">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviBlocked)}
-                </h3>
-              </div>
-            </div>
+
+                {/* Bloqueado */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
+                  <div className="flex justify-between items-start">
+                    <div className="bg-zinc-800 p-2 rounded-lg text-zinc-500">
+                      <Lock size={20} />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Processando</span>
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Bloqueado</p>
+                    <h3 className="text-2xl font-bold text-zinc-100 tracking-tighter">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviBlocked)}
+                    </h3>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
+        {/* ... restante do componente (StatCards, Chart, etc) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
             title="Faturamento (Mês)" 
