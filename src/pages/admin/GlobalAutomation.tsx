@@ -53,36 +53,37 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      // Limpeza agressiva: Se não tem ID válido, a chave 'id' é COMPLETAMENTE REMOVIDA do objeto
+      // CORREÇÃO DEFINITIVA:
+      // Geramos o UUID no frontend para novos itens. Assim, o campo id NUNCA será nulo.
       const formattedTriggers = triggers.map(t => {
-        // Criamos um novo objeto apenas com o que é necessário
-        const { id, created_at, ...rest } = t;
+        const item = { ...t };
         
-        const item: any = { ...rest };
-        
-        // Só incluímos o ID se ele for um UUID válido (não vazio/nulo)
-        if (id && id.length > 10) {
-          item.id = id;
+        // Se não tiver ID ou for inválido, geramos um UUID v4 aqui mesmo
+        if (!item.id || item.id.length < 10) {
+          item.id = crypto.randomUUID();
         }
 
-        // Garantir valores padrão para campos obrigatórios
-        if (!item.name) item.name = 'template_sem_nome';
-        if (!item.label) item.label = 'Gatilho sem Rótulo';
-        if (item.day_offset === undefined) item.day_offset = 0;
+        // Garantir valores padrão
+        if (!item.name) item.name = 'template_padrao';
+        if (!item.label) item.label = 'Gatilho sem Nome';
+        if (item.day_offset === undefined || item.day_offset === null) item.day_offset = 0;
 
+        // Removemos campos que não são do banco (apenas precaução)
+        delete item.created_at; 
+        
         return item;
       });
 
-      console.log("[GlobalAutomation] Payload sendo enviado:", formattedTriggers);
+      console.log("[GlobalAutomation] Salvando regras:", formattedTriggers);
 
       const { error } = await supabase.from('billing_rules').upsert(formattedTriggers);
       if (error) throw error;
       
       showSuccess("Régua de cobrança salva com sucesso!");
-      fetchRules();
+      fetchRules(); // Recarrega para garantir sincronia
     } catch (err: any) {
-      console.error("[GlobalAutomation] Erro ao salvar:", err);
-      showError(err.message || "Erro ao salvar as regras no banco.");
+      console.error("[GlobalAutomation] Erro:", err);
+      showError(err.message);
     } finally {
       setSaving(false);
     }
@@ -90,6 +91,7 @@ const GlobalAutomation = () => {
 
   const addTrigger = () => {
     const newTrigger = {
+      // id: undefined, // Deixamos undefined para ser gerado no saveRules
       name: 'novo_template',
       label: 'Novo Gatilho',
       day_offset: 0,
@@ -100,20 +102,23 @@ const GlobalAutomation = () => {
       mapping: ['customer_name'],
       button_link_variable: 'payment_id',
       is_active: true
-      // Note que não definimos a chave 'id' aqui
     };
     setTriggers([...triggers, newTrigger]);
   };
 
   const removeTrigger = async (id: string, index: number) => {
     if (!confirm("Remover este gatilho?")) return;
-    if (id) {
+    
+    // Se tem ID, deleta do banco
+    if (id && id.length > 10) {
       const { error } = await supabase.from('billing_rules').delete().eq('id', id);
       if (error) {
         showError("Erro ao deletar: " + error.message);
         return;
       }
     }
+    
+    // Remove da lista local
     const newTriggers = [...triggers];
     newTriggers.splice(index, 1);
     setTriggers(newTriggers);
