@@ -32,8 +32,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <aside className="w-64 border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-xl">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-zinc-950">S</div>
-            <span className="text-xl font-bold tracking-tight">Swipy</span>
+            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20">S</div>
+            <span className="text-xl font-bold tracking-tight">swipy <span className="text-orange-500">cob</span></span>
           </div>
           
           <nav className="space-y-1">
@@ -44,12 +44,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
                   location.pathname === item.path 
-                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                    ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
                     : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                 )}
               >
                 <item.icon size={18} className={cn(
-                  location.pathname === item.path ? "text-emerald-400" : "text-zinc-500 group-hover:text-zinc-300"
+                  location.pathname === item.path ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
                 )} />
                 {item.label}
               </Link>
@@ -72,9 +72,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <h1 className="text-sm font-medium text-zinc-400">Olá, <span className="text-zinc-100 font-semibold">Empresa XPTO</span></h1>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 text-zinc-400 hover:text-emerald-400 transition-colors relative">
+            <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative">
               <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-zinc-900"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-zinc-900"></span>
             </button>
             <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
               <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" />

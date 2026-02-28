@@ -6,8 +6,6 @@ import StatCard from '@/components/dashboard/StatCard';
 import { cn } from "@/lib/utils";
 import { DollarSign, UserCheck, AlertCircle, BarChart3, TrendingUp } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -43,7 +41,7 @@ const Dashboard = () => {
             <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
             <p className="text-zinc-400 mt-1">Bem-vindo de volta! Aqui está o resumo da sua operação hoje.</p>
           </div>
-          <button className="bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+          <button className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10">
             <TrendingUp size={18} />
             Ver Relatório Completo
           </button>
@@ -55,13 +53,13 @@ const Dashboard = () => {
             title="Receita Mensal (MRR)" 
             value="R$ 67.450,00" 
             trend={12.5} 
-            icon={<DollarSign className="text-emerald-500" size={18} />} 
+            icon={<DollarSign className="text-orange-500" size={18} />} 
           />
           <StatCard 
             title="Assinaturas Ativas" 
             value="1.284" 
             trend={4.2} 
-            icon={<UserCheck className="text-blue-500" size={18} />} 
+            icon={<UserCheck className="text-blue-400" size={18} />} 
           />
           <StatCard 
             title="Em Aberto" 
@@ -92,8 +90,8 @@ const Dashboard = () => {
                 <AreaChart data={data}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
@@ -101,9 +99,9 @@ const Dashboard = () => {
                   <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val/1000}k`} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px' }}
-                    itemStyle={{ color: '#10b981' }}
+                    itemStyle={{ color: '#f97316' }}
                   />
-                  <Area type="monotone" dataKey="value" stroke="#10b981" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="value" stroke="#f97316" fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -118,8 +116,8 @@ const Dashboard = () => {
                   <div className="flex gap-3">
                     <div className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                      charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : 
-                      charge.status === 'atrasado' ? "bg-red-500/10 text-red-500" : "bg-orange-500/10 text-orange-500"
+                      charge.status === 'pago' ? "bg-orange-500/10 text-orange-500" : 
+                      charge.status === 'atrasado' ? "bg-red-500/10 text-red-500" : "bg-zinc-800 text-zinc-400"
                     )}>
                       {charge.status === 'pago' ? <DollarSign size={18} /> : <AlertCircle size={18} />}
                     </div>
@@ -132,8 +130,8 @@ const Dashboard = () => {
                     <p className="text-sm font-semibold text-zinc-100">{charge.value}</p>
                     <span className={cn(
                       "text-[10px] uppercase tracking-wider font-bold",
-                      charge.status === 'pago' ? "text-emerald-500" : 
-                      charge.status === 'atrasado' ? "text-red-500" : "text-orange-500"
+                      charge.status === 'pago' ? "text-orange-500" : 
+                      charge.status === 'atrasado' ? "text-red-500" : "text-zinc-500"
                     )}>
                       {charge.status}
                     </span>

@@ -35,13 +35,12 @@ const ChargeDetail = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Info */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
               <div className="flex justify-between border-b border-zinc-800 pb-8 mb-8">
                 <div>
                   <p className="text-zinc-500 text-sm mb-1">Valor da Fatura</p>
-                  <h3 className="text-4xl font-bold text-emerald-400">R$ 450,00</h3>
+                  <h3 className="text-4xl font-bold text-orange-400">R$ 450,00</h3>
                 </div>
                 <div className="text-right">
                   <p className="text-zinc-500 text-sm mb-1">Vencimento Original</p>
@@ -73,9 +72,9 @@ const ChargeDetail = () => {
                 <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50">
                   <h4 className="text-sm font-semibold text-zinc-300 mb-3">Ações Administrativas</h4>
                   <div className="grid grid-cols-2 gap-2">
-                    <button className="bg-emerald-500 text-zinc-950 text-xs font-bold py-2 rounded hover:bg-emerald-600 transition-all">Baixar PDF</button>
+                    <button className="bg-orange-500 text-zinc-950 text-xs font-bold py-2 rounded hover:bg-orange-600 transition-all">Baixar PDF</button>
                     <button className="bg-zinc-700 text-zinc-200 text-xs font-bold py-2 rounded hover:bg-zinc-600 transition-all">Reenviar E-mail</button>
-                    <button className="col-span-2 border border-emerald-500/30 text-emerald-400 text-xs font-bold py-2 rounded hover:bg-emerald-500/10 transition-all">Marcar como Pago Manual</button>
+                    <button className="col-span-2 border border-orange-500/30 text-orange-400 text-xs font-bold py-2 rounded hover:bg-orange-500/10 transition-all">Marcar como Pago Manual</button>
                   </div>
                 </div>
               </div>
@@ -83,7 +82,7 @@ const ChargeDetail = () => {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
               <h3 className="font-semibold text-zinc-200 mb-6 flex items-center gap-2">
-                <RefreshCcw size={18} className="text-emerald-500" /> Histórico de Tentativas de Débito
+                <RefreshCcw size={18} className="text-orange-500" /> Histórico de Tentativas de Débito
               </h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
@@ -104,7 +103,6 @@ const ChargeDetail = () => {
             </div>
           </div>
 
-          {/* Timeline */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 h-fit">
             <h3 className="font-semibold text-zinc-200 mb-8">Linha do Tempo</h3>
             <div className="relative space-y-8">
@@ -113,12 +111,12 @@ const ChargeDetail = () => {
                   {index !== timeline.length - 1 && (
                     <div className={cn(
                       "absolute left-[11px] top-6 w-0.5 h-12",
-                      item.active ? "bg-emerald-500/30" : "bg-zinc-800"
+                      item.active ? "bg-orange-500/30" : "bg-zinc-800"
                     )} />
                   )}
                   <div className={cn(
                     "w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10",
-                    item.active ? "bg-emerald-500/20 text-emerald-500" : "bg-zinc-800 text-zinc-500"
+                    item.active ? "bg-orange-500/20 text-orange-500" : "bg-zinc-800 text-zinc-500"
                   )}>
                     <item.icon size={14} className={item.color} />
                   </div>

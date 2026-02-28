@@ -24,7 +24,7 @@ const Automation = () => {
           </div>
           <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 p-1.5 rounded-xl">
             <span className="text-xs text-zinc-500 px-3 font-medium uppercase tracking-wider">Status Global</span>
-            <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+            <div className="flex items-center gap-2 bg-orange-500/10 text-orange-400 px-3 py-1.5 rounded-lg border border-orange-500/20">
               <CheckCircle size={14} />
               <span className="text-xs font-bold">ATIVA</span>
             </div>
@@ -32,11 +32,10 @@ const Automation = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Left Configs */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
               <h3 className="font-semibold text-zinc-200 mb-6 flex items-center gap-2">
-                <Smartphone size={18} className="text-emerald-500" /> Canais Ativos
+                <Smartphone size={18} className="text-orange-500" /> Canais Ativos
               </h3>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -63,19 +62,18 @@ const Automation = () => {
               </div>
             </div>
 
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
-              <h4 className="text-sm font-bold text-emerald-400 mb-2">Dica Pro</h4>
-              <p className="text-xs text-emerald-200/60 leading-relaxed">
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-2xl p-6">
+              <h4 className="text-sm font-bold text-orange-400 mb-2">Dica Pro</h4>
+              <p className="text-xs text-orange-200/60 leading-relaxed">
                 Empresas que utilizam lembretes D-3 via WhatsApp reduzem a inadimplência em até 15%.
               </p>
             </div>
           </div>
 
-          {/* Timeline Area */}
           <div className="lg:col-span-3 space-y-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-widest">Fluxo de Notificações</h3>
-              <button className="text-emerald-500 text-sm font-medium flex items-center gap-1 hover:text-emerald-400 transition-all">
+              <button className="text-orange-500 text-sm font-medium flex items-center gap-1 hover:text-orange-400 transition-all">
                 <Plus size={16} /> Adicionar gatilho
               </button>
             </div>
@@ -86,7 +84,7 @@ const Automation = () => {
                   <GripVertical size={20} />
                 </div>
                 
-                <div className="w-16 h-12 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-emerald-500 shadow-inner">
+                <div className="w-16 h-12 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-center font-bold text-orange-500 shadow-inner">
                   {trigger.day}
                 </div>
 
