@@ -15,17 +15,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Pegar usuário pelo token JWT
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error("No authorization header")
+    if (!authHeader) throw new Error("Autorização ausente")
 
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
     
-    if (authError || !user) {
-      console.error("[woovi-wallet] Erro de autenticação:", authError?.message)
-      throw new Error("Não autorizado")
-    }
+    if (authError || !user) throw new Error("Não autorizado")
 
+    // Pegar o token específico deste usuário configurado no painel
     const { data: profile, error: profileErr } = await supabaseClient
       .from('profiles')
       .select('woovi_api_key')
@@ -33,9 +32,7 @@ serve(async (req) => {
       .single()
 
     if (profileErr || !profile?.woovi_api_key) {
-      console.warn("[woovi-wallet] Usuário sem API Key configurada:", user.id)
-      return new Response(JSON.stringify({ error: "MISSING_KEY", message: "Configure sua API Key da Woovi nas configurações." }), { 
-        status: 200, // Retornamos 200 para o front tratar amigavelmente
+      return new Response(JSON.stringify({ error: "MISSING_KEY" }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
@@ -43,16 +40,23 @@ serve(async (req) => {
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'balance'
 
+    // Endpoint oficial: api.woovi.com ou api.openpix.com.br
+    const API_BASE = 'https://api.woovi.com/api/v1'
+
     if (action === 'balance') {
-      console.log("[woovi-wallet] Consultando saldo para o usuário:", user.id)
+      console.log(`[woovi-wallet] Consultando saldo para: ${user.id}`)
       
-      const response = await fetch('https://api.woovi.com/api/v1/balance', {
+      const response = await fetch(`${API_BASE}/balance`, {
         headers: { 'Authorization': profile.woovi_api_key }
       })
       
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`[woovi-wallet] Woovi Error (${response.status}):`, errorText)
+        throw new Error(`Woovi retornou erro ${response.status}: ${errorText.substring(0, 50)}`)
+      }
+
       const data = await response.json()
-      console.log("[woovi-wallet] Resposta da Woovi:", JSON.stringify(data))
-      
       return new Response(JSON.stringify(data), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
@@ -60,9 +64,8 @@ serve(async (req) => {
 
     if (action === 'withdraw') {
       const { amount, pixKey, pixKeyType } = await req.json()
-      console.log("[woovi-wallet] Solicitando saque:", { amount, pixKeyType })
       
-      const response = await fetch('https://api.woovi.com/api/v1/cashout', {
+      const response = await fetch(`${API_BASE}/cashout`, {
         method: 'POST',
         headers: { 
           'Authorization': profile.woovi_api_key,
@@ -71,9 +74,12 @@ serve(async (req) => {
         body: JSON.stringify({ value: Math.round(amount * 100), pixKey, pixKeyType })
       })
       
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Erro no Saque: ${errorText}`)
+      }
+
       const data = await response.json()
-      console.log("[woovi-wallet] Resposta do saque:", JSON.stringify(data))
-      
       return new Response(JSON.stringify(data), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
@@ -82,8 +88,8 @@ serve(async (req) => {
     throw new Error("Ação inválida")
 
   } catch (error: any) {
-    console.error("[woovi-wallet] Erro interno:", error.message)
-    return new Response(JSON.stringify({ error: "INTERNAL_ERROR", message: error.message }), {
+    console.error("[woovi-wallet] Erro:", error.message)
+    return new Response(JSON.stringify({ error: "API_ERROR", message: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
