@@ -1,3 +1,4 @@
+import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -40,7 +41,7 @@ const App = () => (
             <Route path="/pagar/:id" element={<Checkout />} />
             
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} /> {/* Rota Atualizada */}
+            <Route path="/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
             <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
