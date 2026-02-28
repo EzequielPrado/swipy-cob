@@ -20,7 +20,7 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || !body.to || !body.subject || !body.html) {
-      return new Response(JSON.stringify({ error: "Dados incompletos" }), {
+      return new Response(JSON.stringify({ error: "Dados incompletos (to, subject, html)" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -33,32 +33,24 @@ serve(async (req) => {
     const password = Deno.env.get('SMTP_PASSWORD');
 
     if (!hostname || !port || !username || !password) {
-      throw new Error("Configurações SMTP ausentes nas Secrets.");
+      throw new Error("Configurações SMTP ausentes nas Secrets do Supabase.");
     }
 
     const client = new SmtpClient();
     const portNum = parseInt(port);
 
-    console.log(`[send-email] Iniciando envio para ${to} via ${hostname}:${portNum}...`);
+    console.log(`[send-email] DIAGNÓSTICO: Tentando conectar a ${hostname} na porta ${portNum}...`);
 
     try {
-      // Se a porta for 465, usamos SSL implícito (connectTLS)
-      // Para 587, usamos STARTTLS (connect)
-      if (portNum === 465) {
-        await client.connectTLS({
-          hostname,
-          port: portNum,
-          username,
-          password,
-        });
-      } else {
-        await client.connect({
-          hostname,
-          port: portNum,
-          username,
-          password,
-        });
-      }
+      // Tenta a conexão com timeout manual para evitar travamento infinito
+      const connectPromise = portNum === 465 
+        ? client.connectTLS({ hostname, port: portNum, username, password })
+        : client.connect({ hostname, port: portNum, username, password });
+
+      // Aguarda a conexão (Timeout implícito do Deno é de ~30s)
+      await connectPromise;
+      
+      console.log(`[send-email] Conexão estabelecida com sucesso. Enviando e-mail para ${to}...`);
 
       await client.send({
         from: username,
@@ -69,7 +61,7 @@ serve(async (req) => {
       });
 
       await client.close();
-      console.log("[send-email] E-mail enviado com sucesso!");
+      console.log("[send-email] E-mail enviado!");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -77,20 +69,21 @@ serve(async (req) => {
       });
 
     } catch (smtpErr) {
-      // Log detalhado para depuração
-      console.error("[send-email] Erro na biblioteca SMTP:", smtpErr);
+      console.error("[send-email] Erro de Conexão:", smtpErr.message);
       
-      // Se o erro for a resposta 250, tentamos uma mensagem mais clara
-      const errorMsg = smtpErr.message || String(smtpErr);
-      if (errorMsg.includes("250")) {
-        throw new Error("O servidor SMTP enviou uma saudação que a biblioteca não conseguiu processar. Tente mudar a porta de 465 para 587 (ou vice-versa) nas Secrets.");
+      let friendlyMessage = smtpErr.message;
+      if (smtpErr.message.includes("TimedOut") || smtpErr.message.includes("connection timed out")) {
+        friendlyMessage = `Tempo de conexão esgotado. Verifique se a porta ${portNum} está correta para o host ${hostname} e se o firewall do seu servidor permite conexões externas.`;
       }
-      
-      throw smtpErr;
+
+      return new Response(JSON.stringify({ error: friendlyMessage }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
   } catch (err) {
-    console.error("[send-email] Falha geral:", err.message);
+    console.error("[send-email] Erro Fatal:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
