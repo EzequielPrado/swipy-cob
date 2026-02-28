@@ -9,13 +9,13 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  Layout,
-  QrCode,
   Variable,
-  Link as LinkIcon,
-  Globe,
   Save,
-  ExternalLink
+  ExternalLink,
+  Info,
+  Zap,
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess, showError } from '@/utils/toast';
+import { cn } from "@/lib/utils";
 
 const SYSTEM_VARIABLES = [
   { key: 'customer_name', label: 'Nome do Cliente', mock: 'João Silva' },
@@ -52,11 +53,10 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      // Deletamos as antigas e inserimos as novas para simplificar o "upsert" em lote
-      // Ou apenas atualizamos se você preferir. Aqui vamos salvar uma por uma ou usar upsert.
       const { error } = await supabase.from('billing_rules').upsert(triggers);
       if (error) throw error;
       showSuccess("Régua de cobrança salva com sucesso!");
+      fetchRules();
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -71,7 +71,7 @@ const GlobalAutomation = () => {
       day_offset: 0,
       language: 'en',
       message_text: 'Olá *{{1}}*...',
-      image_url: '',
+      image_url: 'https://images.unsplash.com/photo-1554224155-1696413565d3?q=80&w=600',
       primary_button_text: 'Pagar Agora',
       mapping: ['customer_name'],
       button_link_variable: 'payment_link',
@@ -82,11 +82,7 @@ const GlobalAutomation = () => {
 
   const removeTrigger = async (id: string, index: number) => {
     if (!confirm("Remover este gatilho?")) return;
-    
-    if (id) {
-      await supabase.from('billing_rules').delete().eq('id', id);
-    }
-    
+    if (id) await supabase.from('billing_rules').delete().eq('id', id);
     const newTriggers = [...triggers];
     newTriggers.splice(index, 1);
     setTriggers(newTriggers);
@@ -155,7 +151,7 @@ const GlobalAutomation = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Régua de Cobrança Global</h2>
-            <p className="text-zinc-400 mt-1">Configure as mensagens automáticas baseadas no vencimento.</p>
+            <p className="text-zinc-400 mt-1">Configure o fluxo de mensagens automáticas baseadas no ciclo de vida da fatura.</p>
           </div>
           <div className="flex gap-4">
             <button 
@@ -179,38 +175,46 @@ const GlobalAutomation = () => {
           {triggers.map((t, tIndex) => (
             <div key={tIndex} className="relative pl-16 group">
               <div className="absolute left-0 top-0 w-16 h-16 flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-zinc-900 border-4 border-orange-500 z-10 shadow-[0_0_15px_rgba(249,115,22,0.3)]" />
+                <div className={cn(
+                  "w-4 h-4 rounded-full border-4 z-10 shadow-lg",
+                  t.day_offset === -1 ? "bg-orange-500 border-zinc-950 shadow-orange-500/30" :
+                  t.day_offset === 0 ? "bg-emerald-500 border-zinc-950 shadow-emerald-500/30" :
+                  "bg-zinc-700 border-zinc-950"
+                )} />
               </div>
 
               <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl transition-all group-hover:border-zinc-700">
                 <div className="p-6 border-b border-zinc-800 bg-zinc-950/30 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-6">
                     <GripVertical className="text-zinc-700" size={20} />
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-6">
                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase text-zinc-500 font-bold">Dia (Offset)</Label>
+                          <Label className="text-[9px] uppercase text-zinc-500 font-bold flex items-center gap-1">
+                             {t.day_offset === -1 ? <Zap size={10} className="text-orange-500" /> : <Clock size={10} />}
+                             Momento do Disparo
+                          </Label>
                           <Select 
                             value={t.day_offset?.toString()} 
                             onValueChange={(val) => updateTrigger(tIndex, 'day_offset', parseInt(val))}
                           >
-                            <SelectTrigger className="h-8 w-24 bg-zinc-950 border-zinc-800 text-xs">
+                            <SelectTrigger className="h-9 w-40 bg-zinc-950 border-zinc-800 text-xs font-semibold">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                              <SelectItem value="-1">Criada (Imediato)</SelectItem>
                               <SelectItem value="0">D0 (Vence Hoje)</SelectItem>
-                              <SelectItem value="1">D+1 (1 dia após)</SelectItem>
-                              <SelectItem value="3">D+3 (3 dias após)</SelectItem>
-                              <SelectItem value="5">D+5 (5 dias após)</SelectItem>
-                              <SelectItem value="7">D+7 (1 semana)</SelectItem>
+                              <SelectItem value="3">D+3 (Atrasada)</SelectItem>
+                              <SelectItem value="7">D+7 (Atraso Crítico)</SelectItem>
+                              <SelectItem value="15">D+15 (Cobrança Forte)</SelectItem>
                             </SelectContent>
                           </Select>
                        </div>
                        <div className="space-y-1">
-                          <Label className="text-[9px] uppercase text-zinc-500 font-bold">Nome do Template</Label>
+                          <Label className="text-[9px] uppercase text-zinc-500 font-bold">Template Meta (ID)</Label>
                           <Input 
                             value={t.name}
                             onChange={(e) => updateTrigger(tIndex, 'name', e.target.value)}
-                            className="h-8 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400"
+                            className="h-9 w-48 text-xs bg-zinc-950 border-zinc-800 font-mono text-orange-400 font-bold"
                           />
                        </div>
                     </div>
@@ -219,10 +223,10 @@ const GlobalAutomation = () => {
                     <button 
                       onClick={() => handleSendTest(t)}
                       disabled={loadingId === t.id}
-                      className="text-emerald-400 text-xs font-bold flex items-center gap-2 hover:bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20"
+                      className="text-emerald-400 text-xs font-bold flex items-center gap-2 hover:bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20 transition-all"
                     >
                       {loadingId === t.id ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
-                      TESTE
+                      TESTE REAL
                     </button>
                     <button onClick={() => removeTrigger(t.id, tIndex)} className="p-2.5 text-zinc-600 hover:text-red-400 transition-all">
                       <Trash2 size={18} />
@@ -240,14 +244,21 @@ const GlobalAutomation = () => {
                           value={t.image_url}
                           onChange={(e) => updateTrigger(tIndex, 'image_url', e.target.value)}
                           className="bg-zinc-950 border-zinc-800 text-xs h-10" 
-                          placeholder="URL da Imagem..."
+                          placeholder="URL da Imagem (Padrão: Pix)..."
                         />
                     </div>
 
                     <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
-                      <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
-                        <Variable size={14} className="text-orange-500" /> Variáveis da Mensagem
-                      </Label>
+                      <div className="flex justify-between items-center">
+                        <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
+                          <Variable size={14} className="text-orange-500" /> Variáveis da Mensagem
+                        </Label>
+                        <div className="flex items-center gap-1.5 text-zinc-500 text-[10px]">
+                          <Info size={12} />
+                          Use {{'{{1}}'}}, {{'{{2}}'}}, etc no template da Meta
+                        </div>
+                      </div>
+                      
                       <div className="grid grid-cols-1 gap-3">
                         {t.mapping?.map((variableKey: string, vIndex: number) => (
                           <div key={vIndex} className="flex items-center gap-3">
@@ -275,30 +286,31 @@ const GlobalAutomation = () => {
                         ))}
                         <button 
                           onClick={() => updateTrigger(tIndex, 'mapping', [...(t.mapping || []), 'customer_name'])}
-                          className="text-[10px] text-orange-500 font-bold hover:underline"
+                          className="text-[10px] text-orange-500 font-bold hover:underline self-start mt-1"
                         >
-                          + ADICIONAR VARIÁVEL
+                          + ADICIONAR NOVA VARIÁVEL
                         </button>
                       </div>
                       <Textarea 
                         value={t.message_text}
                         onChange={(e) => updateTrigger(tIndex, 'message_text', e.target.value)}
-                        className="bg-zinc-950 border-zinc-800 text-xs min-h-[100px] mt-3" 
-                        placeholder="Texto da mensagem..."
+                        className="bg-zinc-950 border-zinc-800 text-xs min-h-[120px] mt-3 leading-relaxed" 
+                        placeholder="Escreva a mensagem aqui (Markdown suportado pelo WhatsApp)..."
                       />
                     </div>
 
                     <div className="bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50 flex gap-4">
                        <div className="flex-1 space-y-2">
-                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Texto do Botão</Label>
+                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Texto do Botão Call-to-Action</Label>
                           <Input 
                             value={t.primary_button_text}
                             onChange={(e) => updateTrigger(tIndex, 'primary_button_text', e.target.value)}
                             className="bg-zinc-950 border-zinc-800 text-xs h-10"
+                            placeholder="Ex: Pagar Agora"
                           />
                        </div>
                        <div className="flex-1 space-y-2">
-                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Variável do Link</Label>
+                          <Label className="text-[10px] uppercase text-zinc-500 font-bold">Variável do Link Dinâmico</Label>
                           <Select 
                             value={t.button_link_variable}
                             onValueChange={(val) => updateTrigger(tIndex, 'button_link_variable', val)}
@@ -316,10 +328,10 @@ const GlobalAutomation = () => {
                     </div>
                   </div>
 
-                  {/* Preview */}
-                  <div className="lg:col-span-5 bg-zinc-950 p-8 flex flex-col items-center">
-                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-6">WhatsApp Preview</p>
-                    <div className="w-full max-w-[280px] bg-[#0b141a] rounded-3xl border-[6px] border-[#1f2c33] p-1.5 shadow-2xl">
+                  {/* WhatsApp Preview */}
+                  <div className="lg:col-span-5 bg-zinc-950 p-8 flex flex-col items-center justify-center border-t lg:border-t-0 border-zinc-800">
+                    <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mb-6">Pré-visualização do Cliente</p>
+                    <div className="w-full max-w-[280px] bg-[#0b141a] rounded-3xl border-[8px] border-[#1f2c33] p-1.5 shadow-2xl">
                       <div className="bg-[#0b141a] h-full rounded-[1.8rem] overflow-hidden p-3 pt-6 space-y-4">
                         <div className="bg-[#1f2c33] rounded-2xl rounded-tl-none overflow-hidden border border-zinc-800/30">
                           {t.image_url && <img src={t.image_url} alt="Header" className="w-full h-32 object-cover" />}
@@ -328,17 +340,32 @@ const GlobalAutomation = () => {
                               {renderPreviewText(t.message_text, t.mapping)}
                             </p>
                           </div>
-                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-medium">
+                          <div className="border-t border-zinc-700/50 bg-[#233138] p-3 flex items-center justify-center gap-2 text-[#53bdeb] text-[13px] font-bold">
                             <ExternalLink size={14} /> {t.primary_button_text}
                           </div>
                         </div>
                       </div>
                     </div>
+                    {t.day_offset === -1 && (
+                      <div className="mt-6 flex items-center gap-2 text-orange-500 text-[10px] font-bold uppercase tracking-wider bg-orange-500/10 px-4 py-2 rounded-full border border-orange-500/20">
+                        <Zap size={12} /> Disparo Automático na Criação
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           ))}
+
+          {triggers.length === 0 && (
+            <div className="pl-16 py-20 text-center">
+              <div className="w-16 h-16 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-600">
+                <AlertTriangle size={32} />
+              </div>
+              <h3 className="text-zinc-100 font-bold">Nenhuma regra configurada</h3>
+              <p className="text-zinc-500 text-sm mt-1">Clique em "Adicionar Gatilho" para começar sua régua.</p>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
