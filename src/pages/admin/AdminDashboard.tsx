@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Play,
   Settings,
-  RefreshCw
+  RefreshCw,
+  BellRing
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -28,7 +29,8 @@ const AdminDashboard = () => {
   });
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processingRecurrence, setProcessingRecurrence] = useState(false);
+  const [processingRules, setProcessingRules] = useState(false);
 
   const fetchGlobalData = async () => {
     setLoading(true);
@@ -68,10 +70,10 @@ const AdminDashboard = () => {
     fetchGlobalData();
   }, []);
 
-  const handleForceProcess = async () => {
+  const handleForceRecurrence = async () => {
     if (!confirm("Isso irá gerar cobranças para todas as assinaturas agendadas para HOJE. Deseja continuar?")) return;
     
-    setProcessing(true);
+    setProcessingRecurrence(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -85,15 +87,40 @@ const AdminDashboard = () => {
       });
 
       const result = await response.json();
-      
       if (!response.ok) throw new Error(result.error || "Erro ao processar");
 
-      showSuccess(`Processamento concluído! ${result.results?.length || 0} assinaturas verificadas.`);
-      fetchGlobalData(); // Atualiza a lista de cobranças recentes
+      showSuccess(`Geração concluída! ${result.results?.length || 0} assinaturas verificadas.`);
+      fetchGlobalData();
     } catch (err: any) {
-      showError("Erro no processamento: " + err.message);
+      showError("Erro: " + err.message);
     } finally {
-      setProcessing(false);
+      setProcessingRecurrence(false);
+    }
+  };
+
+  const handleForceRules = async () => {
+    if (!confirm("Isso irá disparar as mensagens de lembrete (Hoje, D+3, etc) para todas as faturas pendentes. Continuar?")) return;
+    
+    setProcessingRules(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/process-billing-schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!response.ok) throw new Error("Erro ao processar a régua.");
+
+      showSuccess("Régua de cobrança processada com sucesso!");
+    } catch (err: any) {
+      showError("Erro: " + err.message);
+    } finally {
+      setProcessingRules(false);
     }
   };
 
@@ -102,33 +129,51 @@ const AdminDashboard = () => {
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col lg:flex-row justify-between items-start gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h2>
             <p className="text-zinc-400 mt-1">Monitoramento global de faturamento e engajamento dos parceiros.</p>
           </div>
           
-          {/* Seção de Controles Manuais */}
-          <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Rotinas do Sistema</p>
-              <p className="text-xs text-zinc-400">Processamento de assinaturas</p>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Controle 1: Novas Cobranças */}
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Assinaturas</p>
+                <p className="text-[10px] text-zinc-400">Gerar faturas de hoje</p>
+              </div>
+              <button 
+                onClick={handleForceRecurrence}
+                disabled={processingRecurrence}
+                className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold p-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10"
+                title="Executar Geração de Assinaturas"
+              >
+                {processingRecurrence ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
+              </button>
             </div>
-            <button 
-              onClick={handleForceProcess}
-              disabled={processing}
-              className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10 text-sm"
-            >
-              {processing ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-              EXECUTAR AGORA
-            </button>
+
+            {/* Controle 2: Régua de Cobrança */}
+            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Régua Global</p>
+                <p className="text-[10px] text-zinc-400">Enviar lembretes agendados</p>
+              </div>
+              <button 
+                onClick={handleForceRules}
+                disabled={processingRules}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-zinc-950 font-bold p-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10"
+                title="Executar Régua de Lembretes"
+              >
+                {processingRules ? <Loader2 className="animate-spin" size={16} /> : <BellRing size={16} />}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
-            title="Faturamento Total (Transacionado)" 
+            title="Faturamento Total" 
             value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalRevenue)} 
             icon={<DollarSign className="text-emerald-500" size={18} />} 
           />
