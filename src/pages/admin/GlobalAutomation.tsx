@@ -54,8 +54,16 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase.from('billing_rules').upsert(triggers);
+      // Limpa os triggers para não enviar IDs nulos ou vazios
+      const formattedTriggers = triggers.map(t => {
+        const cleaned = { ...t };
+        if (!cleaned.id) delete cleaned.id;
+        return cleaned;
+      });
+
+      const { error } = await supabase.from('billing_rules').upsert(formattedTriggers);
       if (error) throw error;
+      
       showSuccess("Régua de cobrança salva com sucesso!");
       fetchRules();
     } catch (err: any) {
@@ -83,7 +91,13 @@ const GlobalAutomation = () => {
 
   const removeTrigger = async (id: string, index: number) => {
     if (!confirm("Remover este gatilho?")) return;
-    if (id) await supabase.from('billing_rules').delete().eq('id', id);
+    if (id) {
+      const { error } = await supabase.from('billing_rules').delete().eq('id', id);
+      if (error) {
+        showError("Erro ao deletar: " + error.message);
+        return;
+      }
+    }
     const newTriggers = [...triggers];
     newTriggers.splice(index, 1);
     setTriggers(newTriggers);
@@ -321,13 +335,10 @@ const GlobalAutomation = () => {
                             </SelectTrigger>
                             <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                               {SYSTEM_VARIABLES.map((sv) => (
-                                <SelectItem key={sv.sv_key || sv.key} value={sv.key}>{sv.label}</SelectItem>
+                                <SelectItem key={sv.key} value={sv.key}>{sv.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-[9px] text-orange-500/70 italic mt-1 flex items-center gap-1">
-                            <Info size={10} /> Recomendado: Código de Pagamento (ID)
-                          </p>
                        </div>
                     </div>
                   </div>
