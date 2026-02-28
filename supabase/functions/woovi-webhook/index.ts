@@ -9,44 +9,43 @@ serve(async (req) => {
     )
 
     const payload = await req.json()
-    console.log("[woovi-webhook] Evento recebido:", payload.event)
+    const event = payload.event
+    
+    console.log(`[woovi-webhook] Evento recebido: ${event}`);
+    console.log("[woovi-webhook] Payload completo:", JSON.stringify(payload));
 
-    // Eventos de sucesso da Woovi: CHARGE_COMPLETED (Cobrança paga)
-    // O identificador da Woovi vem em payload.charge.identifier
-    if (payload.event === 'OPEN_PIX_CHARGE_COMPLETED' || payload.event === 'CHARGE_COMPLETED') {
-      const wooviId = payload.charge.identifier
+    // Lista de eventos que indicam pagamento concluído na Woovi
+    const paymentEvents = [
+      'OPEN_PIX_CHARGE_COMPLETED', 
+      'CHARGE_COMPLETED', 
+      'PIX_CHARGE_COMPLETED',
+      'BILL_COMPLETED'
+    ];
+
+    if (paymentEvents.includes(event)) {
+      // Tentamos pegar o identificador único da Woovi ou o Correlation ID que nós geramos
+      const wooviId = payload.charge?.identifier;
+      const correlationID = payload.charge?.correlationID;
       
-      console.log(`[woovi-webhook] Processando pagamento para Woovi ID: ${wooviId}`);
+      console.log(`[woovi-webhook] Identificadores - Woovi ID: ${wooviId}, Correlation ID: ${correlationID}`);
 
-      // Atualizar status da cobrança no banco de dados
+      // Atualizamos a cobrança buscando por qualquer um dos dois IDs para garantir
       const { data, error } = await supabaseClient
         .from('charges')
         .update({ status: 'pago' })
-        .eq('woovi_id', wooviId)
-        .select('*, customers(name, email)')
-        .single()
+        .or(`woovi_id.eq.${wooviId},correlation_id.eq.${correlationID}`)
+        .select('id, amount, customers(name)')
+        .single();
 
       if (error) {
-        console.error(`[woovi-webhook] Erro ao atualizar cobrança ${wooviId}:`, error.message);
+        console.error(`[woovi-webhook] Erro ao atualizar cobrança:`, error.message);
       } else if (data) {
-        console.log(`[woovi-webhook] Cobrança ${wooviId} de ${data.customers.name} marcada como PAGA com sucesso.`);
-        
-        // Opcional: Aqui você poderia disparar um e-mail de confirmação usando a função send-email
-        /*
-        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-          },
-          body: JSON.stringify({
-            to: data.customers.email,
-            subject: 'Pagamento Confirmado - Swipy Cob',
-            html: `<h1>Olá, ${data.customers.name}!</h1><p>Recebemos seu pagamento de R$ ${data.amount.toFixed(2)}. Obrigado!</p>`
-          })
-        });
-        */
+        console.log(`[woovi-webhook] Sucesso! Cobrança ${data.id} de ${data.customers.name} (R$ ${data.amount}) marcada como PAGA.`);
+      } else {
+        console.warn(`[woovi-webhook] Nenhuma cobrança encontrada no banco para os IDs fornecidos.`);
       }
+    } else {
+      console.log(`[woovi-webhook] Evento ignorado (não é de pagamento concluído).`);
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -54,7 +53,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error: any) {
-    console.error("[woovi-webhook] Erro crítico:", error.message)
+    console.error("[woovi-webhook] Erro crítico no processamento:", error.message)
     return new Response(error.message, { status: 400 })
   }
 })
