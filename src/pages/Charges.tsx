@@ -33,9 +33,10 @@ const Charges = () => {
     fetchCharges();
   }, []);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    showSuccess("Copiado para a área de transferência!");
+  const copyInternalCheckoutLink = (chargeId: string) => {
+    const internalLink = `${window.location.origin}/pagar/${chargeId}`;
+    navigator.clipboard.writeText(internalLink);
+    showSuccess("Link de checkout copiado!");
   };
 
   const handleDelete = async (charge: any) => {
@@ -43,9 +44,8 @@ const Charges = () => {
     
     setActionLoading(charge.id);
     try {
-      // 1. Deletar na Woovi via Edge Function
       if (charge.woovi_id) {
-        const wooviRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-charge`, {
+        await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-charge`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -53,15 +53,8 @@ const Charges = () => {
           },
           body: JSON.stringify({ wooviId: charge.woovi_id })
         });
-        
-        if (!wooviRes.ok) {
-          const res = await wooviRes.json();
-          console.warn("Aviso Woovi:", res.error);
-          // Opcional: Impedir exclusão se for erro crítico ou apenas avisar
-        }
       }
 
-      // 2. Deletar no Supabase
       const { error } = await supabase
         .from('charges')
         .delete()
@@ -145,13 +138,21 @@ const Charges = () => {
                       </td>
                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {charge.payment_link && (
-                            <button onClick={() => copyToClipboard(charge.payment_link)} title="Copiar Link de Pagamento" className="p-2 text-zinc-500 hover:text-orange-400 transition-colors">
-                              <Copy size={16}/>
-                            </button>
-                          )}
                           <button 
-                            onClick={() => handleDelete(charge)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyInternalCheckoutLink(charge.id);
+                            }} 
+                            title="Copiar Link de Checkout" 
+                            className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
+                          >
+                            <Copy size={16}/>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(charge);
+                            }}
                             disabled={actionLoading === charge.id}
                             title="Excluir Cobrança" 
                             className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
