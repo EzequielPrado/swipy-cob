@@ -38,18 +38,38 @@ const Charges = () => {
     showSuccess("Copiado para a área de transferência!");
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.")) return;
+  const handleDelete = async (charge: any) => {
+    if (!confirm(`Deseja excluir a cobrança de ${charge.customers?.name}? Isso também a cancelará na Woovi.`)) return;
     
-    setActionLoading(id);
+    setActionLoading(charge.id);
     try {
+      // 1. Deletar na Woovi via Edge Function
+      if (charge.woovi_id) {
+        const wooviRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-charge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ wooviId: charge.woovi_id })
+        });
+        
+        if (!wooviRes.ok) {
+          const res = await wooviRes.json();
+          console.warn("Aviso Woovi:", res.error);
+          // Opcional: Impedir exclusão se for erro crítico ou apenas avisar
+        }
+      }
+
+      // 2. Deletar no Supabase
       const { error } = await supabase
         .from('charges')
         .delete()
-        .eq('id', id);
+        .eq('id', charge.id);
 
       if (error) throw error;
-      showSuccess("Cobrança excluída com sucesso.");
+      
+      showSuccess("Cobrança removida com sucesso.");
       fetchCharges();
     } catch (err: any) {
       showError(err.message);
@@ -131,7 +151,7 @@ const Charges = () => {
                             </button>
                           )}
                           <button 
-                            onClick={() => handleDelete(charge.id)}
+                            onClick={() => handleDelete(charge)}
                             disabled={actionLoading === charge.id}
                             title="Excluir Cobrança" 
                             className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"

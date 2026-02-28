@@ -80,16 +80,35 @@ const ChargeDetail = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.")) return;
+    if (!confirm("Tem certeza que deseja excluir esta cobrança? Ela também será cancelada na Woovi.")) return;
     
     setActionLoading('delete');
     try {
+      // 1. Deletar na Woovi via Edge Function
+      if (charge.woovi_id) {
+        const wooviRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-charge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({ wooviId: charge.woovi_id })
+        });
+        
+        if (!wooviRes.ok) {
+          const res = await wooviRes.json();
+          console.warn("Aviso Woovi ao deletar:", res.error);
+        }
+      }
+
+      // 2. Deletar no Supabase
       const { error } = await supabase
         .from('charges')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+      
       showSuccess("Cobrança excluída com sucesso.");
       navigate('/cobrancas');
     } catch (err: any) {
