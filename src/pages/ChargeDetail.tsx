@@ -1,10 +1,12 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Clock, Send, AlertCircle, RefreshCcw, Landmark, CreditCard as CardIcon } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Send, AlertCircle, RefreshCcw, Landmark, CreditCard as CardIcon, Loader2 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { supabase } from '@/integrations/supabase/client';
+import { showError, showSuccess } from '@/utils/toast';
 
 const timeline = [
   { status: 'Cobrança Criada', date: '10 Out, 2023 - 09:15', icon: CheckCircle2, active: true },
@@ -16,6 +18,33 @@ const timeline = [
 
 const ChargeDetail = () => {
   const { id } = useParams();
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  const handleSendEmail = async () => {
+    setSendingEmail(true);
+    try {
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          to: 'cliente@exemplo.com', // Aqui usaremos o e-mail do cliente real
+          subject: `Sua fatura ${id} está disponível`,
+          html: `<h1>Olá, Ana Paula!</h1><p>Sua fatura no valor de R$ 450,00 venceu. Acesse o link para pagar.</p>`
+        })
+      });
+
+      if (!response.ok) throw new Error('Erro ao enviar e-mail');
+      
+      showSuccess('E-mail enviado com sucesso!');
+    } catch (error: any) {
+      showError(error.message);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -73,7 +102,14 @@ const ChargeDetail = () => {
                   <h4 className="text-sm font-semibold text-zinc-300 mb-3">Ações Administrativas</h4>
                   <div className="grid grid-cols-2 gap-2">
                     <button className="bg-orange-500 text-zinc-950 text-xs font-bold py-2 rounded hover:bg-orange-600 transition-all">Baixar PDF</button>
-                    <button className="bg-zinc-700 text-zinc-200 text-xs font-bold py-2 rounded hover:bg-zinc-600 transition-all">Reenviar E-mail</button>
+                    <button 
+                      onClick={handleSendEmail}
+                      disabled={sendingEmail}
+                      className="bg-zinc-700 text-zinc-200 text-xs font-bold py-2 rounded hover:bg-zinc-600 transition-all flex items-center justify-center gap-2"
+                    >
+                      {sendingEmail && <Loader2 size={14} className="animate-spin" />}
+                      Reenviar E-mail
+                    </button>
                     <button className="col-span-2 border border-orange-500/30 text-orange-400 text-xs font-bold py-2 rounded hover:bg-orange-500/10 transition-all">Marcar como Pago Manual</button>
                   </div>
                 </div>
