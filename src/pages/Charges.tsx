@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Copy, Download, Share2, History, AlertTriangle, Loader2, Plus } from 'lucide-react';
+import { Search, Copy, Download, Share2, History, AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -14,6 +14,7 @@ const Charges = () => {
   const [charges, setCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchCharges = async () => {
     setLoading(true);
@@ -35,6 +36,26 @@ const Charges = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     showSuccess("Copiado para a área de transferência!");
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.")) return;
+    
+    setActionLoading(id);
+    try {
+      const { error } = await supabase
+        .from('charges')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      showSuccess("Cobrança excluída com sucesso.");
+      fetchCharges();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -109,7 +130,14 @@ const Charges = () => {
                               <Copy size={16}/>
                             </button>
                           )}
-                          <button title="Enviar via E-mail/WhatsApp" className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"><Share2 size={16}/></button>
+                          <button 
+                            onClick={() => handleDelete(charge.id)}
+                            disabled={actionLoading === charge.id}
+                            title="Excluir Cobrança" 
+                            className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                          >
+                            {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
+                          </button>
                         </div>
                       </td>
                     </tr>

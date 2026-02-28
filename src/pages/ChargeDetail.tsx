@@ -18,7 +18,8 @@ import {
   Mail,
   Copy,
   Calendar,
-  DollarSign
+  DollarSign,
+  Trash2
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
@@ -71,6 +72,26 @@ const ChargeDetail = () => {
       if (error) throw error;
       showSuccess("Cobrança marcada como paga!");
       fetchChargeDetails();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.")) return;
+    
+    setActionLoading('delete');
+    try {
+      const { error } = await supabase
+        .from('charges')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      showSuccess("Cobrança excluída com sucesso.");
+      navigate('/cobrancas');
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -225,6 +246,16 @@ const ChargeDetail = () => {
                   <div className="flex items-center gap-3">
                     <FileText size={16} className="text-zinc-500" />
                     <span className="text-sm font-semibold">Exportar PDF</span>
+                  </div>
+                </button>
+                <button 
+                  onClick={handleDelete} 
+                  disabled={!!actionLoading} 
+                  className="w-full flex items-center justify-between p-3.5 bg-zinc-800 hover:bg-red-500/10 text-zinc-300 hover:text-red-400 rounded-xl transition-all border border-zinc-700/50 group"
+                >
+                  <div className="flex items-center gap-3">
+                    {actionLoading === 'delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} className="text-zinc-500 group-hover:text-red-400" />}
+                    <span className="text-sm font-semibold">Excluir Cobrança</span>
                   </div>
                 </button>
                 <div className="pt-4 mt-4 border-t border-zinc-800">
