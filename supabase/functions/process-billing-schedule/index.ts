@@ -15,23 +15,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Buscamos as regras D0, D+3, etc
     const { data: rules } = await supabaseClient
       .from('billing_rules')
       .select('*')
       .eq('is_active', true)
       .neq('day_offset', -1); 
 
-    if (!rules) return new Response("Nenhuma regra para processar.");
+    if (!rules || rules.length === 0) {
+      return new Response(JSON.stringify({ message: "Nenhuma regra ativa encontrada." }), { headers: corsHeaders });
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    let processedCount = 0;
+    let totalProcessed = 0;
+    console.log(`[billing-schedule] Iniciando processamento para ${today.toISOString()}`);
 
     for (const rule of rules) {
+      // Data alvo baseada no offset (ex: se venceu há 3 dias)
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
+
+      console.log(`[billing-schedule] Verificando regra '${rule.label}' para vencimento em ${dateStr}`);
 
       const { data: charges } = await supabaseClient
         .from('charges')
@@ -43,10 +50,10 @@ serve(async (req) => {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
+            // Em background, usamos a URL configurada ou um padrão. Ideal configurar APP_URL no Supabase.
             const appUrl = Deno.env.get('APP_URL') || 'https://seu-app.vercel.app';
             const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
-            // Mapeamento dinâmico baseado na regra
             const variables = rule.mapping.map((key: string) => {
               if (key === 'customer_name') return charge.customers.name;
               if (key === 'merchant_name') return merchantName;
@@ -57,7 +64,7 @@ serve(async (req) => {
               return '---';
             });
 
-            // Determinar o valor do botão
+            // Lógica do Botão: Se for link dinâmico, enviamos apenas o sufixo (ID) ou a URL completa dependendo da config
             const buttonVariable = rule.button_link_variable === 'payment_link' ? internalCheckoutUrl : charge.id;
 
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
@@ -80,18 +87,18 @@ serve(async (req) => {
               charge_id: charge.id,
               type: 'whatsapp',
               status: waRes.ok ? 'success' : 'error',
-              message: waRes.ok ? `Régua: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
+              message: waRes.ok ? `Régua Automática: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
             });
 
-            processedCount++;
-          } catch (err) {
+            totalProcessed++;
+          } catch (err: any) {
             console.error(`[billing-schedule] Erro na cobrança ${charge.id}:`, err.message);
           }
         }
       }
     }
 
-    return new Response(JSON.stringify({ success: true, processed: processedCount }), { 
+    return new Response(JSON.stringify({ success: true, processed: totalProcessed }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
 

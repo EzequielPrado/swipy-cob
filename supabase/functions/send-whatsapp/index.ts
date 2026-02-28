@@ -9,21 +9,23 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    // Adicionado parâmetro 'language'
     const { to, templateName, variables, imageUrl, buttonVariable, language } = await req.json()
     
     const ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
     const PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
 
-    if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) throw new Error("Configuração pendente nas Secrets.")
+    if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
+      console.error("[send-whatsapp] Erro: WHATSAPP_ACCESS_TOKEN ou PHONE_NUMBER_ID não configurados.");
+      throw new Error("Configuração de WhatsApp pendente nas Secrets do Supabase.")
+    }
 
     const cleanNumber = to.replace(/\D/g, '')
     const finalNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`
 
-    // Montando os componentes do template
+    console.log(`[send-whatsapp] Enviando '${templateName}' para ${finalNumber}. Variáveis:`, variables);
+
     const components = []
 
-    // 1. Header (Imagem)
     if (imageUrl) {
       components.push({
         type: "header",
@@ -31,7 +33,6 @@ serve(async (req) => {
       })
     }
 
-    // 2. Body (Texto com variáveis)
     if (variables && variables.length > 0) {
       components.push({
         type: "body",
@@ -39,12 +40,11 @@ serve(async (req) => {
       })
     }
 
-    // 3. Botão (URL Dinâmica) - Geralmente o índice 0 é o primeiro botão
     if (buttonVariable) {
       components.push({
         type: "button",
         sub_type: "url",
-        index: 0, 
+        index: 0, // Assume que o botão com link dinâmico é o primeiro da lista
         parameters: [
           { type: "text", text: String(buttonVariable) } 
         ]
@@ -63,7 +63,6 @@ serve(async (req) => {
         type: "template",
         template: {
           name: templateName,
-          // Usa o idioma enviado ou fallback para en_US (Inglês)
           language: { code: language || "en_US" },
           components
         }
@@ -71,17 +70,23 @@ serve(async (req) => {
     })
 
     const result = await response.json()
+    
     if (!response.ok) {
-      console.error("Erro Meta:", JSON.stringify(result));
-      throw new Error(result.error?.message || "Erro API Meta")
+      console.error("[send-whatsapp] Erro API Meta:", JSON.stringify(result));
+      return new Response(JSON.stringify({ error: result.error?.message || "Erro API Meta", details: result }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: response.status,
+      })
     }
 
+    console.log(`[send-whatsapp] Sucesso! ID Mensagem: ${result.messages?.[0]?.id}`);
     return new Response(JSON.stringify({ success: true, id: result.messages?.[0]?.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
 
   } catch (error: any) {
+    console.error("[send-whatsapp] Erro Crítico:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
