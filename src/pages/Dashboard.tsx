@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import StatCard from '@/components/dashboard/StatCard';
-import WithdrawModal from '@/components/dashboard/WithdrawModal';
 import { cn } from "@/lib/utils";
 import { 
   DollarSign, 
@@ -11,16 +10,11 @@ import {
   AlertCircle, 
   BarChart3, 
   TrendingUp, 
-  Wallet, 
   ArrowRightLeft,
   Loader2,
-  ChevronRight,
-  Lock,
-  Settings
+  Calendar
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { showError, showSuccess } from '@/utils/toast';
-import { Link } from 'react-router-dom';
 import { 
   XAxis, 
   YAxis, 
@@ -33,15 +27,11 @@ import {
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [stats, setStats] = useState({
-    mrr: 0,
+    totalPaid: 0,
     activeSubs: 0,
     pendingAmount: 0,
-    churn: 0,
-    wooviAvailable: 0,
-    wooviBlocked: 0
+    overdueAmount: 0
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
@@ -52,7 +42,7 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Cobranças
+      // 1. Buscar todas as cobranças do usuário
       const { data: charges } = await supabase
         .from('charges')
         .select('*, customers(name)')
@@ -61,51 +51,41 @@ const Dashboard = () => {
 
       if (charges) {
         const paid = charges.filter(c => c.status === 'pago');
+        const pending = charges.filter(c => c.status === 'pendente');
+        const overdue = charges.filter(c => c.status === 'atrasado');
+
         const totalPaid = paid.reduce((acc, curr) => acc + Number(curr.amount), 0);
-        const totalPending = charges.filter(c => c.status === 'pendente').reduce((acc, curr) => acc + Number(curr.amount), 0);
+        const totalPending = pending.reduce((acc, curr) => acc + Number(curr.amount), 0);
+        const totalOverdue = overdue.reduce((acc, curr) => acc + Number(curr.amount), 0);
         
+        // 2. Contar clientes ativos
         const { count: activeCount } = await supabase
           .from('customers')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('status', 'em dia');
 
-        // 2. Saldo Woovi
-        const walletRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
-          headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+        setStats({
+          totalPaid,
+          activeSubs: activeCount || 0,
+          pendingAmount: totalPending,
+          overdueAmount: totalOverdue
         });
-        const walletData = await walletRes.json();
-
-        if (walletData.error === 'MISSING_KEY') {
-          setErrorStatus('MISSING_KEY');
-        } else {
-          // Ajuste para formatos comuns da API Woovi
-          const available = walletData.balance?.available || walletData.available || 0;
-          const blocked = walletData.balance?.blocked || walletData.blocked || 0;
-
-          setStats({
-            mrr: totalPaid,
-            activeSubs: activeCount || 0,
-            pendingAmount: totalPending,
-            churn: 0,
-            wooviAvailable: available / 100,
-            wooviBlocked: blocked / 100
-          });
-          setErrorStatus(null);
-        }
 
         setRecentCharges(charges.slice(0, 5));
+        
+        // Dados fictícios para o gráfico baseados no faturamento real
         setChartData([
-          { name: 'Jan', value: totalPaid * 0.7 },
-          { name: 'Fev', value: totalPaid * 0.8 },
-          { name: 'Mar', value: totalPaid * 0.9 },
-          { name: 'Abr', value: totalPaid * 0.85 },
-          { name: 'Mai', value: totalPaid * 0.95 },
+          { name: 'Jan', value: totalPaid * 0.4 },
+          { name: 'Fev', value: totalPaid * 0.6 },
+          { name: 'Mar', value: totalPaid * 0.5 },
+          { name: 'Abr', value: totalPaid * 0.8 },
+          { name: 'Mai', value: totalPaid * 0.9 },
           { name: 'Jun', value: totalPaid },
         ]);
       }
     } catch (err: any) {
-      console.error("Erro no dashboard:", err);
+      console.error("Erro ao carregar dashboard:", err);
     } finally {
       setLoading(false);
     }
@@ -120,81 +100,18 @@ const Dashboard = () => {
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-            <p className="text-zinc-400 mt-1">Visão geral da sua operação financeira.</p>
-          </div>
-          
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {errorStatus === 'MISSING_KEY' ? (
-              <div className="sm:col-span-2 bg-zinc-900 border border-orange-500/20 rounded-2xl p-6 flex items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-orange-500/10 rounded-xl text-orange-500">
-                    <Settings size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-zinc-100">Configure sua conta</h3>
-                    <p className="text-sm text-zinc-500 leading-relaxed">Você ainda não inseriu sua API Key da Woovi. Isso é necessário para ver seu saldo e realizar saques.</p>
-                  </div>
-                </div>
-                <Link 
-                  to="/configuracoes" 
-                  className="bg-orange-500 text-zinc-950 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap hover:bg-orange-600 transition-all"
-                >
-                  Configurar agora
-                </Link>
-              </div>
-            ) : (
-              <>
-                {/* Disponível */}
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 shadow-xl shadow-orange-500/10 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md text-white">
-                      <Wallet size={20} />
-                    </div>
-                    <button 
-                      onClick={() => setIsWithdrawModalOpen(true)}
-                      className="bg-zinc-950 text-white text-[10px] font-bold px-3 py-1.5 rounded-full hover:bg-zinc-900 transition-all flex items-center gap-1.5 active:scale-95"
-                    >
-                      SOLICITAR SAQUE <ChevronRight size={12} />
-                    </button>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Disponível (Woovi)</p>
-                    <h3 className="text-3xl font-bold text-white tracking-tighter">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviAvailable)}
-                    </h3>
-                  </div>
-                </div>
-
-                {/* Bloqueado */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-zinc-800 p-2 rounded-lg text-zinc-500">
-                      <Lock size={20} />
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Processando</span>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Saldo Bloqueado</p>
-                    <h3 className="text-2xl font-bold text-zinc-100 tracking-tighter">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.wooviBlocked)}
-                    </h3>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-zinc-400 mt-1">Acompanhe o desempenho das suas cobranças em tempo real.</p>
         </div>
 
-        {/* ... restante do componente (StatCards, Chart, etc) */}
+        {/* Grade de Estatísticas Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
-            title="Faturamento (Mês)" 
-            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.mrr)} 
+            title="Total Recebido" 
+            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalPaid)} 
             trend={12} 
-            icon={<DollarSign className="text-orange-500" size={18} />} 
+            icon={<DollarSign className="text-emerald-500" size={18} />} 
           />
           <StatCard 
             title="Clientes Ativos" 
@@ -202,25 +119,26 @@ const Dashboard = () => {
             icon={<UserCheck className="text-blue-400" size={18} />} 
           />
           <StatCard 
-            title="Em Aberto" 
+            title="Aguardando Pagamento" 
             value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.pendingAmount)} 
-            label="Aguardando pagamento"
+            label="Faturas pendentes"
             icon={<BarChart3 className="text-orange-500" size={18} />} 
           />
           <StatCard 
-            title="Inadimplência" 
-            value="0.0%" 
+            title="Total Atrasado" 
+            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.overdueAmount)} 
             icon={<AlertCircle className="text-red-500" size={18} />} 
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Gráfico de Evolução */}
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="font-semibold text-zinc-200">Evolução de Faturamento</h3>
+              <h3 className="font-semibold text-zinc-200">Evolução de Recebimentos</h3>
               <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                Volume Transacionado
+                <TrendingUp size={14} className="text-orange-500" />
+                Performance Mensal
               </div>
             </div>
             <div className="h-[300px] w-full">
@@ -245,9 +163,10 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Últimas Atividades */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h3 className="font-semibold text-zinc-200 mb-6 flex items-center justify-between">
-              Últimas Atividades
+              Atividades Recentes
               <ArrowRightLeft size={16} className="text-zinc-600" />
             </h3>
             <div className="space-y-6">
@@ -255,7 +174,7 @@ const Dashboard = () => {
                 <div className="text-center py-8 text-zinc-500 text-sm italic">Nenhuma atividade recente.</div>
               ) : recentCharges.map((charge) => (
                 <div key={charge.id} className="flex items-center justify-between group">
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 overflow-hidden">
                     <div className={cn(
                       "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
                       charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : 
@@ -264,13 +183,17 @@ const Dashboard = () => {
                       <DollarSign size={18} />
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-sm font-medium text-zinc-200 truncate">{charge.customers?.name}</p>
-                      <p className="text-[10px] text-zinc-500 font-mono uppercase">{charge.status}</p>
+                      <p className="text-sm font-medium text-zinc-200 truncate">{charge.customers?.name || 'Cliente Removido'}</p>
+                      <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-tight">{charge.status}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-sm font-bold text-zinc-100">
                       R$ {Number(charge.amount).toFixed(2)}
+                    </p>
+                    <p className="text-[9px] text-zinc-600 flex items-center justify-end gap-1">
+                      <Calendar size={10} />
+                      {new Date(charge.created_at).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
                 </div>
@@ -279,13 +202,6 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-
-      <WithdrawModal 
-        isOpen={isWithdrawModalOpen}
-        onClose={() => setIsWithdrawModalOpen(false)}
-        onSuccess={fetchDashboardData}
-        availableBalance={stats.wooviAvailable}
-      />
     </AppLayout>
   );
 };
