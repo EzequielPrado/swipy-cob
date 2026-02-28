@@ -48,7 +48,7 @@ serve(async (req) => {
     const wooviData = await wooviRes.json()
     if (!wooviRes.ok) throw new Error(wooviData.error || "Erro na Woovi")
 
-    // Woovi retorna a imagem em wooviData.charge.qrCode.image
+    // Ajuste aqui: Capturando a imagem de wooviData.charge.qrCodeImage conforme solicitado
     const { data: charge, error: chargeError } = await supabaseClient
       .from('charges')
       .insert({
@@ -60,8 +60,8 @@ serve(async (req) => {
         woovi_id: wooviData.charge.identifier,
         correlation_id: correlationID,
         payment_link: wooviData.charge.paymentLinkUrl,
-        pix_qr_code: wooviData.charge.brCode, // Texto para o "Copia e Cola"
-        pix_qr_image_base64: wooviData.charge.qrCode?.image || null, // Imagem real do QR Code
+        pix_qr_code: wooviData.charge.brCode, 
+        pix_qr_image_base64: wooviData.charge.qrCodeImage || null, 
         status: 'pendente'
       })
       .select()
