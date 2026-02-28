@@ -15,9 +15,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { customerId, amount, method, dueDate, userId, description } = await req.json()
+    const { customerId, amount, method, dueDate, userId, description, origin } = await req.json()
 
-    // 1. Busca perfil do lojista
+    // 1. Busca perfil do lojista (Empresa)
     const { data: profile, error: profileErr } = await supabaseClient
       .from('profiles')
       .select('woovi_api_key, status, company, full_name')
@@ -83,18 +83,19 @@ serve(async (req) => {
 
     if (chargeError) throw chargeError
 
-    // 5. DISPARO AUTOMÁTICO WHATSAPP (Régua de Cobrança)
+    // 5. DISPARO AUTOMÁTICO WHATSAPP
     try {
-      console.log(`[create-woovi-charge] Iniciando disparo de WhatsApp para ${customer.phone || customer.email}`);
-      
       const merchantName = profile.company || profile.full_name || "Nossa Empresa";
-      const checkoutUrl = `https://mxkorxmazthagjaqwrfk.supabase.co/pagar/${charge.id}`;
       
-      // Geramos um QR Code público que a Meta consegue acessar (necessário para o Header Image)
+      // O link do sistema que o cliente vai acessar
+      const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
+      
+      // QR Code dinâmico com .png no final
       const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
 
-      // Chamamos a função de envio interna
-      const whatsappRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
+      console.log(`[create-woovi-charge] Disparando WhatsApp para ${customer.name}. Checkout: ${systemCheckoutUrl}`);
+
+      await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,23 +104,19 @@ serve(async (req) => {
         body: JSON.stringify({
           to: customer.phone,
           templateName: 'boleto1',
-          language: 'en', // Sincronizado com seu template na Meta
+          language: 'en',
           imageUrl: qrImageUrl,
           variables: [
-            customer.name, 
-            merchantName, 
-            new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount)
+            customer.name,      // {{1}}
+            merchantName,       // {{2}}
+            new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount) // {{3}}
           ],
-          buttonVariable: checkoutUrl
+          buttonVariable: systemCheckoutUrl // O link do seu sistema
         })
       });
 
-      const waResult = await whatsappRes.json();
-      console.log("[create-woovi-charge] Resposta WhatsApp:", waResult);
-      
     } catch (waErr) {
-      console.error("[create-woovi-charge] Falha no disparo automático:", waErr.message);
-      // Não travamos a criação da cobrança se o WhatsApp falhar
+      console.error("[create-woovi-charge] Erro no WhatsApp automático:", waErr.message);
     }
 
     return new Response(JSON.stringify(charge), {

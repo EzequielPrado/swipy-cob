@@ -56,6 +56,9 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // Pegamos a origem atual (ex: https://seu-app.vercel.app)
+      const origin = window.location.origin;
+
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
         method: 'POST',
         headers: {
@@ -68,7 +71,8 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
           description: formData.description,
           method: formData.method,
           dueDate: formData.dueDate,
-          userId: user.id
+          userId: user.id,
+          origin: origin // Passando a URL do sistema
         })
       });
 
