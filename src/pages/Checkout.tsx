@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Copy, CheckCircle2, Loader2, ShieldCheck, Landmark, Building2, User } from 'lucide-react';
+import { Copy, CheckCircle2, Loader2, ShieldCheck, Landmark, Building2, User, FileText } from 'lucide-react';
 import { showSuccess } from '@/utils/toast';
 
 const Checkout = () => {
@@ -13,7 +13,6 @@ const Checkout = () => {
 
   useEffect(() => {
     const fetchCharge = async () => {
-      // Buscando a cobrança e os dados do cliente e da empresa (perfil do usuário que criou a cobrança)
       const { data, error } = await supabase
         .from('charges')
         .select(`
@@ -87,7 +86,6 @@ const Checkout = () => {
           <p className="text-zinc-500 text-sm">Ambiente de Pagamento Seguro</p>
         </div>
 
-        {/* Informações do Recebedor */}
         <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center text-orange-500">
             <Building2 size={24} />
@@ -100,6 +98,12 @@ const Checkout = () => {
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
           <div className="p-8 border-b border-zinc-800 text-center bg-zinc-900/50">
+            {charge.description && (
+              <div className="mb-4 flex items-center justify-center gap-2 text-zinc-400 text-sm italic">
+                <FileText size={14} />
+                {charge.description}
+              </div>
+            )}
             <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">Total a pagar</p>
             <h2 className="text-4xl font-bold text-zinc-100">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
@@ -143,7 +147,6 @@ const Checkout = () => {
             </div>
           </div>
 
-          {/* Dados do Pagador */}
           <div className="p-6 bg-zinc-950/30 border-t border-zinc-800">
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Dados do Pagador</p>
             <div className="flex items-center gap-3 text-sm text-zinc-400">

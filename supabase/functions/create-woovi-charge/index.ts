@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { customerId, amount, method, dueDate, userId } = await req.json()
+    const { customerId, amount, method, dueDate, userId, description } = await req.json()
     const WOOVI_API_KEY = Deno.env.get('WOOVI_API_KEY')
 
     const { data: customer, error: custError } = await supabaseClient
@@ -28,6 +28,7 @@ serve(async (req) => {
 
     const correlationID = crypto.randomUUID()
 
+    // Enviamos a descrição como 'comment' para a Woovi
     const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
       method: 'POST',
       headers: {
@@ -37,6 +38,7 @@ serve(async (req) => {
       body: JSON.stringify({
         correlationID,
         value: Math.round(amount * 100),
+        comment: description,
         customer: {
           name: customer.name,
           email: customer.email,
@@ -48,13 +50,13 @@ serve(async (req) => {
     const wooviData = await wooviRes.json()
     if (!wooviRes.ok) throw new Error(wooviData.error || "Erro na Woovi")
 
-    // Ajuste aqui: Capturando a imagem de wooviData.charge.qrCodeImage conforme solicitado
     const { data: charge, error: chargeError } = await supabaseClient
       .from('charges')
       .insert({
         user_id: userId,
         customer_id: customerId,
         amount,
+        description,
         method,
         due_date: dueDate,
         woovi_id: wooviData.charge.identifier,

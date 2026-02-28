@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, DollarSign, Calendar } from 'lucide-react';
+import { Loader2, DollarSign, Calendar, FileText } from 'lucide-react';
 
 interface AddChargeModalProps {
   isOpen: boolean;
@@ -21,6 +21,7 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
   const [formData, setFormData] = useState({
     customerId: '',
     amount: '',
+    description: '',
     method: 'pix',
     dueDate: new Date().toISOString().split('T')[0]
   });
@@ -55,7 +56,6 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Chama a Edge Function que criamos anteriormente
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
         method: 'POST',
         headers: {
@@ -65,6 +65,7 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
         body: JSON.stringify({
           customerId: formData.customerId,
           amount: parseFloat(formData.amount.replace(',', '.')),
+          description: formData.description,
           method: formData.method,
           dueDate: formData.dueDate,
           userId: user.id
@@ -74,13 +75,13 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro ao criar cobrança");
 
-      showSuccess('Cobrança gerada com sucesso na Woovi!');
+      showSuccess('Cobrança gerada com sucesso!');
       onSuccess();
       onClose();
-      // Limpar formulário
       setFormData({
         customerId: '',
         amount: '',
+        description: '',
         method: 'pix',
         dueDate: new Date().toISOString().split('T')[0]
       });
@@ -116,6 +117,20 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
             </Select>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição / Referência</Label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+              <Input 
+                id="description" 
+                placeholder="Ex: Honorário Contábil - Mês 05"
+                className="bg-zinc-950 border-zinc-800 h-11 pl-9"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Valor (R$)</Label>
@@ -132,34 +147,18 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="method">Método</Label>
-              <Select 
-                onValueChange={(val) => setFormData({...formData, method: val})}
-                value={formData.method}
-              >
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  <SelectItem value="pix">PIX</SelectItem>
-                  <SelectItem value="boleto">Boleto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dueDate">Data de Vencimento</Label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-              <Input 
-                id="dueDate" 
-                type="date"
-                required
-                className="bg-zinc-950 border-zinc-800 h-11 pl-9"
-                value={formData.dueDate}
-                onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-              />
+              <Label htmlFor="dueDate">Vencimento</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                <Input 
+                  id="dueDate" 
+                  type="date"
+                  required
+                  className="bg-zinc-950 border-zinc-800 h-11 pl-9"
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                />
+              </div>
             </div>
           </div>
 
