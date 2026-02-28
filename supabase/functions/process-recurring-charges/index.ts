@@ -18,79 +18,49 @@ serve(async (req) => {
     const today = new Date();
     const currentDay = today.getDate();
     
-    console.log(`[process-recurring-charges] Iniciando processamento do dia ${currentDay}...`);
-
-    // 1. Buscar assinaturas e dados dos clientes
-    const { data: subscriptions, error: subError } = await supabaseClient
+    const { data: subscriptions } = await supabaseClient
       .from('subscriptions')
       .select('*, customers (*)')
       .eq('status', 'active')
       .eq('generation_day', currentDay);
 
-    if (subError) throw new Error(`Erro ao buscar assinaturas: ${subError.message}`);
-
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ message: "Nenhuma assinatura para hoje." }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
+      return new Response(JSON.stringify({ message: "Nada para hoje" }), { headers: corsHeaders });
     }
 
-    // 2. Buscar Perfis dos Lojistas manualmente para evitar erro de join
     const userIds = [...new Set(subscriptions.map(s => s.user_id))];
-    const { data: profiles, error: profError } = await supabaseClient
+    const { data: profiles } = await supabaseClient
       .from('profiles')
       .select('id, woovi_api_key, company, full_name')
       .in('id', userIds);
 
-    if (profError) throw new Error(`Erro ao buscar perfis: ${profError.message}`);
-
-    console.log(`[process-recurring-charges] Processando ${subscriptions.length} assinaturas.`);
-    const results = [];
-
     for (const sub of subscriptions) {
       try {
         const profile = profiles?.find(p => p.id === sub.user_id);
-        
-        if (!profile?.woovi_api_key) {
-          results.push({ id: sub.id, status: 'error', reason: 'Lojista sem Token Woovi' });
-          continue;
-        }
+        if (!profile?.woovi_api_key) continue;
 
-        // Calcular Vencimento
         let dueDate = new Date(today.getFullYear(), today.getMonth(), sub.due_day);
-        if (sub.due_day < sub.generation_day) {
-          dueDate.setMonth(dueDate.getMonth() + 1);
-        }
+        if (sub.due_day < sub.generation_day) dueDate.setMonth(dueDate.getMonth() + 1);
         const dueDateStr = dueDate.toISOString().split('T')[0];
 
         const correlationID = crypto.randomUUID();
         const description = `Assinatura Recorrente - Mês ${today.getMonth() + 1}`;
 
-        // Criar na Woovi
         const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
           method: 'POST',
-          headers: {
-            'Authorization': profile.woovi_api_key.trim(),
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Authorization': profile.woovi_api_key.trim(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
             correlationID,
             value: Math.round(sub.amount * 100),
             comment: description,
-            customer: {
-              name: sub.customers.name,
-              email: sub.customers.email,
-              taxID: sub.customers.tax_id
-            }
+            customer: { name: sub.customers.name, email: sub.customers.email, taxID: sub.customers.tax_id }
           })
         });
 
         const wooviData = await wooviRes.json();
         if (!wooviRes.ok) throw new Error(wooviData.error || "Erro Woovi");
 
-        // Salvar Cobrança
-        await supabaseClient.from('charges').insert({
+        const { data: charge } = await supabaseClient.from('charges').insert({
           user_id: sub.user_id,
           customer_id: sub.customer_id,
           amount: sub.amount,
@@ -103,46 +73,42 @@ serve(async (req) => {
           pix_qr_code: wooviData.charge.brCode, 
           pix_qr_image_base64: wooviData.charge.qrCodeImage, 
           status: 'pendente'
-        });
+        }).select().single();
 
-        // WhatsApp
-        try {
-           const merchantName = profile.company || profile.full_name || "Nossa Empresa";
-           const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
+        if (charge) {
+          // WhatsApp + Log
+          try {
+             const merchantName = profile.company || profile.full_name || "Nossa Empresa";
+             const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
 
-           await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
-              },
-              body: JSON.stringify({
-                to: sub.customers.phone,
-                templateName: 'boleto1',
-                language: 'en',
-                imageUrl: qrImageUrl,
-                variables: [sub.customers.name, merchantName, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(sub.amount)],
-                buttonVariable: wooviData.charge.paymentLinkUrl
-              })
-           });
-        } catch (waErr) { console.error("Erro WA:", waErr); }
+             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` },
+                body: JSON.stringify({
+                  to: sub.customers.phone,
+                  templateName: 'boleto1',
+                  language: 'en',
+                  imageUrl: qrImageUrl,
+                  variables: [sub.customers.name, merchantName, new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(sub.amount)],
+                  buttonVariable: wooviData.charge.paymentLinkUrl
+                })
+             });
 
-        results.push({ id: sub.id, status: 'success' });
+             await supabaseClient.from('notification_logs').insert({
+               charge_id: charge.id,
+               type: 'whatsapp',
+               status: waRes.ok ? 'success' : 'error',
+               message: waRes.ok ? 'Assinatura enviada por WhatsApp' : 'Erro ao enviar WhatsApp da assinatura'
+             });
 
-      } catch (err) {
-        results.push({ id: sub.id, status: 'error', reason: err.message });
-      }
+          } catch (waErr) { console.error("Erro WA:", waErr); }
+        }
+
+      } catch (err) { console.error("Erro sub:", err); }
     }
 
-    return new Response(JSON.stringify({ processed: true, results }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
-
+    return new Response(JSON.stringify({ processed: true }), { headers: corsHeaders });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
   }
 })
