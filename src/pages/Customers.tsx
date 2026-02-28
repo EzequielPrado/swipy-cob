@@ -172,8 +172,8 @@ const Customers = () => {
                     <td className="px-6 py-4">
                       <span className={cn(
                         "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium",
-                        customer.status === 'em dia' ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                        "bg-zinc-800 text-zinc-500 border border-zinc-700"
+                        customer.status === 'em dia' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                        "bg-zinc-800 text-zinc-500 border-zinc-700"
                       )}>
                         <div className={cn(
                           "w-1.5 h-1.5 rounded-full",
