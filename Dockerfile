@@ -1,30 +1,30 @@
-# Estágio 1: Build (Compilação do React)
+# Stage 1: Build
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copia arquivos de dependência primeiro para otimizar cache
-COPY package.json ./
+# Instala o pnpm
+RUN npm install -g pnpm
 
-# Instala dependências (usando npm como padrão do package.json)
-RUN npm install
+# Copia os arquivos de dependências
+COPY package.json pnpm-lock.yaml ./
 
-# Copia o restante do código
+# Instala dependências com pnpm (resolve conflitos automaticamente)
+RUN pnpm install --frozen-lockfile
+
+# Copia o restante do projeto
 COPY . .
 
-# Executa o build do Vite (gera a pasta /dist)
-RUN npm run build
+# Faz o build do Vite
+RUN pnpm run build
 
-# Estágio 2: Produção (Servidor Web)
+# Stage 2: Serve com Nginx
 FROM nginx:stable-alpine
 
-# Limpa configurações padrões do Nginx
 RUN rm -rf /etc/nginx/conf.d/*
 
-# Copia apenas os arquivos compilados do estágio anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copia a configuração personalizada do Nginx para a pasta correta
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
