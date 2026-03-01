@@ -104,9 +104,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
       <aside className="w-64 border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-xl">
         <div className="p-6">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20">S</div>
-            <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
+          <div className="mb-8">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20">S</div>
+              <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
+            </div>
+            <p className="text-[10px] text-zinc-500 font-medium ml-10 -mt-1 uppercase tracking-wider">Gestão de cobranças</p>
           </div>
           
           <div className="space-y-6">
