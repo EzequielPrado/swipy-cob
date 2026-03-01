@@ -1,1 +1,41 @@
-# Welcome to your Dyad app
+# 🚀 Swipy Cob - Automação de Cobrança White-label
+
+Sistema completo para gestão de cobranças via Pix (Woovi), assinaturas recorrentes e automação de notificações via WhatsApp (Meta API).
+
+## 🛠️ Tech Stack
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS
+- **UI Components:** Shadcn/ui + Lucide Icons
+- **Backend/DB:** Supabase (Auth, Database, Edge Functions)
+- **Pagamentos:** Woovi (OpenPix)
+- **Notificações:** WhatsApp Business API (Meta)
+
+## ⚙️ Variáveis de Ambiente Necessárias (Supabase Secrets)
+
+Para que o sistema funcione, você deve configurar as seguintes **Secrets** no painel do Supabase:
+
+| Variável | Descrição |
+| :--- | :--- |
+| `WOOVI_API_KEY` | Sua AppID da Woovi (OpenPix) |
+| `WHATSAPP_ACCESS_TOKEN` | Token de acesso da Meta para WhatsApp |
+| `WHATSAPP_PHONE_NUMBER_ID` | ID do número de telefone no painel Meta |
+| `SMTP_HOSTNAME` | Host do servidor de e-mail (ex: smtp.resend.com) |
+| `SMTP_PORT` | Porta (465 para SSL, 587 para TLS) |
+| `SMTP_USERNAME` | Usuário do SMTP |
+| `SMTP_PASSWORD` | Senha do SMTP |
+
+## 📦 Como subir no Coolify
+
+1. Crie um novo **Private Repository** no seu GitHub/GitLab com este código.
+2. No Coolify, adicione um novo **Resource** -> **Private Repository**.
+3. O Coolify detectará automaticamente o `Dockerfile`.
+4. Configure o domínio (ex: `app.seusistema.com`).
+5. Realize o deploy.
+
+## 🛡️ Segurança (RLS)
+Todas as tabelas possuem **Row Level Security** ativado. Os usuários só podem ver seus próprios clientes e cobranças, exceto os perfis marcados como `is_admin = true`, que possuem visão global.
+
+## 🎨 White-label
+O sistema permite que cada lojista configure sua própria logo e cor principal na aba **Personalização**. Esses dados são refletidos automaticamente na tela de checkout pública (`/pagar/:id`).
+
+---
+Feito com 🧡 para automação financeira.
