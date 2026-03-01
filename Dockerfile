@@ -1,37 +1,44 @@
 # Estágio de Build
-FROM node:20-alpine AS build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copia os arquivos de dependências primeiro para aproveitar o cache do Docker
-COPY package*.json ./
+# Copia os arquivos de dependência
+COPY package.json package-lock.json* ./
+
+# Instala as dependências
 RUN npm install
 
-# Copia o restante do código
+# Copia todo o código fonte
 COPY . .
 
-# Variáveis de ambiente necessárias no momento do build (Vite)
-# Elas devem ser passadas no Coolify como Build Arguments ou Environments
+# Argumentos de Build (necessários para o Vite injetar as variáveis)
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_APP_URL
 
+# Define as variáveis de ambiente para o processo de build
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
 ENV VITE_APP_URL=$VITE_APP_URL
 
-# Gera a build de produção
+# Executa o build (gera a pasta /dist)
 RUN npm run build
 
-# Estágio de Produção (Servidor Web)
-FROM nginx:stable-alpine
+# Estágio de Produção (Nginx)
+FROM nginx:alpine
 
-# Copia a build para o diretório do Nginx
-COPY --from=build /app/dist /usr/share/nginx/html
+# Remove configurações padrão do Nginx
+RUN rm -rf /etc/nginx/conf.d/*
 
-# Copia a configuração personalizada do Nginx para suportar React Router
+# Copia o build gerado no estágio anterior
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copia nossa configuração personalizada do Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Expõe a porta 80
 EXPOSE 80
 
+# Inicia o Nginx
 CMD ["nginx", "-g", "daemon off;"]
