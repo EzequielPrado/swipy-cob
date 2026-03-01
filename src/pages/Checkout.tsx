@@ -21,8 +21,6 @@ const Checkout = () => {
       setError(null);
 
       try {
-        // Buscamos a cobrança e os dados do cliente
-        // Nota: A relação com 'profiles' pode falhar se não houver política pública de leitura em profiles
         const { data, error: fetchError } = await supabase
           .from('charges')
           .select(`
@@ -37,10 +35,10 @@ const Checkout = () => {
 
         setCharge(data);
 
-        // Tentamos buscar o nome do vendedor separadamente para não travar a página se o RLS bloquear
+        // Buscar dados de branding do vendedor
         const { data: profileData } = await supabase
           .from('profiles')
-          .select('company, full_name')
+          .select('company, full_name, logo_url, primary_color')
           .eq('id', data.user_id)
           .single();
         
@@ -58,7 +56,6 @@ const Checkout = () => {
 
     fetchCharge();
     
-    // Escuta atualizações de status (pagamento confirmado em tempo real)
     const channel = supabase
       .channel(`checkout-${id}`)
       .on('postgres_changes', { 
@@ -100,16 +97,12 @@ const Checkout = () => {
       </div>
       <h1 className="text-xl font-bold text-zinc-100">Ops! Link Inválido</h1>
       <p className="text-zinc-400 mt-2 max-w-xs">Não conseguimos localizar esta cobrança. Verifique o link ou entre em contato com o emissor.</p>
-      <button 
-        onClick={() => window.location.reload()}
-        className="mt-6 text-orange-500 hover:underline text-sm font-medium"
-      >
-        Tentar novamente
-      </button>
     </div>
   );
 
   const merchantName = charge.merchant?.company || charge.merchant?.full_name || "Estabelecimento";
+  const primaryColor = charge.merchant?.primary_color || '#f97316';
+  const logoUrl = charge.merchant?.logo_url;
 
   if (charge.status === 'pago') return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-1000">
@@ -126,23 +119,24 @@ const Checkout = () => {
       <div className="w-full max-w-md space-y-6 animate-in slide-in-from-bottom-4 duration-700">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center font-bold text-zinc-950">S</div>
-            <span className="text-xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
+            {logoUrl ? (
+              <img src={logoUrl} alt={merchantName} className="h-10 w-auto object-contain" />
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center font-bold text-zinc-100 border border-zinc-700" style={{ borderColor: primaryColor }}>
+                  {merchantName.charAt(0)}
+                </div>
+                <span className="text-xl font-bold tracking-tight">{merchantName}</span>
+              </>
+            )}
           </div>
           <p className="text-zinc-500 text-sm">Ambiente de Pagamento Seguro</p>
         </div>
 
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center text-orange-500">
-            <Building2 size={24} />
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Você está pagando a:</p>
-            <p className="text-sm font-bold text-zinc-100 truncate">{merchantName}</p>
-          </div>
-        </div>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative">
+          {/* Indicador de cor personalizada no topo */}
+          <div className="h-1.5 w-full" style={{ backgroundColor: primaryColor }}></div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
           <div className="p-8 border-b border-zinc-800 text-center bg-zinc-900/50">
             {charge.description && (
               <div className="mb-4 flex items-center justify-center gap-2 text-zinc-400 text-sm italic">
@@ -160,7 +154,7 @@ const Checkout = () => {
           </div>
 
           <div className="p-8 flex flex-col items-center gap-8">
-            <div className="bg-white p-4 rounded-2xl shadow-inner relative group">
+            <div className="bg-white p-4 rounded-2xl shadow-inner relative group border-4 border-zinc-950">
               {charge.pix_qr_image_base64 ? (
                 <img 
                   src={charge.pix_qr_image_base64} 
@@ -180,14 +174,15 @@ const Checkout = () => {
             <div className="w-full space-y-4">
               <button 
                 onClick={copyPix}
-                className="w-full bg-zinc-950 border border-zinc-800 hover:border-orange-500/50 text-zinc-300 py-4 rounded-2xl flex items-center justify-center gap-3 transition-all group active:scale-95"
+                className="w-full py-4 rounded-2xl flex items-center justify-center gap-3 transition-all group active:scale-95 text-zinc-950 font-bold"
+                style={{ backgroundColor: primaryColor }}
               >
-                <Copy size={18} className="group-hover:text-orange-500 transition-colors" />
-                <span className="text-sm font-semibold">Copiar código PIX</span>
+                <Copy size={18} />
+                <span className="text-sm">Copiar código PIX</span>
               </button>
               
-              <div className="flex items-start gap-3 p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10 text-left">
-                <Landmark size={18} className="text-orange-500 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-3 p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800 text-left">
+                <Landmark size={18} className="mt-0.5 shrink-0" style={{ color: primaryColor }} />
                 <div className="text-xs text-zinc-500 leading-relaxed">
                   <p className="font-bold text-zinc-300 mb-1 uppercase tracking-wider">Como pagar?</p>
                   Abra o app do seu banco e escolha a opção <strong>PIX Copia e Cola</strong> ou aponte a câmera para o QR Code acima.

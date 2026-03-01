@@ -13,6 +13,7 @@ import ChargeDetail from "./pages/ChargeDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Checkout from "./pages/Checkout";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import UserManagement from "./pages/admin/UserManagement";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
             <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ROTAS ADMIN */}
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
