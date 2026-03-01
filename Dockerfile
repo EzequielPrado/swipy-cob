@@ -1,44 +1,32 @@
-# Estágio de Build
+# Estágio 1: Build (Compilação do React)
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copia os arquivos de dependência
-COPY package.json package-lock.json* ./
+# Copia arquivos de dependência primeiro para otimizar cache
+COPY package.json ./
 
-# Instala as dependências
+# Instala dependências (usando npm como padrão do package.json)
 RUN npm install
 
-# Copia todo o código fonte
+# Copia o restante do código
 COPY . .
 
-# Argumentos de Build (necessários para o Vite injetar as variáveis)
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_APP_URL
-
-# Define as variáveis de ambiente para o processo de build
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_APP_URL=$VITE_APP_URL
-
-# Executa o build (gera a pasta /dist)
+# Executa o build do Vite (gera a pasta /dist)
 RUN npm run build
 
-# Estágio de Produção (Nginx)
-FROM nginx:alpine
+# Estágio 2: Produção (Servidor Web)
+FROM nginx:stable-alpine
 
-# Remove configurações padrão do Nginx
+# Limpa configurações padrões do Nginx
 RUN rm -rf /etc/nginx/conf.d/*
 
-# Copia o build gerado no estágio anterior
+# Copia apenas os arquivos compilados do estágio anterior
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copia nossa configuração personalizada do Nginx
+# Copia a configuração personalizada do Nginx para a pasta correta
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expõe a porta 80
 EXPOSE 80
 
-# Inicia o Nginx
 CMD ["nginx", "-g", "daemon off;"]
