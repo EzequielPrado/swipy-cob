@@ -5,11 +5,13 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { Search, Mail, UserX, Plus, Loader2, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
 import EditCustomerModal from '@/components/customers/EditCustomerModal';
 import { showError, showSuccess } from '@/utils/toast';
 
 const Customers = () => {
+  const { user } = useAuth();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -18,10 +20,13 @@ const Customers = () => {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
 
   const fetchCustomers = async () => {
+    if (!user) return;
     setLoading(true);
+    
     const { data, error } = await supabase
       .from('customers')
       .select('*')
+      .eq('user_id', user.id) // FILTRO CRÍTICO
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -32,7 +37,7 @@ const Customers = () => {
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
+  }, [user]);
 
   const handleEditClick = (customer: any) => {
     setSelectedCustomer(customer);
@@ -44,7 +49,6 @@ const Customers = () => {
 
     setActionLoading(customer.id);
     try {
-      // 1. Deletar na Woovi se tiver ID
       if (customer.woovi_id) {
         await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/delete-woovi-customer`, {
           method: 'POST',
@@ -56,7 +60,6 @@ const Customers = () => {
         });
       }
 
-      // 2. Deletar no Supabase
       const { error } = await supabase
         .from('customers')
         .delete()

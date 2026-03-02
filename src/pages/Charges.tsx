@@ -6,10 +6,12 @@ import { cn } from "@/lib/utils";
 import { Search, Copy, Download, Share2, History, AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddChargeModal from '@/components/charges/AddChargeModal';
 
 const Charges = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [charges, setCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,10 +19,13 @@ const Charges = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchCharges = async () => {
+    if (!user) return;
     setLoading(true);
+    
     const { data, error } = await supabase
       .from('charges')
       .select('*, customers(name)')
+      .eq('user_id', user.id) // FILTRO CRÍTICO
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -31,7 +36,7 @@ const Charges = () => {
 
   useEffect(() => {
     fetchCharges();
-  }, []);
+  }, [user]);
 
   const copyInternalCheckoutLink = (chargeId: string) => {
     const internalLink = `${window.location.origin}/pagar/${chargeId}`;

@@ -5,11 +5,13 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { Plus, Search, Edit3, Trash2, RefreshCcw, Loader2, PauseCircle, PlayCircle, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddSubscriptionModal from '@/components/subscriptions/AddSubscriptionModal';
 import EditSubscriptionModal from '@/components/subscriptions/EditSubscriptionModal';
 
 const Subscriptions = () => {
+  const { user } = useAuth();
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -17,10 +19,13 @@ const Subscriptions = () => {
   const [selectedSub, setSelectedSub] = useState<any>(null);
 
   const fetchSubscriptions = async () => {
+    if (!user) return;
     setLoading(true);
+    
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*, customers(name, email)')
+      .eq('user_id', user.id) // FILTRO CRÍTICO
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -31,7 +36,7 @@ const Subscriptions = () => {
 
   useEffect(() => {
     fetchSubscriptions();
-  }, []);
+  }, [user]);
 
   const handleEdit = (sub: any) => {
     setSelectedSub(sub);
