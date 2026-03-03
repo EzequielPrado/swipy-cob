@@ -20,7 +20,10 @@ const ClientPortal = () => {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (taxId.trim().length < 11) {
+    // Limpa o que o usuário digitou
+    const cleanInput = taxId.replace(/\D/g, '').trim();
+    
+    if (cleanInput.length < 11) {
       showError("Insira um CPF ou CNPJ válido");
       return;
     }
@@ -29,31 +32,40 @@ const ClientPortal = () => {
     setSearched(true);
 
     try {
-      const cleanTaxId = taxId.replace(/\D/g, '');
-      const rawTaxId = taxId.trim();
+      console.log(`[Portal] Buscando por documento: ${cleanInput}`);
 
-      // BUSCA INTELIGENTE: Tenta achar o cliente pelo número limpo OU pelo formato exato digitado
-      const { data: customers } = await supabase
+      // 1. Localizar o cliente. Usamos "ilike" para ser mais flexível se houver espaços
+      const { data: customers, error: custError } = await supabase
         .from('customers')
-        .select('id, name, email, phone')
-        .or(`tax_id.eq.${cleanTaxId},tax_id.eq.${rawTaxId}`);
+        .select('id, name, tax_id')
+        .or(`tax_id.eq.${cleanInput},tax_id.ilike.%${cleanInput}%`);
+
+      if (custError) throw custError;
 
       if (!customers || customers.length === 0) {
+        console.log("[Portal] Nenhum cliente encontrado com este documento.");
         setResults([]);
         return;
       }
 
+      console.log(`[Portal] Encontrado(s) ${customers.length} cliente(s) vinculados.`);
+
+      // 2. Buscar as cobranças
       const customerIds = customers.map(c => c.id);
-      const { data: charges } = await supabase
+      const { data: charges, error: chargeError } = await supabase
         .from('charges')
-        .select('*, profiles(company, full_name), customers(email, phone)')
+        .select('*, profiles(company, full_name, logo_url, primary_color), customers(email, phone, name)')
         .in('customer_id', customerIds)
         .order('due_date', { ascending: false });
 
+      if (chargeError) throw chargeError;
+
+      console.log(`[Portal] ${charges?.length || 0} cobrança(s) localizada(s).`);
       setResults(charges || []);
-    } catch (err) {
-      console.error(err);
-      showError("Erro ao buscar dados");
+
+    } catch (err: any) {
+      console.error("[Portal] Erro na busca:", err.message);
+      showError("Erro ao consultar faturas. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -70,7 +82,6 @@ const ClientPortal = () => {
       if (error) throw error;
       showSuccess("Dados atualizados com sucesso!");
       setEditingId(null);
-      // Recarrega para refletir as mudanças
       handleSearch({ preventDefault: () => {} } as any);
     } catch (err: any) {
       showError(err.message);
@@ -112,7 +123,7 @@ const ClientPortal = () => {
               {loading ? <Loader2 className="animate-spin" size={24} /> : "Consultar Faturas"}
             </button>
           </form>
-          <p className="mt-4 text-center text-xs text-zinc-500 font-medium">Digite apenas os números do seu documento de identificação.</p>
+          <p className="mt-4 text-center text-xs text-zinc-500 font-medium">Digite apenas os números do seu documento.</p>
         </div>
 
         {searched && !loading && results && (
@@ -121,7 +132,7 @@ const ClientPortal = () => {
               <div className="bg-zinc-900/30 border border-dashed border-zinc-800 p-20 rounded-[3rem] text-center">
                 <CheckCircle2 className="mx-auto text-zinc-800 mb-6" size={80} />
                 <h3 className="text-2xl font-bold text-zinc-400">Nenhuma fatura encontrada</h3>
-                <p className="text-zinc-600 mt-2">Você não possui débitos pendentes com nossos parceiros no momento.</p>
+                <p className="text-zinc-600 mt-2">Verifique se o documento está correto ou contate o emissor.</p>
               </div>
             ) : (
               results.map((charge) => (
@@ -129,8 +140,10 @@ const ClientPortal = () => {
                   <div className="p-8 md:p-10 flex flex-col md:flex-row justify-between gap-10">
                     <div className="flex-1 space-y-8">
                       <div className="flex items-start gap-5">
-                        <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-zinc-500 shrink-0 shadow-inner">
-                          <Building2 size={32} />
+                        <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                          {charge.profiles?.logo_url ? (
+                            <img src={charge.profiles.logo_url} className="w-full h-full object-contain p-2" alt="Logo" />
+                          ) : <Building2 size={32} className="text-zinc-500" />}
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] mb-2">Empresa Emissora</p>
@@ -154,29 +167,27 @@ const ClientPortal = () => {
                           <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">E-mail para Recebimento</label>
+                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">E-mail</label>
                                 <input 
                                   value={editData.email}
                                   onChange={(e) => setEditData({...editData, email: e.target.value})}
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none focus:border-orange-500/50"
+                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">WhatsApp para Aviso</label>
+                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">WhatsApp</label>
                                 <input 
                                   value={editData.phone}
                                   onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none focus:border-orange-500/50"
+                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none"
                                 />
                               </div>
                             </div>
                             <button 
                               onClick={() => handleUpdateContact(charge.customer_id)}
-                              disabled={saving}
-                              className="w-full bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+                              className="w-full bg-zinc-100 text-zinc-950 text-[10px] font-bold py-3 rounded-xl"
                             >
-                              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                              ATUALIZAR MEUS DADOS
+                              SALVAR CONTATOS
                             </button>
                           </div>
                         ) : (
@@ -190,9 +201,9 @@ const ClientPortal = () => {
                                 setEditingId(charge.id);
                                 setEditData({ email: charge.customers.email, phone: charge.customers.phone });
                               }} 
-                              className="text-[10px] text-orange-500 font-bold hover:underline"
+                              className="text-[10px] text-orange-500 font-bold"
                             >
-                              EDITAR CONTATOS
+                              EDITAR
                             </button>
                           </div>
                         )}
@@ -210,9 +221,9 @@ const ClientPortal = () => {
                       {charge.status !== 'pago' && (
                         <Link 
                           to={`/pagar/${charge.id}`}
-                          className="w-full mt-8 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-5 rounded-3xl flex items-center justify-center gap-2 text-xs transition-all shadow-2xl shadow-zinc-950/50"
+                          className="w-full mt-8 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-5 rounded-3xl flex items-center justify-center gap-2 text-xs"
                         >
-                          IR PARA PAGAMENTO <ExternalLink size={16} />
+                          PAGAR AGORA <ExternalLink size={16} />
                         </Link>
                       )}
                     </div>
@@ -225,7 +236,7 @@ const ClientPortal = () => {
 
         <div className="mt-24 flex flex-col items-center gap-4 opacity-30">
           <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-zinc-600">
-            <ShieldCheck size={16} /> Checkout Protegido e Auditado
+            <ShieldCheck size={16} /> Ambiente Seguro
           </div>
         </div>
       </div>
