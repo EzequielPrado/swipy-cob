@@ -12,8 +12,10 @@ import {
   RefreshCw,
   Zap,
   TestTube2,
-  ExternalLink,
-  Building2
+  Building2,
+  Play,
+  CalendarCheck,
+  BellRing
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -66,29 +68,42 @@ const AdminDashboard = () => {
     fetchGlobalData();
   }, []);
 
+  const handleSystemAction = async (action: 'subscriptions' | 'schedule') => {
+    const endpoint = action === 'subscriptions' ? 'process-recurring-charges' : 'process-billing-schedule';
+    setProcessing(action);
+    
+    try {
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      });
+
+      if (!response.ok) throw new Error("Erro ao executar ação do sistema.");
+      
+      showSuccess(action === 'subscriptions' ? "Assinaturas do dia geradas!" : "Régua de cobrança disparada!");
+      fetchGlobalData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const handleSimulate = async (dayOffset: number) => {
     if (!selectedChargeId) return showError("Selecione uma cobrança na lista.");
     
     setProcessing(`test-${dayOffset}`);
     try {
-      // 1. Buscar a Regra
-      const { data: rule } = await supabase
-        .from('billing_rules')
-        .select('*')
-        .eq('day_offset', dayOffset)
-        .eq('is_active', true)
-        .single();
+      const { data: rule } = await supabase.from('billing_rules').select('*').eq('day_offset', dayOffset).eq('is_active', true).single();
+      if (!rule) throw new Error(`Regra D${dayOffset} não encontrada.`);
 
-      if (!rule) throw new Error(`Regra para D${dayOffset} não encontrada ou inativa.`);
-
-      // 2. Localizar os dados da cobrança selecionada
       const charge = recentCharges.find(c => c.id === selectedChargeId);
-      if (!charge) throw new Error("Dados da cobrança não carregados.");
+      if (!charge) throw new Error("Dados não carregados.");
 
-      // 3. Mapear Variáveis (Lógica idêntica ao disparo real)
       const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
-      const appUrl = window.location.origin;
-      const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
+      const internalCheckoutUrl = `${window.location.origin}/pagar/${charge.id}`;
 
       const variables = rule.mapping.map((key: string) => {
         if (key === 'customer_name') return charge.customers.name;
@@ -102,7 +117,6 @@ const AdminDashboard = () => {
 
       const buttonVariable = rule.button_link_variable === 'payment_link' ? internalCheckoutUrl : charge.id;
 
-      // 4. Enviar para a função
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
         headers: {
@@ -114,15 +128,13 @@ const AdminDashboard = () => {
           templateName: rule.name,
           language: rule.language || 'en',
           imageUrl: rule.image_url,
-          variables: variables,
-          buttonVariable: buttonVariable
+          variables,
+          buttonVariable
         })
       });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro no disparo de teste.");
-
-      showSuccess(`Simulação D${dayOffset} enviada com sucesso!`);
+      if (!response.ok) throw new Error("Erro no envio.");
+      showSuccess(`Simulação D${dayOffset} enviada!`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -136,13 +148,14 @@ const AdminDashboard = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Visão Global</h2>
-            <p className="text-zinc-400 mt-1">Métricas em tempo real de toda a plataforma.</p>
+            <p className="text-zinc-400 mt-1">Métricas e controles automáticos do sistema.</p>
           </div>
           <button onClick={fetchGlobalData} className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-500 hover:text-white transition-all">
             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
+        {/* 4 Cards de Métricas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl">
             <div className="flex items-center gap-3 text-zinc-500 mb-3">
@@ -166,7 +179,50 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-3 text-orange-500 mb-3">
               <AlertTriangle size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Inadimplência</span>
             </div>
-            <p className="text-3xl font-bold">R$ {stats.overdueAmount.toLocaleString('pt-BR')}</p>
+            <p className="text-3xl font-bold text-orange-400">R$ {stats.overdueAmount.toLocaleString('pt-BR')}</p>
+          </div>
+        </div>
+
+        {/* Novos Controles de Sistema */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-xl flex items-center justify-between group">
+            <div className="flex items-center gap-5">
+               <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
+                  <CalendarCheck size={24} />
+               </div>
+               <div>
+                  <h4 className="font-bold text-zinc-100">Assinaturas</h4>
+                  <p className="text-xs text-zinc-500">Gerar as faturas recorrentes programadas para hoje.</p>
+               </div>
+            </div>
+            <button 
+              onClick={() => handleSystemAction('subscriptions')}
+              disabled={!!processing}
+              className="px-6 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-emerald-500/50 hover:text-emerald-400 transition-all flex items-center gap-2"
+            >
+              {processing === 'subscriptions' ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              Executar Agora
+            </button>
+          </div>
+
+          <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-xl flex items-center justify-between group">
+            <div className="flex items-center gap-5">
+               <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
+                  <BellRing size={24} />
+               </div>
+               <div>
+                  <h4 className="font-bold text-zinc-100">Régua Global</h4>
+                  <p className="text-xs text-zinc-500">Enviar lembretes agendados de vencimento para todos.</p>
+               </div>
+            </div>
+            <button 
+              onClick={() => handleSystemAction('schedule')}
+              disabled={!!processing}
+              className="px-6 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-blue-500/50 hover:text-blue-400 transition-all flex items-center gap-2"
+            >
+              {processing === 'schedule' ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              Executar Agora
+            </button>
           </div>
         </div>
 
