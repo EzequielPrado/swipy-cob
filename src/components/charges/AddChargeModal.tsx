@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import { Loader2, DollarSign, Calendar, FileText } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface AddChargeModalProps {
 }
 
 const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -27,15 +29,16 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
   });
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && user) {
       fetchCustomers();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   const fetchCustomers = async () => {
     const { data, error } = await supabase
       .from('customers')
       .select('id, name')
+      .eq('user_id', user?.id) // FILTRO ADICIONADO AQUI
       .order('name');
     
     if (!error && data) {
@@ -53,10 +56,8 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Pegamos a origem atual (ex: https://seu-app.vercel.app)
       const origin = window.location.origin;
 
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
@@ -72,7 +73,7 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
           method: formData.method,
           dueDate: formData.dueDate,
           userId: user.id,
-          origin: origin // Passando a URL do sistema
+          origin: origin
         })
       });
 

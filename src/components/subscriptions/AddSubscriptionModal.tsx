@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import { Loader2, DollarSign, Calendar, RefreshCcw } from 'lucide-react';
 
@@ -16,6 +17,7 @@ interface AddSubscriptionModalProps {
 }
 
 const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionModalProps) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -26,16 +28,17 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
   });
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && user) {
       fetchCustomers();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   const fetchCustomers = async () => {
     const { data } = await supabase
       .from('customers')
       .select('id, name')
-      .eq('status', 'em dia') // Apenas clientes ativos
+      .eq('user_id', user?.id) // FILTRO ADICIONADO AQUI
+      .eq('status', 'em dia')
       .order('name');
     
     if (data) setCustomers(data);
@@ -46,7 +49,6 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
       const amountVal = parseFloat(formData.amount.replace(',', '.'));
@@ -74,7 +76,6 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
     }
   };
 
-  // Helper para gerar dias de 1 a 28
   const days = Array.from({ length: 28 }, (_, i) => i + 1);
 
   return (
