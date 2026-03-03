@@ -19,11 +19,8 @@ const ClientPortal = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Remove tudo que não é número
-    const cleanTaxId = taxId.replace(/\D/g, '');
     
-    // Validação básica para CPF (11) ou CNPJ (14)
-    if (cleanTaxId.length < 11) {
+    if (taxId.trim().length < 11) {
       showError("Insira um CPF ou CNPJ válido");
       return;
     }
@@ -32,18 +29,20 @@ const ClientPortal = () => {
     setSearched(true);
 
     try {
-      // 1. Localizar o cliente pelo CPF/CNPJ (tax_id)
+      const cleanTaxId = taxId.replace(/\D/g, '');
+      const rawTaxId = taxId.trim();
+
+      // BUSCA INTELIGENTE: Tenta achar o cliente pelo número limpo OU pelo formato exato digitado
       const { data: customers } = await supabase
         .from('customers')
         .select('id, name, email, phone')
-        .eq('tax_id', cleanTaxId);
+        .or(`tax_id.eq.${cleanTaxId},tax_id.eq.${rawTaxId}`);
 
       if (!customers || customers.length === 0) {
         setResults([]);
         return;
       }
 
-      // 2. Buscar todas as cobranças vinculadas a esses IDs de cliente
       const customerIds = customers.map(c => c.id);
       const { data: charges } = await supabase
         .from('charges')
@@ -92,7 +91,6 @@ const ClientPortal = () => {
           <p className="text-zinc-500 text-lg">Consulte suas faturas e mantenha seus pagamentos em dia.</p>
         </div>
 
-        {/* Card de Busca Principal */}
         <div className="bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] shadow-2xl mb-12 relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-500/10 blur-[100px] rounded-full" />
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 relative z-10">
@@ -117,7 +115,6 @@ const ClientPortal = () => {
           <p className="mt-4 text-center text-xs text-zinc-500 font-medium">Digite apenas os números do seu documento de identificação.</p>
         </div>
 
-        {/* Resultados da Busca */}
         {searched && !loading && results && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             {results.length === 0 ? (
@@ -152,7 +149,6 @@ const ClientPortal = () => {
                         </div>
                       </div>
 
-                      {/* Gestão de Contato do Pagador */}
                       <div className="bg-zinc-950/50 rounded-3xl p-6 border border-zinc-800/50">
                         {editingId === charge.id ? (
                           <div className="space-y-4">

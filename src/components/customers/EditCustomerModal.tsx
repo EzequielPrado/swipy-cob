@@ -71,6 +71,9 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
     setLoading(true);
 
     try {
+      // LIMPEZA: Normalizando para apenas números
+      const cleanTaxID = formData.taxID.replace(/\D/g, '');
+
       // 1. Atualizar na Woovi via Edge Function
       if (customer.woovi_id) {
         const wooviResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
@@ -84,7 +87,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
             name: formData.name,
             email: formData.email,
             phone: formData.phone,
-            taxID: formData.taxID,
+            taxID: cleanTaxID,
             address: formData.address
           })
         });
@@ -102,7 +105,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          tax_id: formData.taxID,
+          tax_id: cleanTaxID,
           address: formData.address
         })
         .eq('id', customer.id);

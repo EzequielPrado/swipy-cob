@@ -52,6 +52,8 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
+      // LIMPEZA: Remove pontos, traços e barras do CPF/CNPJ antes de salvar
+      const cleanTaxID = formData.taxID.replace(/\D/g, '');
       const correlationID = crypto.randomUUID();
       
       // 1. Criar na Woovi via Edge Function
@@ -65,7 +67,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          taxID: formData.taxID,
+          taxID: cleanTaxID, // Enviando limpo para a Woovi
           correlationID,
           address: formData.address
         })
@@ -80,7 +82,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        tax_id: formData.taxID,
+        tax_id: cleanTaxID, // Salvando limpo no banco
         correlation_id: correlationID,
         woovi_id: wooviResult.customer?.id || null,
         address: formData.address
@@ -108,7 +110,6 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
         <form onSubmit={handleSubmit}>
           <ScrollArea className="max-h-[70vh] px-6 py-2">
             <div className="space-y-6 pb-6">
-              {/* Informações Básicas */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Informações Básicas</h3>
                 <div className="space-y-2">
@@ -138,6 +139,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
                     <Input 
                       id="taxID" 
                       required
+                      placeholder="Apenas números ou formatado"
                       className="bg-zinc-950 border-zinc-800 h-11"
                       value={formData.taxID}
                       onChange={(e) => setFormData({...formData, taxID: e.target.value})}
@@ -155,7 +157,6 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
                 </div>
               </div>
 
-              {/* Endereço */}
               <div className="space-y-4 border-t border-zinc-800 pt-6">
                 <div className="flex items-center gap-2">
                   <MapPin size={14} className="text-orange-500" />
