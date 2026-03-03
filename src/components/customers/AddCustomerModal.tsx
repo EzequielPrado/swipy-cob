@@ -128,26 +128,30 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>CEP</Label>
-                  <Input value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} className="bg-zinc-950 border-zinc-800" />
+                  <Input required value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} className="bg-zinc-950 border-zinc-800" />
                 </div>
                 <div className="space-y-2">
                   <Label>Número</Label>
-                  <Input value={formData.address.number} onChange={(e) => handleAddressChange('number', e.target.value)} className="bg-zinc-950 border-zinc-800" />
+                  <Input required value={formData.address.number} onChange={(e) => handleAddressChange('number', e.target.value)} className="bg-zinc-950 border-zinc-800" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Rua/Av</Label>
-                <Input value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} className="bg-zinc-950 border-zinc-800" />
+                <Input required value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} className="bg-zinc-950 border-zinc-800" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Bairro</Label>
+                  <Input required value={formData.address.neighborhood} onChange={(e) => handleAddressChange('neighborhood', e.target.value)} className="bg-zinc-950 border-zinc-800" />
+                </div>
                 <div className="space-y-2">
                   <Label>Cidade</Label>
-                  <Input value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} className="bg-zinc-950 border-zinc-800" />
+                  <Input required value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} className="bg-zinc-950 border-zinc-800" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Estado (UF)</Label>
-                  <Input maxLength={2} value={formData.address.state} onChange={(e) => handleAddressChange('state', e.target.value.toUpperCase())} className="bg-zinc-950 border-zinc-800" placeholder="SP" />
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Estado (UF)</Label>
+                <Input required maxLength={2} value={formData.address.state} onChange={(e) => handleAddressChange('state', e.target.value.toUpperCase())} className="bg-zinc-950 border-zinc-800" placeholder="SP" />
               </div>
             </div>
           </div>
