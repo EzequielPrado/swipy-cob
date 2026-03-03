@@ -53,36 +53,24 @@ const GlobalAutomation = () => {
   const saveRules = async () => {
     setSaving(true);
     try {
-      // CORREÇÃO DEFINITIVA:
-      // Geramos o UUID no frontend para novos itens. Assim, o campo id NUNCA será nulo.
       const formattedTriggers = triggers.map(t => {
         const item = { ...t };
-        
-        // Se não tiver ID ou for inválido, geramos um UUID v4 aqui mesmo
         if (!item.id || item.id.length < 10) {
           item.id = crypto.randomUUID();
         }
-
-        // Garantir valores padrão
         if (!item.name) item.name = 'template_padrao';
         if (!item.label) item.label = 'Gatilho sem Nome';
         if (item.day_offset === undefined || item.day_offset === null) item.day_offset = 0;
-
-        // Removemos campos que não são do banco (apenas precaução)
         delete item.created_at; 
-        
         return item;
       });
-
-      console.log("[GlobalAutomation] Salvando regras:", formattedTriggers);
 
       const { error } = await supabase.from('billing_rules').upsert(formattedTriggers);
       if (error) throw error;
       
       showSuccess("Régua de cobrança salva com sucesso!");
-      fetchRules(); // Recarrega para garantir sincronia
+      fetchRules();
     } catch (err: any) {
-      console.error("[GlobalAutomation] Erro:", err);
       showError(err.message);
     } finally {
       setSaving(false);
@@ -91,11 +79,10 @@ const GlobalAutomation = () => {
 
   const addTrigger = () => {
     const newTrigger = {
-      // id: undefined, // Deixamos undefined para ser gerado no saveRules
       name: 'novo_template',
       label: 'Novo Gatilho',
       day_offset: 0,
-      language: 'en',
+      language: 'pt_BR', // Alterado para pt_BR
       message_text: 'Olá *{{1}}*...',
       image_url: 'https://images.unsplash.com/photo-1554224155-1696413565d3?q=80&w=600',
       primary_button_text: 'Pagar Agora',
@@ -108,8 +95,6 @@ const GlobalAutomation = () => {
 
   const removeTrigger = async (id: string, index: number) => {
     if (!confirm("Remover este gatilho?")) return;
-    
-    // Se tem ID, deleta do banco
     if (id && id.length > 10) {
       const { error } = await supabase.from('billing_rules').delete().eq('id', id);
       if (error) {
@@ -117,8 +102,6 @@ const GlobalAutomation = () => {
         return;
       }
     }
-    
-    // Remove da lista local
     const newTriggers = [...triggers];
     newTriggers.splice(index, 1);
     setTriggers(newTriggers);
@@ -170,8 +153,11 @@ const GlobalAutomation = () => {
         })
       });
 
-      if (!response.ok) throw new Error("Erro ao enviar teste");
-      showSuccess("Teste enviado!");
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erro ao enviar teste");
+      }
+      showSuccess("Teste enviado! Verifique seu WhatsApp.");
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -272,16 +258,34 @@ const GlobalAutomation = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12">
                   <div className="lg:col-span-7 p-8 space-y-6 border-r border-zinc-800">
-                    <div className="space-y-2">
-                       <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
-                          <ImageIcon size={14} className="text-orange-500" /> Imagem do Cabeçalho
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400 text-xs font-bold uppercase">Idioma do Template</Label>
+                        <Select 
+                          value={t.language || 'pt_BR'}
+                          onValueChange={(val) => updateTrigger(tIndex, 'language', val)}
+                        >
+                          <SelectTrigger className="bg-zinc-950 border-zinc-800 text-xs h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                            <SelectItem value="pt_BR">Português (Brasil)</SelectItem>
+                            <SelectItem value="en">Inglês</SelectItem>
+                            <SelectItem value="es">Espanhol</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400 text-xs font-bold uppercase flex items-center gap-2">
+                            <ImageIcon size={14} className="text-orange-500" /> Imagem do Cabeçalho
                         </Label>
-                       <Input 
-                          value={t.image_url}
-                          onChange={(e) => updateTrigger(tIndex, 'image_url', e.target.value)}
-                          className="bg-zinc-950 border-zinc-800 text-xs h-10" 
-                          placeholder="URL da Imagem (Padrão: Pix)..."
+                        <Input 
+                            value={t.image_url}
+                            onChange={(e) => updateTrigger(tIndex, 'image_url', e.target.value)}
+                            className="bg-zinc-950 border-zinc-800 text-xs h-10" 
+                            placeholder="URL da Imagem..."
                         />
+                      </div>
                     </div>
 
                     <div className="space-y-4 bg-zinc-950/50 p-6 rounded-2xl border border-zinc-800/50">
@@ -331,7 +335,7 @@ const GlobalAutomation = () => {
                         value={t.message_text}
                         onChange={(e) => updateTrigger(tIndex, 'message_text', e.target.value)}
                         className="bg-zinc-950 border-zinc-800 text-xs min-h-[120px] mt-3 leading-relaxed" 
-                        placeholder="Escreva a mensagem aqui (Markdown suportado pelo WhatsApp)..."
+                        placeholder="Corpo do template (apenas visualização)..."
                       />
                     </div>
 

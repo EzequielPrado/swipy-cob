@@ -24,8 +24,11 @@ serve(async (req) => {
 
     const cleanNumber = to.replace(/\D/g, '')
     const finalNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`
+    
+    // Ajuste: templates brasileiros geralmente são pt_BR
+    const langCode = language || "pt_BR";
 
-    console.log(`[send-whatsapp] Enviando '${templateName}' para ${finalNumber}.`);
+    console.log(`[send-whatsapp] Enviando '${templateName}' (${langCode}) para ${finalNumber}.`);
 
     const components = []
 
@@ -66,7 +69,7 @@ serve(async (req) => {
         type: "template",
         template: {
           name: templateName,
-          language: { code: language || "en" },
+          language: { code: langCode },
           components
         }
       })
@@ -75,19 +78,22 @@ serve(async (req) => {
     const result = await response.json()
     
     if (!response.ok) {
+      console.error("[send-whatsapp] Erro da Meta:", JSON.stringify(result));
       return new Response(JSON.stringify({ error: result.error?.message || "Erro API Meta" }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       })
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    console.log("[send-whatsapp] Mensagem aceita pela Meta ID:", result.messages?.[0]?.id);
+
+    return new Response(JSON.stringify({ success: true, messageId: result.messages?.[0]?.id }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
 
   } catch (error: any) {
-    console.error("[send-whatsapp] Erro:", error.message);
+    console.error("[send-whatsapp] Erro Crítico:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
