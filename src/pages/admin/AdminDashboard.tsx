@@ -11,9 +11,9 @@ import {
   Play, 
   Loader2, 
   RefreshCw,
-  FlaskConical,
   Send,
-  MessageSquare
+  Zap,
+  TestTube2
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -28,10 +28,9 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   
-  // Estados do Lab
+  // Estados do Simulador
   const [testCharges, setTestCharges] = useState<any[]>([]);
   const [selectedChargeId, setSelectedChargeId] = useState('');
-  const [selectedDayOffset, setSelectedDayOffset] = useState('0');
 
   const fetchGlobalData = async () => {
     setLoading(true);
@@ -49,7 +48,6 @@ const AdminDashboard = () => {
         overdueAmount: overdue
       });
 
-      // Buscar cobranças recentes para o Lab
       const { data: recent } = await supabase
         .from('charges')
         .select('id, amount, customers(name)')
@@ -69,58 +67,35 @@ const AdminDashboard = () => {
     fetchGlobalData();
   }, []);
 
-  const handleForceSchedule = async () => {
-    setProcessing('schedule');
-    try {
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/process-billing-schedule`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
-      if (!response.ok) throw new Error("Erro ao processar rotina diária");
-      showSuccess("Rotina diária da régua executada com sucesso!");
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const forceTestNotification = async () => {
-    if (!selectedChargeId) return showError("Selecione uma cobrança.");
+  const handleSimulate = async (dayOffset: number) => {
+    if (!selectedChargeId) return showError("Selecione uma cobrança primeiro.");
     
-    setProcessing('test');
+    setProcessing(`test-${dayOffset}`);
     try {
-      // 1. Localizar a regra correta para o dia selecionado
       const { data: rule } = await supabase
         .from('billing_rules')
-        .select('id, name')
-        .eq('day_offset', parseInt(selectedDayOffset))
+        .select('name')
+        .eq('day_offset', dayOffset)
         .eq('is_active', true)
-        .limit(1)
         .single();
 
-      if (!rule) throw new Error(`Não existe regra ativa para D${selectedDayOffset} no sistema.`);
+      if (!rule) throw new Error(`Não há regra ativa para D${dayOffset}`);
 
-      // 2. Disparar o WhatsApp fingindo ser o sistema
-      const response = await fetch(`${supabase.storageUrl.replace('/storage/v1', '')}/functions/v1/send-whatsapp`, {
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-whatsapp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
         body: JSON.stringify({
-          to: '5511999999999', // Aqui o backend buscará do cliente real da cobrança
+          chargeId: selectedChargeId,
           templateName: rule.name,
-          chargeId: selectedChargeId, // Enviamos para o log
-          // Nota: O backend send-whatsapp deve estar preparado para receber essas variáveis
+          manualTrigger: true // Flag para o backend saber que é um teste
         })
       });
 
-      // No seu fluxo atual, 'create-woovi-charge' e 'process-billing-schedule' chamam o WhatsApp.
-      // Vou simplificar o teste disparando a rotina de envio.
-      showSuccess(`Simulação de D${selectedDayOffset} iniciada! Verifique o log do WhatsApp.`);
+      if (!response.ok) throw new Error("Erro ao disparar simulação");
+      showSuccess(`Simulação D${dayOffset} enviada com sucesso!`);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -133,125 +108,88 @@ const AdminDashboard = () => {
       <div className="flex flex-col gap-8">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Monitoramento Global</h2>
-            <p className="text-zinc-400 mt-1">Visão administrativa e ferramentas de validação.</p>
+            <h2 className="text-3xl font-bold tracking-tight">Visão Global</h2>
+            <p className="text-zinc-400 mt-1">Métricas de toda a plataforma Swipy Cob.</p>
           </div>
           <button onClick={fetchGlobalData} className="p-2 text-zinc-500 hover:text-white transition-colors">
             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
+        {/* 4 Cards Principais (Visual Revertido) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-            <div className="flex items-center gap-2 text-zinc-500 mb-2">
-              <Users size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Lojistas</span>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-3 text-zinc-500 mb-2">
+              <Users size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Lojistas Totais</span>
             </div>
             <p className="text-3xl font-bold">{stats.totalUsers}</p>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-            <div className="flex items-center gap-2 text-zinc-500 mb-2">
-              <CreditCard size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Cobranças</span>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-3 text-zinc-500 mb-2">
+              <CreditCard size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Cobranças Ativas</span>
             </div>
             <p className="text-3xl font-bold">{stats.totalCharges}</p>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
-            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-3 text-zinc-500 mb-2">
               <Activity size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Recorrências</span>
             </div>
             <p className="text-3xl font-bold">{stats.activeSubs}</p>
           </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl border-l-orange-500/50">
-            <div className="flex items-center gap-2 text-orange-500 mb-2">
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl border-l-orange-500/50 shadow-xl">
+            <div className="flex items-center gap-3 text-orange-500 mb-2">
               <AlertTriangle size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Inadimplência</span>
             </div>
-            <p className="text-3xl font-bold">R$ {stats.overdueAmount.toLocaleString()}</p>
+            <p className="text-3xl font-bold">R$ {stats.overdueAmount.toLocaleString('pt-BR')}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Controles Globais */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="text-orange-500" size={20} />
-              <h3 className="text-xl font-bold">Automações</h3>
-            </div>
-            <p className="text-sm text-zinc-500">Force a execução manual das rotinas que rodam via CRON.</p>
-            
-            <button 
-              onClick={handleForceSchedule}
-              disabled={!!processing}
-              className="w-full flex items-center justify-between p-5 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-orange-500/30 transition-all group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-zinc-950 transition-all">
-                  {processing === 'schedule' ? <Loader2 className="animate-spin" /> : <Play size={20} />}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-bold">Processar Régua de Hoje</p>
-                  <p className="text-[10px] text-zinc-500 uppercase font-bold">Varre vencimentos D0, D+3, D+7</p>
-                </div>
+        {/* Seção de Simulador (Melhor Organizada) */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="p-8 border-b border-zinc-800 bg-zinc-950/20 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+                <TestTube2 size={22} />
               </div>
-            </button>
+              <div>
+                <h3 className="text-xl font-bold">Simulador de Régua</h3>
+                <p className="text-xs text-zinc-500">Teste o envio de mensagens vencidas agora mesmo.</p>
+              </div>
+            </div>
+            <select 
+              value={selectedChargeId}
+              onChange={(e) => setSelectedChargeId(e.target.value)}
+              className="bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none w-64"
+            >
+              <option value="">Selecione uma cobrança...</option>
+              {testCharges.map(c => (
+                <option key={c.id} value={c.id}>{c.customers?.name} (R$ {c.amount})</option>
+              ))}
+            </select>
           </div>
 
-          {/* Laboratório de Testes */}
-          <div className="bg-orange-500/5 border border-orange-500/10 rounded-3xl p-8 space-y-6 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full" />
-            <div className="flex items-center gap-2 mb-2">
-              <FlaskConical className="text-orange-500" size={20} />
-              <h3 className="text-xl font-bold">Lab de Mensagens</h3>
-            </div>
-            <p className="text-sm text-zinc-500">Simule disparos para faturas específicas e valide o conteúdo.</p>
-            
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Cobrança de Origem</label>
-                <select 
-                  value={selectedChargeId}
-                  onChange={(e) => setSelectedChargeId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none"
-                >
-                  <option value="">Selecione uma fatura...</option>
-                  {testCharges.map(c => (
-                    <option key={c.id} value={c.id}>{c.customers?.name} (R$ {c.amount})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Simular Estágio</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { val: '-1', label: 'Criação' },
-                    { val: '0', label: 'D0 (Vence Hoje)' },
-                    { val: '3', label: 'D+3 (Atraso)' },
-                    { val: '7', label: 'D+7 (Crítico)' }
-                  ].map(opt => (
-                    <button
-                      key={opt.val}
-                      onClick={() => setSelectedDayOffset(opt.val)}
-                      className={cn(
-                        "px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase border transition-all",
-                        selectedDayOffset === opt.val 
-                          ? "bg-orange-500 border-orange-500 text-zinc-950 shadow-lg shadow-orange-500/20" 
-                          : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                onClick={forceTestNotification}
-                disabled={!!processing || !selectedChargeId}
-                className="w-full mt-4 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"
+          <div className="p-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Criação', offset: -1, desc: 'Imediato' },
+              { label: 'Vencimento', offset: 0, desc: 'Dia D0' },
+              { label: 'Atrasada', offset: 3, desc: 'D+3' },
+              { label: 'Crítica', offset: 7, desc: 'D+7' }
+            ].map((stage) => (
+              <button
+                key={stage.offset}
+                disabled={!selectedChargeId || !!processing}
+                onClick={() => handleSimulate(stage.offset)}
+                className="flex flex-col items-center gap-3 p-6 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-orange-500/50 transition-all group disabled:opacity-50"
               >
-                {processing === 'test' ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                DISPARAR WHATSAPP DE TESTE
+                <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-500 group-hover:text-orange-500 group-hover:bg-orange-500/10 transition-colors">
+                  {processing === `test-${stage.offset}` ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold">{stage.label}</p>
+                  <p className="text-[10px] text-zinc-600 uppercase font-bold">{stage.desc}</p>
+                </div>
               </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>
