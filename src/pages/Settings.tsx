@@ -1,18 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Save, Loader2, Palette, Image as ImageIcon, Globe, ShieldCheck } from 'lucide-react';
+import { Save, Loader2, Palette, Image as ImageIcon, Globe, ShieldCheck, Upload, X } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const Settings = () => {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     company: '',
     full_name: '',
@@ -28,7 +30,7 @@ const Settings = () => {
 
   const fetchProfile = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user?.id)
@@ -43,6 +45,43 @@ const Settings = () => {
       });
     }
     setLoading(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      showError("Por favor, selecione uma imagem válida.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 1. Upload para o bucket 'logos'
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Pegar a URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, logo_url: publicUrl }));
+      showSuccess("Logo carregada com sucesso!");
+    } catch (err: any) {
+      showError("Erro no upload: " + err.message + ". Certifique-se de que o bucket 'logos' existe e é público.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -116,16 +155,49 @@ const Settings = () => {
                 </h3>
                 
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <ImageIcon size={14} className="text-zinc-500" /> URL da Logo (PNG transparente)
-                    </Label>
-                    <Input 
-                      value={formData.logo_url}
-                      onChange={(e) => setFormData({...formData, logo_url: e.target.value})}
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      placeholder="https://sua-logo.com/logo.png"
-                    />
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-2">Logotipo da Empresa</Label>
+                    
+                    <div className="flex items-center gap-4">
+                      {formData.logo_url ? (
+                        <div className="relative group">
+                          <div className="w-24 h-24 bg-zinc-950 border border-zinc-800 rounded-2xl flex items-center justify-center overflow-hidden p-2">
+                            <img src={formData.logo_url} alt="Logo" className="w-full h-full object-contain" />
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setFormData({...formData, logo_url: ''})}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          type="button"
+                          disabled={uploading}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-24 h-24 bg-zinc-950 border border-dashed border-zinc-800 rounded-2xl flex flex-col items-center justify-center gap-2 text-zinc-500 hover:border-orange-500/50 hover:text-orange-500 transition-all group"
+                        >
+                          {uploading ? <Loader2 className="animate-spin" size={20} /> : <Upload size={20} />}
+                          <span className="text-[10px] font-bold uppercase">Subir Logo</span>
+                        </button>
+                      )}
+                      
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs text-zinc-300 font-semibold">Instruções:</p>
+                        <p className="text-[10px] text-zinc-500 leading-relaxed italic">
+                          Formatos aceitos: PNG ou SVG (com fundo transparente). Tamanho recomendado: 512x512px.
+                        </p>
+                      </div>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -149,8 +221,8 @@ const Settings = () => {
 
               <button 
                 type="submit" 
-                disabled={saving}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
+                disabled={saving || uploading}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
               >
                 {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                 SALVAR ALTERAÇÕES
@@ -194,7 +266,7 @@ const Settings = () => {
                 <h4 className="text-sm font-bold uppercase tracking-tight">Dica de Conversão</h4>
               </div>
               <p className="text-xs text-zinc-500 leading-relaxed italic">
-                A cor de destaque é aplicada no botão principal de copiar o código Pix. Recomendamos usar cores vibrantes mas legíveis.
+                Logos com fundo transparente (PNG) ficam muito mais profissionais no checkout do seu cliente.
               </p>
             </div>
           </div>
