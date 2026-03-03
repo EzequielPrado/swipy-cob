@@ -2,15 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
+import { cn } from "@/lib/utils";
 import { 
   TrendingUp, 
   Users, 
   ArrowUpRight, 
-  Wallet,
-  Zap,
-  Target,
-  Loader2,
-  RefreshCw
+  Wallet, 
+  Zap, 
+  Target, 
+  Loader2, 
+  RefreshCw 
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -19,7 +20,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer
+  ResponsiveContainer 
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -62,7 +63,6 @@ const Dashboard = () => {
         return;
       }
 
-      // Mapeamento real dos campos da API Woovi (normalmente retornados em centavos)
       setWallet({
         balance: (data.balance?.total || 0) / 100,
         available: (data.balance?.available || 0) / 100,
@@ -80,7 +80,6 @@ const Dashboard = () => {
     setLoading(true);
 
     try {
-      // 1. MRR Real (Soma de assinaturas ativas)
       const { data: subs } = await supabase
         .from('subscriptions')
         .select('amount, status')
@@ -94,14 +93,12 @@ const Dashboard = () => {
         ? (cancelledSubs.length / subs.length) * 100 
         : 0;
 
-      // 2. Clientes Ativos
       const { count: activeCust } = await supabase
         .from('customers')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
         .eq('status', 'em dia');
 
-      // 3. Pendente em Aberto (Cobranças não pagas)
       const { data: pending } = await supabase
         .from('charges')
         .select('amount')
@@ -110,14 +107,13 @@ const Dashboard = () => {
       
       const pendingAmount = pending?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
-      // 4. Projeção de Caixa Real (Sem 'growth' fake, apenas o esperado pelo MRR)
       const projection = [];
       const now = new Date();
       for (let i = 0; i < 6; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
         projection.push({
           name: d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase(),
-          valor: mrr + (i === 0 ? pendingAmount : 0) // Mês atual inclui o que já está em aberto
+          valor: mrr + (i === 0 ? pendingAmount : 0)
         });
       }
 
