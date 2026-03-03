@@ -1,26 +1,21 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Search, Loader2, Receipt, Building2, CheckCircle2, ExternalLink, UserCircle, Save, Phone, Mail, ShieldCheck, CreditCard } from 'lucide-react';
+import { Search, Loader2, Building2, CheckCircle2, ExternalLink, Mail, Phone, ShieldCheck, FileText, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
-import { showSuccess, showError } from '@/utils/toast';
+import { showError } from '@/utils/toast';
 
 const ClientPortal = () => {
   const [taxId, setTaxId] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
   const [searched, setSearched] = useState(false);
-  
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState({ email: '', phone: '' });
-  const [saving, setSaving] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Limpa o que o usuário digitou
     const cleanInput = taxId.replace(/\D/g, '').trim();
     
     if (cleanInput.length < 11) {
@@ -32,25 +27,20 @@ const ClientPortal = () => {
     setSearched(true);
 
     try {
-      console.log(`[Portal] Buscando por documento: ${cleanInput}`);
-
       // 1. Localizar o cliente
       const { data: customers, error: custError } = await supabase
         .from('customers')
-        .select('id, name, tax_id')
+        .select('id')
         .or(`tax_id.eq.${cleanInput},tax_id.ilike.%${cleanInput}%`);
 
       if (custError) throw custError;
 
       if (!customers || customers.length === 0) {
-        console.log("[Portal] Nenhum cliente encontrado com este documento.");
         setResults([]);
         return;
       }
 
-      console.log(`[Portal] Encontrado(s) ${customers.length} cliente(s) vinculados.`);
-
-      // 2. Buscar as cobranças. CORREÇÃO: Usamos o alias "profiles:user_id" para forçar o join
+      // 2. Buscar APENAS cobranças que NÃO estão pagas
       const customerIds = customers.map(c => c.id);
       const { data: charges, error: chargeError } = await supabase
         .from('charges')
@@ -60,37 +50,17 @@ const ClientPortal = () => {
           customers(email, phone, name)
         `)
         .in('customer_id', customerIds)
-        .order('due_date', { ascending: false });
+        .neq('status', 'pago') // Filtro: Apenas o que está pendente/vencido
+        .order('due_date', { ascending: true }); // Mostrar o que vence primeiro no topo
 
       if (chargeError) throw chargeError;
-
-      console.log(`[Portal] ${charges?.length || 0} cobrança(s) localizada(s).`);
       setResults(charges || []);
 
     } catch (err: any) {
-      console.error("[Portal] Erro na busca:", err.message);
-      showError("Erro ao consultar faturas. Tente novamente.");
+      console.error("[Portal] Erro:", err.message);
+      showError("Erro ao consultar faturas.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpdateContact = async (customerId: string) => {
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('customers')
-        .update({ email: editData.email, phone: editData.phone })
-        .eq('id', customerId);
-
-      if (error) throw error;
-      showSuccess("Dados atualizados com sucesso!");
-      setEditingId(null);
-      handleSearch({ preventDefault: () => {} } as any);
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -102,8 +72,8 @@ const ClientPortal = () => {
              <div className="w-14 h-14 bg-orange-500 rounded-[1.2rem] flex items-center justify-center font-bold text-zinc-950 text-3xl shadow-2xl shadow-orange-500/20">S</div>
              <span className="text-4xl font-bold tracking-tighter">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
-          <h1 className="text-5xl font-extrabold mb-4 tracking-tighter">Central do Pagador</h1>
-          <p className="text-zinc-500 text-lg">Consulte suas faturas e mantenha seus pagamentos em dia.</p>
+          <h1 className="text-5xl font-extrabold mb-4 tracking-tighter">Faturas em Aberto</h1>
+          <p className="text-zinc-500 text-lg">Consulte e pague seus débitos pendentes via PIX.</p>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] shadow-2xl mb-12 relative overflow-hidden">
@@ -124,19 +94,18 @@ const ClientPortal = () => {
               disabled={loading}
               className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold px-10 py-5 rounded-3xl transition-all shadow-xl shadow-orange-500/20 uppercase tracking-widest text-sm"
             >
-              {loading ? <Loader2 className="animate-spin" size={24} /> : "Consultar Faturas"}
+              {loading ? <Loader2 className="animate-spin" size={24} /> : "Buscar Débitos"}
             </button>
           </form>
-          <p className="mt-4 text-center text-xs text-zinc-500 font-medium">Digite apenas os números do seu documento.</p>
         </div>
 
         {searched && !loading && results && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
             {results.length === 0 ? (
               <div className="bg-zinc-900/30 border border-dashed border-zinc-800 p-20 rounded-[3rem] text-center">
                 <CheckCircle2 className="mx-auto text-zinc-800 mb-6" size={80} />
-                <h3 className="text-2xl font-bold text-zinc-400">Nenhuma fatura encontrada</h3>
-                <p className="text-zinc-600 mt-2">Verifique se o documento está correto ou contate o emissor.</p>
+                <h3 className="text-2xl font-bold text-zinc-400">Tudo em dia!</h3>
+                <p className="text-zinc-600 mt-2">Nenhuma fatura pendente encontrada para este documento.</p>
               </div>
             ) : (
               results.map((charge) => (
@@ -150,14 +119,21 @@ const ClientPortal = () => {
                           ) : <Building2 size={32} className="text-zinc-500" />}
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] mb-2">Empresa Emissora</p>
+                          <p className="text-[10px] font-bold text-orange-500 uppercase tracking-[0.2em] mb-2">Cobrado por</p>
                           <h4 className="text-2xl font-bold text-zinc-100">{charge.profiles?.company || charge.profiles?.full_name}</h4>
-                          <div className="flex items-center gap-4 mt-3">
+                          
+                          {charge.description && (
+                            <p className="flex items-center gap-2 text-zinc-500 text-sm mt-1 italic">
+                              <FileText size={14} /> {charge.description}
+                            </p>
+                          )}
+
+                          <div className="flex items-center gap-4 mt-4">
                              <span className={cn(
                               "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-                              charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                              charge.status === 'atrasado' ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
                             )}>
-                              {charge.status}
+                              {charge.status === 'atrasado' ? 'Vencida' : 'Pendente'}
                             </span>
                             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
                               Vencimento: {new Date(charge.due_date).toLocaleDateString('pt-BR')}
@@ -166,70 +142,26 @@ const ClientPortal = () => {
                         </div>
                       </div>
 
-                      <div className="bg-zinc-950/50 rounded-3xl p-6 border border-zinc-800/50">
-                        {editingId === charge.id ? (
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">E-mail</label>
-                                <input 
-                                  value={editData.email}
-                                  onChange={(e) => setEditData({...editData, email: e.target.value})}
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">WhatsApp</label>
-                                <input 
-                                  value={editData.phone}
-                                  onChange={(e) => setEditData({...editData, phone: e.target.value})}
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-xs outline-none"
-                                />
-                              </div>
-                            </div>
-                            <button 
-                              onClick={() => handleUpdateContact(charge.customer_id)}
-                              className="w-full bg-zinc-100 text-zinc-950 text-[10px] font-bold py-3 rounded-xl"
-                            >
-                              SALVAR CONTATOS
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-wrap gap-6 text-[11px] text-zinc-500 font-medium">
-                               <span className="flex items-center gap-2"><Mail size={14} className="text-zinc-700" /> {charge.customers.email || '---'}</span>
-                               <span className="flex items-center gap-2"><Phone size={14} className="text-zinc-700" /> {charge.customers.phone || '---'}</span>
-                            </div>
-                            <button 
-                              onClick={() => {
-                                setEditingId(charge.id);
-                                setEditData({ email: charge.customers.email, phone: charge.customers.phone });
-                              }} 
-                              className="text-[10px] text-orange-500 font-bold"
-                            >
-                              EDITAR
-                            </button>
-                          </div>
-                        )}
+                      <div className="flex flex-wrap gap-6 text-[11px] text-zinc-600 font-medium ml-21">
+                         <span className="flex items-center gap-2"><Mail size={14} /> {charge.customers?.email}</span>
+                         <span className="flex items-center gap-2"><Phone size={14} /> {charge.customers?.phone}</span>
                       </div>
                     </div>
 
                     <div className="flex flex-col justify-between items-end md:min-w-[220px] border-t md:border-t-0 md:border-l border-zinc-800 pt-8 md:pt-0 md:pl-10">
                       <div className="text-right w-full">
-                        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-2">Valor da Fatura</p>
+                        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-2">Valor Total</p>
                         <p className="text-4xl font-black text-zinc-100">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
                         </p>
                       </div>
                       
-                      {charge.status !== 'pago' && (
-                        <Link 
-                          to={`/pagar/${charge.id}`}
-                          className="w-full mt-8 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-5 rounded-3xl flex items-center justify-center gap-2 text-xs"
-                        >
-                          PAGAR AGORA <ExternalLink size={16} />
-                        </Link>
-                      )}
+                      <Link 
+                        to={`/pagar/${charge.id}`}
+                        className="w-full mt-8 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-5 rounded-3xl flex items-center justify-center gap-2 text-xs transition-all active:scale-95"
+                      >
+                        PAGAR AGORA <ExternalLink size={16} />
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -240,7 +172,7 @@ const ClientPortal = () => {
 
         <div className="mt-24 flex flex-col items-center gap-4 opacity-30">
           <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-zinc-600">
-            <ShieldCheck size={16} /> Ambiente Seguro
+            <ShieldCheck size={16} /> Pagamento 100% Seguro via PIX
           </div>
         </div>
       </div>
