@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Search, Loader2, Receipt, Building2, CheckCircle2, ExternalLink, UserCircle, Save, Phone, Mail, ShieldCheck } from 'lucide-react';
+import { Search, Loader2, Receipt, Building2, CheckCircle2, ExternalLink, UserCircle, Save, Phone, Mail, ShieldCheck, CreditCard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
 import { showSuccess, showError } from '@/utils/toast';
 
 const ClientPortal = () => {
-  const [cpf, setCpf] = useState('');
+  const [taxId, setTaxId] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
   const [searched, setSearched] = useState(false);
@@ -19,23 +19,31 @@ const ClientPortal = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanCpf = cpf.replace(/\D/g, '');
-    if (cleanCpf.length < 11) return;
+    // Remove tudo que não é número
+    const cleanTaxId = taxId.replace(/\D/g, '');
+    
+    // Validação básica para CPF (11) ou CNPJ (14)
+    if (cleanTaxId.length < 11) {
+      showError("Insira um CPF ou CNPJ válido");
+      return;
+    }
 
     setLoading(true);
     setSearched(true);
 
     try {
+      // 1. Localizar o cliente pelo CPF/CNPJ (tax_id)
       const { data: customers } = await supabase
         .from('customers')
         .select('id, name, email, phone')
-        .eq('tax_id', cleanCpf);
+        .eq('tax_id', cleanTaxId);
 
       if (!customers || customers.length === 0) {
         setResults([]);
         return;
       }
 
+      // 2. Buscar todas as cobranças vinculadas a esses IDs de cliente
       const customerIds = customers.map(c => c.id);
       const { data: charges } = await supabase
         .from('charges')
@@ -46,6 +54,7 @@ const ClientPortal = () => {
       setResults(charges || []);
     } catch (err) {
       console.error(err);
+      showError("Erro ao buscar dados");
     } finally {
       setLoading(false);
     }
@@ -60,8 +69,9 @@ const ClientPortal = () => {
         .eq('id', customerId);
 
       if (error) throw error;
-      showSuccess("Dados atualizados!");
+      showSuccess("Dados atualizados com sucesso!");
       setEditingId(null);
+      // Recarrega para refletir as mudanças
       handleSearch({ preventDefault: () => {} } as any);
     } catch (err: any) {
       showError(err.message);
@@ -79,9 +89,10 @@ const ClientPortal = () => {
              <span className="text-4xl font-bold tracking-tighter">Swipy <span className="text-orange-500">Cob</span></span>
           </div>
           <h1 className="text-5xl font-extrabold mb-4 tracking-tighter">Central do Pagador</h1>
-          <p className="text-zinc-500 text-lg">Consulte e pague faturas de todos os nossos parceiros com segurança.</p>
+          <p className="text-zinc-500 text-lg">Consulte suas faturas e mantenha seus pagamentos em dia.</p>
         </div>
 
+        {/* Card de Busca Principal */}
         <div className="bg-zinc-900 border border-zinc-800 p-10 rounded-[3rem] shadow-2xl mb-12 relative overflow-hidden">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-500/10 blur-[100px] rounded-full" />
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4 relative z-10">
@@ -89,29 +100,31 @@ const ClientPortal = () => {
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600" size={24} />
               <input 
                 type="text" 
-                placeholder="000.000.000-00"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
+                placeholder="Insira seu CPF ou CNPJ"
+                value={taxId}
+                onChange={(e) => setTaxId(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-3xl pl-14 pr-6 py-5 text-xl focus:ring-4 focus:ring-orange-500/10 outline-none transition-all font-mono"
               />
             </div>
             <button 
               type="submit"
-              disabled={loading || cpf.replace(/\D/g, '').length < 11}
+              disabled={loading}
               className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold px-10 py-5 rounded-3xl transition-all shadow-xl shadow-orange-500/20 uppercase tracking-widest text-sm"
             >
-              {loading ? <Loader2 className="animate-spin" size={24} /> : "Consultar"}
+              {loading ? <Loader2 className="animate-spin" size={24} /> : "Consultar Faturas"}
             </button>
           </form>
+          <p className="mt-4 text-center text-xs text-zinc-500 font-medium">Digite apenas os números do seu documento de identificação.</p>
         </div>
 
+        {/* Resultados da Busca */}
         {searched && !loading && results && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
             {results.length === 0 ? (
               <div className="bg-zinc-900/30 border border-dashed border-zinc-800 p-20 rounded-[3rem] text-center">
                 <CheckCircle2 className="mx-auto text-zinc-800 mb-6" size={80} />
-                <h3 className="text-2xl font-bold text-zinc-400">Nenhuma pendência encontrada</h3>
-                <p className="text-zinc-600 mt-2">Você está em dia com todos os nossos lojistas parceiros.</p>
+                <h3 className="text-2xl font-bold text-zinc-400">Nenhuma fatura encontrada</h3>
+                <p className="text-zinc-600 mt-2">Você não possui débitos pendentes com nossos parceiros no momento.</p>
               </div>
             ) : (
               results.map((charge) => (
@@ -133,18 +146,19 @@ const ClientPortal = () => {
                               {charge.status}
                             </span>
                             <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest flex items-center gap-1.5">
-                              Vence em {new Date(charge.due_date).toLocaleDateString('pt-BR')}
+                              Vencimento: {new Date(charge.due_date).toLocaleDateString('pt-BR')}
                             </span>
                           </div>
                         </div>
                       </div>
 
+                      {/* Gestão de Contato do Pagador */}
                       <div className="bg-zinc-950/50 rounded-3xl p-6 border border-zinc-800/50">
                         {editingId === charge.id ? (
                           <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">Seu E-mail</label>
+                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">E-mail para Recebimento</label>
                                 <input 
                                   value={editData.email}
                                   onChange={(e) => setEditData({...editData, email: e.target.value})}
@@ -152,7 +166,7 @@ const ClientPortal = () => {
                                 />
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">Seu Telefone</label>
+                                <label className="text-[9px] font-bold text-zinc-500 uppercase ml-2">WhatsApp para Aviso</label>
                                 <input 
                                   value={editData.phone}
                                   onChange={(e) => setEditData({...editData, phone: e.target.value})}
@@ -166,7 +180,7 @@ const ClientPortal = () => {
                               className="w-full bg-zinc-100 hover:bg-white text-zinc-950 text-[10px] font-bold py-3 rounded-xl flex items-center justify-center gap-2"
                             >
                               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-                              ATUALIZAR MEUS DADOS PARA COBRANÇA
+                              ATUALIZAR MEUS DADOS
                             </button>
                           </div>
                         ) : (
@@ -182,7 +196,7 @@ const ClientPortal = () => {
                               }} 
                               className="text-[10px] text-orange-500 font-bold hover:underline"
                             >
-                              EDITAR CONTATO
+                              EDITAR CONTATOS
                             </button>
                           </div>
                         )}
@@ -191,7 +205,7 @@ const ClientPortal = () => {
 
                     <div className="flex flex-col justify-between items-end md:min-w-[220px] border-t md:border-t-0 md:border-l border-zinc-800 pt-8 md:pt-0 md:pl-10">
                       <div className="text-right w-full">
-                        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-2">Total do Débito</p>
+                        <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] mb-2">Valor da Fatura</p>
                         <p className="text-4xl font-black text-zinc-100">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
                         </p>
@@ -202,7 +216,7 @@ const ClientPortal = () => {
                           to={`/pagar/${charge.id}`}
                           className="w-full mt-8 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-5 rounded-3xl flex items-center justify-center gap-2 text-xs transition-all shadow-2xl shadow-zinc-950/50"
                         >
-                          EFETUAR PAGAMENTO <ExternalLink size={16} />
+                          IR PARA PAGAMENTO <ExternalLink size={16} />
                         </Link>
                       )}
                     </div>
@@ -215,7 +229,7 @@ const ClientPortal = () => {
 
         <div className="mt-24 flex flex-col items-center gap-4 opacity-30">
           <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-zinc-600">
-            <ShieldCheck size={16} /> Pagamento Protegido e Auditado
+            <ShieldCheck size={16} /> Checkout Protegido e Auditado
           </div>
         </div>
       </div>
