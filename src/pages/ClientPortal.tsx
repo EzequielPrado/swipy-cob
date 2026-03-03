@@ -34,7 +34,7 @@ const ClientPortal = () => {
     try {
       console.log(`[Portal] Buscando por documento: ${cleanInput}`);
 
-      // 1. Localizar o cliente. Usamos "ilike" para ser mais flexível se houver espaços
+      // 1. Localizar o cliente
       const { data: customers, error: custError } = await supabase
         .from('customers')
         .select('id, name, tax_id')
@@ -50,11 +50,15 @@ const ClientPortal = () => {
 
       console.log(`[Portal] Encontrado(s) ${customers.length} cliente(s) vinculados.`);
 
-      // 2. Buscar as cobranças
+      // 2. Buscar as cobranças. CORREÇÃO: Usamos o alias "profiles:user_id" para forçar o join
       const customerIds = customers.map(c => c.id);
       const { data: charges, error: chargeError } = await supabase
         .from('charges')
-        .select('*, profiles(company, full_name, logo_url, primary_color), customers(email, phone, name)')
+        .select(`
+          *, 
+          profiles:user_id(company, full_name, logo_url, primary_color), 
+          customers(email, phone, name)
+        `)
         .in('customer_id', customerIds)
         .order('due_date', { ascending: false });
 
