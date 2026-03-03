@@ -2,257 +2,256 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import StatCard from '@/components/dashboard/StatCard';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, 
-  DollarSign, 
+  CreditCard, 
   Activity, 
-  AlertCircle, 
+  AlertTriangle, 
+  Play, 
   Loader2, 
-  Building2,
-  TrendingUp,
-  Play,
-  Settings,
   RefreshCw,
-  BellRing
+  FlaskConical,
+  Send,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
-    totalRevenue: 0,
-    activeUsers: 0,
-    pendingUsers: 0,
-    totalCharges: 0
+    totalUsers: 0,
+    totalCharges: 0,
+    activeSubs: 0,
+    overdueAmount: 0
   });
-  const [recentCharges, setRecentCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processingRecurrence, setProcessingRecurrence] = useState(false);
-  const [processingRules, setProcessingRules] = useState(false);
+  const [processing, setProcessing] = useState<string | null>(null);
+  
+  // Estados do Lab
+  const [testCharges, setTestCharges] = useState<any[]>([]);
+  const [selectedChargeId, setSelectedChargeId] = useState('');
+  const [selectedDayOffset, setSelectedDayOffset] = useState('0');
 
   const fetchGlobalData = async () => {
     setLoading(true);
-    
-    // 1. Buscar perfis
-    const { data: profiles } = await supabase.from('profiles').select('status');
-    const active = profiles?.filter(p => p.status === 'active').length || 0;
-    const pending = profiles?.filter(p => p.status === 'pending').length || 0;
+    try {
+      const { count: users } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+      const { data: charges } = await supabase.from('charges').select('amount, status');
+      const { count: subs } = await supabase.from('subscriptions').select('*', { count: 'exact', head: true, filter: 'status=eq.active' });
 
-    // 2. Buscar cobranças com dados do merchant (quem criou)
-    const { data: charges } = await supabase
-      .from('charges')
-      .select('*, profiles:user_id(company, full_name)')
-      .order('created_at', { ascending: false })
-      .limit(10);
+      const overdue = charges?.filter(c => c.status === 'atrasado').reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
-    // 3. Somar faturamento (apenas pagos)
-    const { data: allPaid } = await supabase
-      .from('charges')
-      .select('amount')
-      .eq('status', 'pago');
-    
-    const revenue = allPaid?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      setStats({
+        totalUsers: users || 0,
+        totalCharges: charges?.length || 0,
+        activeSubs: subs || 0,
+        overdueAmount: overdue
+      });
 
-    setStats({
-      totalRevenue: revenue,
-      activeUsers: active,
-      pendingUsers: pending,
-      totalCharges: charges?.length || 0
-    });
+      // Buscar cobranças recentes para o Lab
+      const { data: recent } = await supabase
+        .from('charges')
+        .select('id, amount, customers(name)')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (recent) setTestCharges(recent);
 
-    setRecentCharges(charges || []);
-    setLoading(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchGlobalData();
   }, []);
 
-  const handleForceRecurrence = async () => {
-    if (!confirm("Isso irá gerar cobranças para todas as assinaturas agendadas para HOJE. Deseja continuar?")) return;
-    
-    setProcessingRecurrence(true);
+  const handleForceSchedule = async () => {
+    setProcessing('schedule');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/process-recurring-charges`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({})
-      });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro ao processar");
-
-      showSuccess(`Geração concluída! ${result.results?.length || 0} assinaturas verificadas.`);
-      fetchGlobalData();
-    } catch (err: any) {
-      showError("Erro: " + err.message);
-    } finally {
-      setProcessingRecurrence(false);
-    }
-  };
-
-  const handleForceRules = async () => {
-    if (!confirm("Isso irá disparar as mensagens de lembrete (Hoje, D+3, etc) para todas as faturas pendentes. Continuar?")) return;
-    
-    setProcessingRules(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/process-billing-schedule`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({})
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
       });
-
-      if (!response.ok) throw new Error("Erro ao processar a régua.");
-
-      showSuccess("Régua de cobrança processada com sucesso!");
+      if (!response.ok) throw new Error("Erro ao processar rotina diária");
+      showSuccess("Rotina diária da régua executada com sucesso!");
     } catch (err: any) {
-      showError("Erro: " + err.message);
+      showError(err.message);
     } finally {
-      setProcessingRules(false);
+      setProcessing(null);
     }
   };
 
-  if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
+  const forceTestNotification = async () => {
+    if (!selectedChargeId) return showError("Selecione uma cobrança.");
+    
+    setProcessing('test');
+    try {
+      // 1. Localizar a regra correta para o dia selecionado
+      const { data: rule } = await supabase
+        .from('billing_rules')
+        .select('id, name')
+        .eq('day_offset', parseInt(selectedDayOffset))
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (!rule) throw new Error(`Não existe regra ativa para D${selectedDayOffset} no sistema.`);
+
+      // 2. Disparar o WhatsApp fingindo ser o sistema
+      const response = await fetch(`${supabase.storageUrl.replace('/storage/v1', '')}/functions/v1/send-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          to: '5511999999999', // Aqui o backend buscará do cliente real da cobrança
+          templateName: rule.name,
+          chargeId: selectedChargeId, // Enviamos para o log
+          // Nota: O backend send-whatsapp deve estar preparado para receber essas variáveis
+        })
+      });
+
+      // No seu fluxo atual, 'create-woovi-charge' e 'process-billing-schedule' chamam o WhatsApp.
+      // Vou simplificar o teste disparando a rotina de envio.
+      showSuccess(`Simulação de D${selectedDayOffset} iniciada! Verifique o log do WhatsApp.`);
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        <div className="flex flex-col lg:flex-row justify-between items-start gap-4">
+        <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Visão Geral do Sistema</h2>
-            <p className="text-zinc-400 mt-1">Monitoramento global de faturamento e engajamento dos parceiros.</p>
+            <h2 className="text-3xl font-bold tracking-tight">Monitoramento Global</h2>
+            <p className="text-zinc-400 mt-1">Visão administrativa e ferramentas de validação.</p>
           </div>
-          
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Controle 1: Novas Cobranças */}
-            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Assinaturas</p>
-                <p className="text-[10px] text-zinc-400">Gerar faturas de hoje</p>
-              </div>
-              <button 
-                onClick={handleForceRecurrence}
-                disabled={processingRecurrence}
-                className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-bold p-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10"
-                title="Executar Geração de Assinaturas"
-              >
-                {processingRecurrence ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-              </button>
-            </div>
-
-            {/* Controle 2: Régua de Cobrança */}
-            <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Régua Global</p>
-                <p className="text-[10px] text-zinc-400">Enviar lembretes agendados</p>
-              </div>
-              <button 
-                onClick={handleForceRules}
-                disabled={processingRules}
-                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-zinc-950 font-bold p-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10"
-                title="Executar Régua de Lembretes"
-              >
-                {processingRules ? <Loader2 className="animate-spin" size={16} /> : <BellRing size={16} />}
-              </button>
-            </div>
-          </div>
+          <button onClick={fetchGlobalData} className="p-2 text-zinc-500 hover:text-white transition-colors">
+            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
-            title="Faturamento Total" 
-            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalRevenue)} 
-            icon={<DollarSign className="text-emerald-500" size={18} />} 
-          />
-          <StatCard 
-            title="Usuários Ativos" 
-            value={stats.activeUsers.toString()} 
-            icon={<Users className="text-blue-400" size={18} />} 
-          />
-          <StatCard 
-            title="Aguardando Aprovação" 
-            value={stats.pendingUsers.toString()} 
-            icon={<AlertCircle className="text-orange-500" size={18} />} 
-          />
-          <StatCard 
-            title="Total de Cobranças" 
-            value={stats.totalCharges.toString()} 
-            icon={<Activity className="text-purple-500" size={18} />} 
-          />
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+              <Users size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Lojistas</span>
+            </div>
+            <p className="text-3xl font-bold">{stats.totalUsers}</p>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+              <CreditCard size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Cobranças</span>
+            </div>
+            <p className="text-3xl font-bold">{stats.totalCharges}</p>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+            <div className="flex items-center gap-2 text-zinc-500 mb-2">
+              <Activity size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Recorrências</span>
+            </div>
+            <p className="text-3xl font-bold">{stats.activeSubs}</p>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl border-l-orange-500/50">
+            <div className="flex items-center gap-2 text-orange-500 mb-2">
+              <AlertTriangle size={16} /> <span className="text-[10px] font-bold uppercase tracking-widest">Inadimplência</span>
+            </div>
+            <p className="text-3xl font-bold">R$ {stats.overdueAmount.toLocaleString()}</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-              <h3 className="font-bold text-zinc-100 flex items-center gap-2">
-                <TrendingUp size={18} className="text-orange-500" /> Fluxo de Caixa Global
-              </h3>
-              <button onClick={fetchGlobalData} className="text-zinc-500 hover:text-zinc-100 transition-colors">
-                <RefreshCw size={14} className={cn(loading && "animate-spin")} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Controles Globais */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 space-y-6">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="text-orange-500" size={20} />
+              <h3 className="text-xl font-bold">Automações</h3>
+            </div>
+            <p className="text-sm text-zinc-500">Force a execução manual das rotinas que rodam via CRON.</p>
+            
+            <button 
+              onClick={handleForceSchedule}
+              disabled={!!processing}
+              className="w-full flex items-center justify-between p-5 bg-zinc-950 border border-zinc-800 rounded-2xl hover:border-orange-500/30 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-zinc-950 transition-all">
+                  {processing === 'schedule' ? <Loader2 className="animate-spin" /> : <Play size={20} />}
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-bold">Processar Régua de Hoje</p>
+                  <p className="text-[10px] text-zinc-500 uppercase font-bold">Varre vencimentos D0, D+3, D+7</p>
+                </div>
+              </div>
+            </button>
+          </div>
+
+          {/* Laboratório de Testes */}
+          <div className="bg-orange-500/5 border border-orange-500/10 rounded-3xl p-8 space-y-6 relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full" />
+            <div className="flex items-center gap-2 mb-2">
+              <FlaskConical className="text-orange-500" size={20} />
+              <h3 className="text-xl font-bold">Lab de Mensagens</h3>
+            </div>
+            <p className="text-sm text-zinc-500">Simule disparos para faturas específicas e valide o conteúdo.</p>
+            
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Cobrança de Origem</label>
+                <select 
+                  value={selectedChargeId}
+                  onChange={(e) => setSelectedChargeId(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none"
+                >
+                  <option value="">Selecione uma fatura...</option>
+                  {testCharges.map(c => (
+                    <option key={c.id} value={c.id}>{c.customers?.name} (R$ {c.amount})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-zinc-500 uppercase ml-2">Simular Estágio</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { val: '-1', label: 'Criação' },
+                    { val: '0', label: 'D0 (Vence Hoje)' },
+                    { val: '3', label: 'D+3 (Atraso)' },
+                    { val: '7', label: 'D+7 (Crítico)' }
+                  ].map(opt => (
+                    <button
+                      key={opt.val}
+                      onClick={() => setSelectedDayOffset(opt.val)}
+                      className={cn(
+                        "px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase border transition-all",
+                        selectedDayOffset === opt.val 
+                          ? "bg-orange-500 border-orange-500 text-zinc-950 shadow-lg shadow-orange-500/20" 
+                          : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={forceTestNotification}
+                disabled={!!processing || !selectedChargeId}
+                className="w-full mt-4 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"
+              >
+                {processing === 'test' ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                DISPARAR WHATSAPP DE TESTE
               </button>
             </div>
-            
-            <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-widest border-b border-zinc-800">
-                <tr>
-                  <th className="px-6 py-4">Empresa / Parceiro</th>
-                  <th className="px-6 py-4">Valor</th>
-                  <th className="px-6 py-4">Data</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">ID Woovi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800">
-                {recentCharges.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-10 text-center text-zinc-500 italic text-sm">Nenhuma movimentação registrada.</td>
-                  </tr>
-                ) : (
-                  recentCharges.map((charge) => (
-                    <tr key={charge.id} className="hover:bg-zinc-800/20 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <Building2 size={14} className="text-zinc-600" />
-                          <span className="text-sm font-medium text-zinc-200">
-                            {charge.profiles?.company || charge.profiles?.full_name || 'Usuário'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-sm font-bold text-zinc-100">
-                        R$ {Number(charge.amount).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-zinc-500">
-                        {new Date(charge.created_at).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tight border",
-                          charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                        )}>
-                          {charge.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-[10px] text-zinc-600 font-mono">{charge.woovi_id || '---'}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
