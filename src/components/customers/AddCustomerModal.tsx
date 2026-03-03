@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, User, MapPin, Smartphone, Mail, Fingerprint } from 'lucide-react';
+import { Loader2, User, MapPin } from 'lucide-react';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -45,9 +45,6 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado.");
-
       const cleanTaxID = formData.taxID.replace(/\D/g, '');
       const correlationID = crypto.randomUUID();
       
@@ -68,24 +65,21 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro na Woovi");
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao processar cadastro");
+      }
 
-      const { error } = await supabase.from('customers').insert({
-        user_id: user.id,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        tax_id: cleanTaxID,
-        correlation_id: correlationID,
-        woovi_id: result.customer?.id || null,
-        address: formData.address
-      });
-
-      if (error) throw error;
-
-      showSuccess('Cliente cadastrado!');
+      showSuccess('Cliente cadastrado com sucesso!');
       onSuccess();
       onClose();
+      
+      // Limpar form
+      setFormData({
+        name: '', email: '', phone: '', taxID: '',
+        address: { zipcode: '', street: '', number: '', neighborhood: '', city: '', state: '', complement: '', country: 'Brasil' }
+      });
+      
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -95,7 +89,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[550px] p-0 flex flex-col h-full max-h-[90vh]">
+      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[550px] p-0 flex flex-col max-h-[90vh]">
         <DialogHeader className="p-6 border-b border-zinc-800 shrink-0">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <User className="text-orange-500" size={20} />
@@ -104,25 +98,23 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="space-y-4">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Identificação</p>
-              <div className="space-y-4">
-                <div className="space-y-2">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dados Pessoais</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2 space-y-2">
                   <Label>Nome ou Razão Social</Label>
                   <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="bg-zinc-950 border-zinc-800" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>E-mail</Label>
-                    <Input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-zinc-950 border-zinc-800" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>WhatsApp (DDI+DDD+Nº)</Label>
-                    <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="bg-zinc-950 border-zinc-800" placeholder="5511999999999" />
-                  </div>
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-zinc-950 border-zinc-800" />
                 </div>
                 <div className="space-y-2">
+                  <Label>WhatsApp (DDI+DDD+Nº)</Label>
+                  <Input required value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="bg-zinc-950 border-zinc-800" placeholder="5511999999999" />
+                </div>
+                <div className="md:col-span-2 space-y-2">
                   <Label>CPF / CNPJ (Somente números)</Label>
                   <Input required value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} className="bg-zinc-950 border-zinc-800" />
                 </div>
@@ -131,7 +123,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
 
             <div className="space-y-4 pt-4 border-t border-zinc-800">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                <MapPin size={12} /> Endereço de Cobrança
+                <MapPin size={12} /> Endereço
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -144,33 +136,23 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Logradouro (Rua/Av)</Label>
+                <Label>Rua/Av</Label>
                 <Input value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} className="bg-zinc-950 border-zinc-800" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bairro</Label>
-                  <Input value={formData.address.neighborhood} onChange={(e) => handleAddressChange('neighborhood', e.target.value)} className="bg-zinc-950 border-zinc-800" />
-                </div>
-                <div className="space-y-2">
                   <Label>Cidade</Label>
                   <Input value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} className="bg-zinc-950 border-zinc-800" />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Estado (UF)</Label>
                   <Input maxLength={2} value={formData.address.state} onChange={(e) => handleAddressChange('state', e.target.value.toUpperCase())} className="bg-zinc-950 border-zinc-800" placeholder="SP" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Complemento</Label>
-                  <Input value={formData.address.complement} onChange={(e) => handleAddressChange('complement', e.target.value)} className="bg-zinc-950 border-zinc-800" />
                 </div>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="p-6 border-t border-zinc-800 bg-zinc-950/50 shrink-0">
+          <DialogFooter className="p-6 border-t border-zinc-800 bg-zinc-950/50">
             <button 
               type="submit" 
               disabled={loading}
