@@ -12,6 +12,7 @@ const Checkout = () => {
   const [charge, setCharge] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewLogged, setViewLogged] = useState(false);
 
   useEffect(() => {
     const fetchCharge = async () => {
@@ -46,6 +47,20 @@ const Checkout = () => {
           setCharge((prev: any) => ({ ...prev, merchant: profileData }));
         }
 
+        // Registrar visualização (apenas uma vez por carregamento de página)
+        if (!viewLogged && data.status !== 'pago') {
+          fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/log-charge-event`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chargeId: id,
+              type: 'viewed',
+              message: 'O cliente visualizou a fatura no navegador.'
+            })
+          });
+          setViewLogged(true);
+        }
+
       } catch (err: any) {
         console.error("Erro ao carregar checkout:", err.message);
         setError(err.message);
@@ -72,7 +87,7 @@ const Checkout = () => {
       ).subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [id]);
+  }, [id, viewLogged]);
 
   const copyPix = () => {
     if (charge?.pix_qr_code) {
@@ -134,7 +149,6 @@ const Checkout = () => {
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative">
-          {/* Indicador de cor personalizada no topo */}
           <div className="h-1.5 w-full" style={{ backgroundColor: primaryColor }}></div>
 
           <div className="p-8 border-b border-zinc-800 text-center bg-zinc-900/50">

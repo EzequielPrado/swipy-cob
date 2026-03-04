@@ -21,7 +21,8 @@ import {
   DollarSign,
   Trash2,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  Eye
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
@@ -39,7 +40,6 @@ const ChargeDetail = () => {
     if (!isSilent) setLoading(true);
     
     try {
-      // 1. Cobrança
       const { data, error } = await supabase
         .from('charges')
         .select('*, customers(*)')
@@ -54,7 +54,6 @@ const ChargeDetail = () => {
       
       setCharge(data);
 
-      // 2. Logs de Notificação
       const { data: logData } = await supabase
         .from('notification_logs')
         .select('*')
@@ -71,6 +70,18 @@ const ChargeDetail = () => {
 
   useEffect(() => {
     fetchChargeDetails();
+    
+    // Escutar mudanças em tempo real nos logs (para ver as visualizações ao vivo)
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notification_logs', filter: `charge_id=eq.${id}` },
+        () => fetchChargeDetails(true)
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
   const internalPaymentLink = `${window.location.origin}/pagar/${id}`;
@@ -89,6 +100,15 @@ const ChargeDetail = () => {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Log manual do pagamento
+      await supabase.from('notification_logs').insert({
+        charge_id: id,
+        type: 'payment',
+        status: 'success',
+        message: 'A fatura foi marcada como PAGA manualmente pelo lojista.'
+      });
+
       showSuccess("Cobrança marcada como paga!");
       await fetchChargeDetails(true);
     } catch (err: any) {
@@ -144,23 +164,38 @@ const ChargeDetail = () => {
 
       const result = await response.json();
 
-      // Registrar log manual
       await supabase.from('notification_logs').insert({
         charge_id: id,
         type: 'email',
         status: response.ok ? 'success' : 'error',
-        message: response.ok ? 'E-mail enviado manualmente' : `Falha no envio: ${result.error || 'Erro desconhecido'}`
+        message: response.ok ? 'E-mail de cobrança enviado manualmente.' : `Falha no envio de e-mail: ${result.error}`
       });
 
       if (!response.ok) throw new Error(result.error || "Erro ao enviar e-mail");
       
       showSuccess("Notificação enviada com sucesso!");
-      await fetchChargeDetails(true); // Atualização silenciosa
+      await fetchChargeDetails(true);
     } catch (err: any) {
       showError(err.message);
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const getEventIcon = (type: string, status: string) => {
+    if (type === 'viewed') return <Eye size={16} className="text-blue-400" />;
+    if (type === 'payment') return <CheckCircle2 size={16} className="text-emerald-400" />;
+    if (type === 'whatsapp') return <MessageSquare size={16} className="text-emerald-400" />;
+    if (type === 'email') return <Mail size={16} className="text-zinc-400" />;
+    if (status === 'error') return <XCircle size={16} className="text-red-400" />;
+    return <Clock size={16} className="text-zinc-500" />;
+  };
+
+  const getEventColor = (type: string, status: string) => {
+    if (status === 'error') return "border-red-500/20 bg-red-500/5 text-red-400";
+    if (type === 'viewed') return "border-blue-500/20 bg-blue-500/5 text-blue-400";
+    if (type === 'payment') return "border-emerald-500/20 bg-emerald-500/5 text-emerald-400";
+    return "border-zinc-800 bg-zinc-950/30 text-zinc-300";
   };
 
   if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
@@ -188,7 +223,6 @@ const ChargeDetail = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {/* Resumo */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5">
                 <DollarSign size={120} />
@@ -228,53 +262,46 @@ const ChargeDetail = () => {
               </div>
             </div>
 
-            {/* Histórico Dinâmico */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
               <h3 className="font-bold text-zinc-200 mb-8 flex items-center gap-2 text-sm uppercase tracking-widest">
-                <RefreshCcw size={16} className="text-orange-500" /> Histórico de Atualizações
+                <RefreshCcw size={16} className="text-orange-500" /> Linha do Tempo
               </h3>
               
-              <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-zinc-800">
+              <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-zinc-800">
                 
-                {/* Status: Pago */}
-                {charge.status === 'pago' && (
-                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                      <CheckCircle2 size={16} />
-                    </div>
-                    <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-bold text-emerald-400 text-sm">Pagamento Confirmado</div>
-                        <span className="text-[10px] text-emerald-500/50 uppercase font-bold tracking-widest">Pago</span>
+                {/* Eventos Dinâmicos */}
+                {logs.length === 0 ? (
+                  <div className="relative pl-12 text-zinc-500 italic text-sm">Aguardando primeiros eventos...</div>
+                ) : (
+                  logs.map((log) => (
+                    <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                      <div className={cn(
+                        "flex items-center justify-center w-10 h-10 rounded-full border shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2",
+                        getEventColor(log.type, log.status)
+                      )}>
+                        {getEventIcon(log.type, log.status)}
                       </div>
-                      <p className="text-emerald-500/60 text-xs text-left">O valor foi identificado e a fatura liquidada.</p>
+                      <div className={cn(
+                        "w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border",
+                        log.status === 'error' ? "border-red-500/10 bg-red-500/5" : "border-zinc-800 bg-zinc-950/30"
+                      )}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="font-bold text-zinc-200 text-sm">
+                            {log.type === 'viewed' && 'Visualização'}
+                            {log.type === 'whatsapp' && 'WhatsApp'}
+                            {log.type === 'email' && 'E-mail'}
+                            {log.type === 'payment' && 'Pagamento'}
+                            {log.type === 'system' && 'Sistema'}
+                          </div>
+                          <time className="font-mono text-[9px] text-zinc-500">{new Date(log.created_at).toLocaleString('pt-BR')}</time>
+                        </div>
+                        <p className="text-zinc-500 text-xs text-left">{log.message}</p>
+                      </div>
                     </div>
-                  </div>
+                  ))
                 )}
 
-                {/* Logs de Notificação */}
-                {logs.map((log) => (
-                  <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                    <div className={cn(
-                      "flex items-center justify-center w-10 h-10 rounded-full border shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2",
-                      log.status === 'success' ? "border-blue-500/20 bg-blue-500/10 text-blue-400" : "border-red-500/20 bg-red-500/10 text-red-400"
-                    )}>
-                      {log.status === 'success' ? <Send size={16} /> : <XCircle size={16} />}
-                    </div>
-                    <div className={cn(
-                      "w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border",
-                      log.status === 'success' ? "border-zinc-800 bg-zinc-950/30" : "border-red-500/10 bg-red-500/5"
-                    )}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-bold text-zinc-200 text-sm">Notificação {log.type === 'whatsapp' ? 'WhatsApp' : 'E-mail'}</div>
-                        <time className="font-mono text-[9px] text-zinc-500">{new Date(log.created_at).toLocaleString('pt-BR')}</time>
-                      </div>
-                      <p className="text-zinc-500 text-xs text-left">{log.message}</p>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Criação */}
+                {/* Evento de Criação (Base) */}
                 <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
                     <Clock size={16} />
@@ -284,7 +311,7 @@ const ChargeDetail = () => {
                       <div className="font-bold text-zinc-200 text-sm">Cobrança Gerada</div>
                       <time className="font-mono text-[9px] text-zinc-500">{new Date(charge.created_at).toLocaleString('pt-BR')}</time>
                     </div>
-                    <p className="text-zinc-500 text-xs text-left">Fatura gerada no valor de R$ {charge.amount.toFixed(2)}.</p>
+                    <p className="text-zinc-500 text-xs text-left">A fatura no valor de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)} foi registrada no sistema.</p>
                   </div>
                 </div>
 
@@ -299,13 +326,13 @@ const ChargeDetail = () => {
                 <button onClick={handleResendEmail} disabled={!!actionLoading} className="w-full flex items-center justify-between p-3.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 rounded-xl transition-all border border-zinc-700/50">
                   <div className="flex items-center gap-3">
                     {actionLoading === 'email' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} className="text-zinc-500" />}
-                    <span className="text-sm font-semibold">Notificar Cliente</span>
+                    <span className="text-sm font-semibold">Enviar por E-mail</span>
                   </div>
                 </button>
                 <button onClick={() => window.print()} className="w-full flex items-center justify-between p-3.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-300 rounded-xl transition-all border border-zinc-700/50">
                   <div className="flex items-center gap-3">
                     <FileText size={16} className="text-zinc-500" />
-                    <span className="text-sm font-semibold">Gerar PDF</span>
+                    <span className="text-sm font-semibold">Imprimir / PDF</span>
                   </div>
                 </button>
                 <button 
@@ -315,20 +342,20 @@ const ChargeDetail = () => {
                 >
                   <div className="flex items-center gap-3">
                     {actionLoading === 'delete' ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} className="text-zinc-500 group-hover:text-red-400" />}
-                    <span className="text-sm font-semibold">Excluir</span>
+                    <span className="text-sm font-semibold">Excluir Cobrança</span>
                   </div>
                 </button>
                 <div className="pt-4 mt-4 border-t border-zinc-800">
                   <button onClick={handleMarkAsPaid} disabled={charge.status === 'pago' || !!actionLoading} className={cn("w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2", charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" : "bg-orange-500 text-zinc-950 hover:bg-orange-600 shadow-lg shadow-orange-500/10")}>
                     {actionLoading === 'paid' ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                    {charge.status === 'pago' ? "Pago" : "Marcar como Pago"}
+                    {charge.status === 'pago' ? "Cobrança Liquidada" : "Confirmar Pagamento"}
                   </button>
                 </div>
               </div>
             </div>
             
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Informações do Cliente</h4>
+              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Dados do Pagador</h4>
               <div className="space-y-3">
                 <div className="text-xs">
                   <span className="text-zinc-600 block mb-0.5">Nome</span>
@@ -339,7 +366,7 @@ const ChargeDetail = () => {
                   <span className="text-zinc-200 font-medium">{charge.customers.email}</span>
                 </div>
                 <div className="text-xs">
-                  <span className="text-zinc-600 block mb-0.5">Telefone</span>
+                  <span className="text-zinc-600 block mb-0.5">WhatsApp</span>
                   <span className="text-zinc-200 font-medium">{charge.customers.phone}</span>
                 </div>
               </div>
