@@ -1,11 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts"
-import { writeAll } from "https://deno.land/std@0.190.0/streams/write_all.ts"
-
-// Patch para compatibilidade com Deno 2.0/Supabase atual
-if (!(Deno as any).writeAll) {
-  (Deno as any).writeAll = writeAll;
-}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,30 +14,39 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || !body.to || !body.subject || !body.html) {
-      return new Response(JSON.stringify({ error: "Dados incompletos" }), {
+      return new Response(JSON.stringify({ error: "Dados incompletos (to, subject ou html ausentes)" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     const { to, subject, html } = body;
+    
+    // Captura e limpa as secrets
     const hostname = Deno.env.get('SMTP_HOSTNAME')?.trim();
     const port = Deno.env.get('SMTP_PORT')?.trim();
     const username = Deno.env.get('SMTP_USERNAME')?.trim();
     const password = Deno.env.get('SMTP_PASSWORD')?.trim();
 
     if (!hostname || !port || !username || !password) {
-      throw new Error("Faltam configurações SMTP nas Secrets do Supabase.");
+      console.error("[send-email] Erro: Faltam Secrets SMTP no Supabase.");
+      return new Response(JSON.stringify({ 
+        error: "Configuração SMTP incompleta.", 
+        details: "Verifique se SMTP_HOSTNAME, SMTP_PORT, SMTP_USERNAME e SMTP_PASSWORD estão definidos nas Secrets do projeto." 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const portNum = parseInt(port);
     const client = new SmtpClient();
 
-    console.log(`[send-email] Tentando conexão: ${hostname}:${portNum} (Modo: ${portNum === 465 ? 'SSL/TLS' : 'STARTTLS'})`);
+    console.log(`[send-email] Tentando enviar para ${to} via ${hostname}:${portNum}...`);
 
     try {
       if (portNum === 465) {
-        // SSL Direto
+        // Porta 465 geralmente usa SSL/TLS direto
         await client.connectTLS({
           hostname,
           port: portNum,
@@ -51,7 +54,7 @@ serve(async (req) => {
           password,
         });
       } else {
-        // STARTTLS (Porta 587 ou 25)
+        // Porta 587 ou 25 geralmente usa STARTTLS
         await client.connect({
           hostname,
           port: portNum,
@@ -59,8 +62,6 @@ serve(async (req) => {
           password,
         });
       }
-
-      console.log(`[send-email] Autenticado. Enviando para ${to}...`);
 
       await client.send({
         from: username,
@@ -71,22 +72,20 @@ serve(async (req) => {
       });
 
       await client.close();
-      console.log("[send-email] Sucesso!");
+      console.log("[send-email] E-mail enviado com sucesso!");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
 
-    } catch (netErr) {
-      console.error("[send-email] Erro de Rede/Conexão:", netErr.message);
-      
-      let msg = "Não foi possível conectar ao servidor de e-mail.";
-      if (netErr.message.includes("TimedOut")) {
-        msg = `Timeout na porta ${portNum}. O firewall do seu servidor (${hostname}) pode estar bloqueando o Supabase. Tente alternar entre as portas 465 e 587.`;
-      }
-
-      return new Response(JSON.stringify({ error: msg, details: netErr.message }), {
+    } catch (connErr) {
+      console.error("[send-email] Erro na conexão SMTP:", connErr.message);
+      return new Response(JSON.stringify({ 
+        error: "Falha na conexão com o servidor de e-mail.", 
+        details: connErr.message,
+        tip: "Se estiver usando a porta 465, tente a 587 (e vice-versa). Certifique-se de que o usuário/senha estão corretos."
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -94,7 +93,7 @@ serve(async (req) => {
 
   } catch (err) {
     console.error("[send-email] Erro Fatal:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: "Erro interno no servidor de e-mail.", details: err.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
