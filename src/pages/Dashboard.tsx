@@ -45,6 +45,13 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
 
+  // Formatador de moeda reutilizável
+  const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2
+  });
+
   const fetchWalletBalance = async () => {
     setWallet(prev => ({ ...prev, loading: true, error: false }));
     try {
@@ -113,7 +120,7 @@ const Dashboard = () => {
         const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
         projection.push({
           name: d.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase(),
-          valor: mrr + (i === 0 ? pendingAmount : 0)
+          valor: Number((mrr + (i === 0 ? pendingAmount : 0)).toFixed(2))
         });
       }
 
@@ -137,9 +144,6 @@ const Dashboard = () => {
       fetchWalletBalance();
     }
   }, [user]);
-
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   return (
     <AppLayout>
@@ -167,7 +171,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group">
             <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">MRR (Assinaturas)</p>
-            <h3 className="text-3xl font-bold mt-2 text-zinc-100">{formatCurrency(stats.mrr)}</h3>
+            <h3 className="text-3xl font-bold mt-2 text-zinc-100">{currencyFormatter.format(stats.mrr)}</h3>
             <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-emerald-400">
               <ArrowUpRight size={12} /> Projeção estável
             </div>
@@ -196,7 +200,7 @@ const Dashboard = () => {
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden bg-gradient-to-br from-zinc-900 to-emerald-500/5">
             <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Pendente Hoje</p>
-            <h3 className="text-3xl font-bold mt-2 text-zinc-100">{formatCurrency(stats.pendingAmount)}</h3>
+            <h3 className="text-3xl font-bold mt-2 text-zinc-100">{currencyFormatter.format(stats.pendingAmount)}</h3>
             <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-zinc-500 uppercase">
               <Target size={12} className="text-emerald-500" /> Meta de liquidez
             </div>
@@ -231,9 +235,10 @@ const Dashboard = () => {
                     axisLine={false} 
                     tickLine={false} 
                     tick={{fill: '#71717a', fontSize: 10}}
-                    tickFormatter={(v) => `R$ ${v}`}
+                    tickFormatter={(v) => `R$ ${v.toLocaleString('pt-BR')}`}
                   />
                   <Tooltip 
+                    formatter={(value: number) => [currencyFormatter.format(value), "Projeção"]}
                     contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '16px' }}
                     itemStyle={{ color: '#f97316', fontWeight: 'bold' }}
                   />
@@ -277,12 +282,12 @@ const Dashboard = () => {
                   <>
                     <div>
                       <p className="text-[10px] text-zinc-600 font-bold uppercase mb-1">Saldo Total</p>
-                      <p className="text-4xl font-black text-zinc-100">{formatCurrency(wallet.balance)}</p>
+                      <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(wallet.balance)}</p>
                     </div>
                     <div className="space-y-3">
                       <div className="flex justify-between text-xs font-bold">
                         <span className="text-zinc-500 uppercase tracking-tighter">Disponível agora</span>
-                        <span className="text-emerald-400">{formatCurrency(wallet.available)}</span>
+                        <span className="text-emerald-400">{currencyFormatter.format(wallet.available)}</span>
                       </div>
                       <div className="h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
                         <div 
@@ -309,7 +314,7 @@ const Dashboard = () => {
                 <h4 className="font-bold text-sm">Status da Recorrência</h4>
               </div>
               <p className="text-xs text-zinc-500 leading-relaxed italic">
-                Seu MRR de <strong>{formatCurrency(stats.mrr)}</strong> está saudável. Mantenha suas regras de WhatsApp ativas para garantir a liquidez.
+                Seu MRR de <strong>{currencyFormatter.format(stats.mrr)}</strong> está saudável. Mantenha suas regras de WhatsApp ativas para garantir a liquidez.
               </p>
             </div>
           </div>
