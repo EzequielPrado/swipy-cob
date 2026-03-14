@@ -15,7 +15,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Buscamos as regras D0, D+3, etc
+    // Pegamos a URL base do sistema
+    const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
+
     const { data: rules } = await supabaseClient
       .from('billing_rules')
       .select('*')
@@ -30,17 +32,12 @@ serve(async (req) => {
     today.setHours(0, 0, 0, 0);
 
     let totalProcessed = 0;
-    console.log(`[billing-schedule] Iniciando processamento para ${today.toISOString()}`);
-
     for (const rule of rules) {
-      // Data alvo baseada no offset (ex: se venceu há 3 dias)
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
 
-      console.log(`[billing-schedule] Verificando regra '${rule.label}' para vencimento em ${dateStr}`);
-
-      const { data: charges } = await supabaseClient
+      const { data: charges } = await supabase
         .from('charges')
         .select('*, customers(*), profiles:user_id(company, full_name)')
         .eq('status', 'pendente')
@@ -50,8 +47,8 @@ serve(async (req) => {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
-            // Em background, usamos a URL configurada ou um padrão. Ideal configurar APP_URL no Supabase.
-            const appUrl = Deno.env.get('APP_URL') || 'https://seu-app.vercel.app';
+            
+            // LINK INTERNO DO SISTEMA
             const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
             const variables = rule.mapping.map((key: string) => {
@@ -60,11 +57,11 @@ serve(async (req) => {
               if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(charge.amount);
               if (key === 'due_date') return new Date(charge.due_date).toLocaleDateString('pt-BR');
               if (key === 'payment_id') return charge.id;
-              if (key === 'payment_link') return internalCheckoutUrl;
+              if (key === 'payment_link') return internalCheckoutUrl; // Usando checkout interno
               return '---';
             });
 
-            // Lógica do Botão: Se for link dinâmico, enviamos apenas o sufixo (ID) ou a URL completa dependendo da config
+            // Se o botão espera o link, mandamos o interno. Se espera só o ID, mandamos o ID.
             const buttonVariable = rule.button_link_variable === 'payment_link' ? internalCheckoutUrl : charge.id;
 
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
@@ -76,7 +73,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 to: charge.customers.phone,
                 templateName: rule.name,
-                language: rule.language || 'en',
+                language: rule.language || 'pt_BR',
                 imageUrl: rule.image_url,
                 variables: variables,
                 buttonVariable: buttonVariable
@@ -87,7 +84,7 @@ serve(async (req) => {
               charge_id: charge.id,
               type: 'whatsapp',
               status: waRes.ok ? 'success' : 'error',
-              message: waRes.ok ? `Régua Automática: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
+              message: waRes.ok ? `Régua Automática: ${rule.label} enviada (Link Interno)` : `Falha no envio da régua: ${rule.label}`
             });
 
             totalProcessed++;
