@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, DollarSign, Settings2 } from 'lucide-react';
+import { Loader2, DollarSign, Settings2, FileText } from 'lucide-react';
 
 interface EditSubscriptionModalProps {
   isOpen: boolean;
@@ -20,6 +20,7 @@ const EditSubscriptionModal = ({ isOpen, onClose, onSuccess, subscription }: Edi
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     amount: '',
+    description: '',
     generationDay: '',
     dueDay: '',
     status: ''
@@ -29,6 +30,7 @@ const EditSubscriptionModal = ({ isOpen, onClose, onSuccess, subscription }: Edi
     if (subscription) {
       setFormData({
         amount: subscription.amount.toString(),
+        description: subscription.description || '',
         generationDay: subscription.generation_day.toString(),
         dueDay: subscription.due_day.toString(),
         status: subscription.status
@@ -47,6 +49,7 @@ const EditSubscriptionModal = ({ isOpen, onClose, onSuccess, subscription }: Edi
         .from('subscriptions')
         .update({
           amount: amountVal,
+          description: formData.description,
           generation_day: parseInt(formData.generationDay),
           due_day: parseInt(formData.dueDay),
           status: formData.status
@@ -79,6 +82,18 @@ const EditSubscriptionModal = ({ isOpen, onClose, onSuccess, subscription }: Edi
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          <div className="space-y-2">
+            <Label>Descrição</Label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+              <Input 
+                className="bg-zinc-950 border-zinc-800 h-11 pl-9"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-2">
               <Label>Status</Label>

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, DollarSign, Calendar, RefreshCcw } from 'lucide-react';
+import { Loader2, DollarSign, Calendar, RefreshCcw, FileText } from 'lucide-react';
 
 interface AddSubscriptionModalProps {
   isOpen: boolean;
@@ -23,6 +23,7 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
   const [formData, setFormData] = useState({
     customerId: '',
     amount: '',
+    description: '',
     generationDay: '1',
     dueDay: '5'
   });
@@ -37,7 +38,7 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
     const { data } = await supabase
       .from('customers')
       .select('id, name')
-      .eq('user_id', user?.id) // FILTRO ADICIONADO AQUI
+      .eq('user_id', user?.id)
       .eq('status', 'em dia')
       .order('name');
     
@@ -46,6 +47,11 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.customerId) {
+      showError("Selecione um cliente");
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -58,6 +64,7 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
         user_id: user.id,
         customer_id: formData.customerId,
         amount: amountVal,
+        description: formData.description,
         generation_day: parseInt(formData.generationDay),
         due_day: parseInt(formData.dueDay),
         status: 'active'
@@ -68,7 +75,7 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
       showSuccess('Recorrência configurada com sucesso!');
       onSuccess();
       onClose();
-      setFormData({ customerId: '', amount: '', generationDay: '1', dueDay: '5' });
+      setFormData({ customerId: '', amount: '', description: '', generationDay: '1', dueDay: '5' });
     } catch (error: any) {
       showError(error.message);
     } finally {
@@ -107,6 +114,20 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
           </div>
 
           <div className="space-y-2">
+            <Label>Descrição da Assinatura</Label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+              <Input 
+                placeholder="Ex: Honorários Contábeis, Mensalidade SaaS"
+                className="bg-zinc-950 border-zinc-800 h-11 pl-9"
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+              />
+            </div>
+            <p className="text-[10px] text-zinc-500">Este texto aparecerá na fatura do cliente todos os meses.</p>
+          </div>
+
+          <div className="space-y-2">
             <Label>Valor Recorrente (R$)</Label>
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
@@ -136,7 +157,6 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[10px] text-zinc-500">Quando a cobrança é criada.</p>
             </div>
 
             <div className="space-y-2">
@@ -154,7 +174,6 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSuccess }: AddSubscriptionMod
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[10px] text-zinc-500">Prazo para o cliente pagar.</p>
             </div>
           </div>
 

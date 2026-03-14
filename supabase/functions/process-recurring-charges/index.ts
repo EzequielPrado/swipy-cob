@@ -17,8 +17,6 @@ serve(async (req) => {
 
     const today = new Date();
     const currentDay = today.getDate();
-    
-    // Pegamos a URL base do sistema (deve estar nas secrets ou usamos um padrão)
     const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
 
     const { data: subscriptions } = await supabaseClient
@@ -47,7 +45,9 @@ serve(async (req) => {
         const dueDateStr = dueDate.toISOString().split('T')[0];
 
         const correlationID = crypto.randomUUID();
-        const description = `Assinatura Recorrente - Mês ${today.getMonth() + 1}`;
+        
+        // Se a assinatura tiver descrição personalizada, usa ela. Caso contrário, usa o padrão.
+        const description = sub.description || `Assinatura Recorrente - Mês ${today.getMonth() + 1}`;
 
         const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
           method: 'POST',
@@ -79,12 +79,9 @@ serve(async (req) => {
         }).select().single();
 
         if (charge) {
-          // WhatsApp + Log
           try {
              const merchantName = profile.company || profile.full_name || "Nossa Empresa";
              const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
-             
-             // LINK INTERNO DO SISTEMA
              const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
              const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
@@ -99,9 +96,9 @@ serve(async (req) => {
                     sub.customers.name, 
                     merchantName, 
                     new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(sub.amount),
-                    internalCheckoutUrl // Substituindo o link da Woovi pela nossa URL interna
+                    internalCheckoutUrl
                   ],
-                  buttonVariable: charge.id // Passamos apenas o ID se o botão do template for dinâmico (.../pagar/{{1}})
+                  buttonVariable: charge.id
                 })
              });
 
@@ -109,7 +106,7 @@ serve(async (req) => {
                charge_id: charge.id,
                type: 'whatsapp',
                status: waRes.ok ? 'success' : 'error',
-               message: waRes.ok ? 'Assinatura enviada por WhatsApp (Link Interno)' : 'Erro ao enviar WhatsApp da assinatura'
+               message: waRes.ok ? `Assinatura enviada por WhatsApp: ${description}` : 'Erro ao enviar WhatsApp da assinatura'
              });
 
           } catch (waErr) { console.error("Erro WA:", waErr); }
