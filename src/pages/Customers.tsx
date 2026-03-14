@@ -41,7 +41,6 @@ const Customers = () => {
     fetchCustomers();
   }, [user]);
 
-  // Lógica de busca em tempo real
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => 
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,25 +100,43 @@ const Customers = () => {
 
   const handleSendEmail = async (customer: any) => {
     setActionLoading(`email-${customer.id}`);
+    
+    // Adicionamos um AbortController para cancelar a requisição após 15 segundos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
+      const session = (await supabase.auth.getSession()).data.session;
+      
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
           to: customer.email,
           subject: 'Atualização de Cadastro - Swipy Cob',
           html: `<h1>Olá, ${customer.name}!</h1><p>Confirmamos que seus dados foram atualizados em nosso sistema.</p>`
-        })
+        }),
+        signal: controller.signal
       });
 
-      if (!response.ok) throw new Error('Erro ao enviar e-mail');
+      clearTimeout(timeoutId);
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.details || result.error || 'Erro ao enviar e-mail');
+      }
       
       showSuccess(`E-mail enviado para ${customer.email}`);
     } catch (error: any) {
-      showError(error.message);
+      if (error.name === 'AbortError') {
+        showError("O servidor de e-mail demorou muito para responder. Verifique as configurações SMTP.");
+      } else {
+        showError(error.message);
+      }
     } finally {
       setActionLoading(null);
     }
