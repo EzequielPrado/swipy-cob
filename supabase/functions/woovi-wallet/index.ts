@@ -40,80 +40,56 @@ serve(async (req) => {
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'balance'
     
-    if (action === 'balance') {
-      // 1. Primeiro, listamos a conta para descobrir o ID correto dela
-      const listResponse = await fetch('https://api.woovi.com/api/v1/account', {
+    // Função auxiliar para buscar todas as transações (Entradas e Saídas)
+    const fetchAllTransactions = async () => {
+      // Entradas (Charges pagas)
+      const chargeRes = await fetch('https://api.woovi.com/api/v1/charge', {
         method: 'GET',
         headers: { 'Authorization': appID }
       });
+      const chargeData = chargeRes.ok ? await chargeRes.json() : { charges: [] };
       
-      if (!listResponse.ok) {
-        const errorText = await listResponse.text();
-        return new Response(JSON.stringify({ error: "WOOVI_ERROR", message: `Falha ao listar contas: ${errorText}` }), { 
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+      // Saídas (Saques / Transferências)
+      const cashoutRes = await fetch('https://api.woovi.com/api/v1/cashout', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const cashoutData = cashoutRes.ok ? await cashoutRes.json() : { cashouts: [] };
 
-      const listData = await listResponse.json();
-      let accountId = null;
-      let rawData = listData;
+      return {
+        charges: chargeData.charges || [],
+        cashouts: cashoutData.cashouts || []
+      };
+    };
 
-      // Pega o ID da primeira conta retornada
-      if (listData.accounts && listData.accounts.length > 0) {
-        accountId = listData.accounts[0].id || listData.accounts[0].identifier || listData.accounts[0]._id;
-      } else if (listData.account) {
-        accountId = listData.account.id || listData.account.identifier || listData.account._id;
-      }
+    if (action === 'balance') {
+      // Como o endpoint de account costuma falhar, calculamos o saldo a partir das transações
+      const { charges, cashouts } = await fetchAllTransactions();
+      
+      const totalIn = charges
+        .filter((c: any) => c.status === 'COMPLETED')
+        .reduce((acc: number, c: any) => acc + (c.value || 0), 0);
 
-      let balanceInCents = 0;
-      let blockedBalanceInCents = 0;
+      const totalOut = cashouts
+        .reduce((acc: number, c: any) => acc + (c.value || 0), 0);
 
-      // 2. Se encontrou o ID, faz a requisição ESPECÍFICA para a conta
-      if (accountId) {
-        const detailResponse = await fetch(`https://api.woovi.com/api/v1/account/${accountId}`, {
-          method: 'GET',
-          headers: { 'Authorization': appID }
-        });
-
-        if (detailResponse.ok) {
-          const detailData = await detailResponse.json();
-          rawData = detailData; 
-          
-          const accDetail = detailData.account || detailData;
-          if (typeof accDetail.balance === 'number') balanceInCents = accDetail.balance;
-          if (typeof accDetail.blockedBalance === 'number') blockedBalanceInCents = accDetail.blockedBalance;
-          else if (typeof accDetail.lockedBalance === 'number') blockedBalanceInCents = accDetail.lockedBalance;
-        }
-      } else {
-        // Fallback caso não venha ID na listagem
-        const accFallback = listData.account || (listData.accounts && listData.accounts[0]) || listData;
-        if (typeof accFallback.balance === 'number') balanceInCents = accFallback.balance;
-        if (typeof accFallback.blockedBalance === 'number') blockedBalanceInCents = accFallback.blockedBalance;
-        else if (typeof accFallback.lockedBalance === 'number') blockedBalanceInCents = accFallback.lockedBalance;
-      }
-
-      const totalInCents = balanceInCents + blockedBalanceInCents;
+      const calculatedBalance = totalIn - totalOut;
 
       return new Response(JSON.stringify({ 
         balance: { 
-          available: balanceInCents,
-          blocked: blockedBalanceInCents,
-          total: totalInCents 
-        }, 
-        raw: rawData 
+          available: calculatedBalance,
+          blocked: 0, // Como é calculado, assumimos 0 bloqueado
+          total: calculatedBalance 
+        } 
       }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
     if (action === 'transactions') {
-      // 1. Busca Cobranças Pagas (Entradas)
-      const chargeRes = await fetch('https://api.woovi.com/api/v1/charge', {
-        method: 'GET',
-        headers: { 'Authorization': appID }
-      });
-      const chargeData = chargeRes.ok ? await chargeRes.json() : { charges: [] };
-      const paidCharges = (chargeData.charges || [])
+      const { charges, cashouts } = await fetchAllTransactions();
+      
+      const paidCharges = charges
         .filter((c: any) => c.status === 'COMPLETED')
         .map((c: any) => ({
           ...c,
@@ -122,21 +98,14 @@ serve(async (req) => {
           time: c.createdAt || c.updatedAt
         }));
 
-      // 2. Busca Saques (Saídas/Transferências)
-      const cashoutRes = await fetch('https://api.woovi.com/api/v1/cashout', {
-        method: 'GET',
-        headers: { 'Authorization': appID }
-      });
-      const cashoutData = cashoutRes.ok ? await cashoutRes.json() : { cashouts: [] };
-      const cashouts = (cashoutData.cashouts || []).map((c: any) => ({
+      const mappedCashouts = cashouts.map((c: any) => ({
         ...c,
         type: 'OUT',
         value: -(c.value),
         time: c.createdAt
       }));
 
-      // 3. Junta tudo e ordena do mais recente pro mais antigo
-      const allTransactions = [...paidCharges, ...cashouts].sort((a, b) => {
+      const allTransactions = [...paidCharges, ...mappedCashouts].sort((a, b) => {
         return new Date(b.time).getTime() - new Date(a.time).getTime();
       });
 
