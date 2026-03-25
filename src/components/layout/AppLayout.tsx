@@ -16,7 +16,8 @@ import {
   Landmark,
   Contact,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Wallet
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -260,6 +261,26 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   </div>
                 );
               })}
+
+              {/* BOTÃO EM DESTAQUE DA SWIPY CONTA */}
+              <div className="pt-4 mt-4 border-t border-zinc-800/50">
+                <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Banco Digital</p>
+                <Link
+                  to="/conta-swipy"
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border",
+                    location.pathname === "/conta-swipy"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5"
+                      : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
+                  )}
+                >
+                  <Wallet size={18} className={cn(
+                    location.pathname === "/conta-swipy" ? "text-emerald-400" : "text-emerald-500 group-hover:text-emerald-400"
+                  )} />
+                  <span className="font-bold tracking-wide">Swipy Conta</span>
+                </Link>
+              </div>
+
             </nav>
 
             {profile?.is_admin && (
