@@ -41,7 +41,9 @@ const Dashboard = () => {
   });
 
   const [wallet, setWallet] = useState({
-    balance: 0,
+    available: 0,
+    blocked: 0,
+    total: 0,
     loading: true,
   });
 
@@ -59,12 +61,19 @@ const Dashboard = () => {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const data = await response.json();
-      setWallet({
-        balance: data.error ? 0 : (data.balance?.total || 0) / 100,
-        loading: false,
-      });
+      
+      if (!data.error && data.balance) {
+        setWallet({
+          available: data.balance.available / 100,
+          blocked: data.balance.blocked / 100,
+          total: data.balance.total / 100,
+          loading: false,
+        });
+      } else {
+        setWallet({ available: 0, blocked: 0, total: 0, loading: false });
+      }
     } catch (err) {
-      setWallet({ balance: 0, loading: false });
+      setWallet({ available: 0, blocked: 0, total: 0, loading: false });
     }
   };
 
@@ -73,19 +82,16 @@ const Dashboard = () => {
     setLoading(true);
 
     try {
-      // 1. Receitas (Cobranças)
       const { data: charges } = await supabase
         .from('charges')
         .select('amount, status, created_at')
         .eq('user_id', user.id);
 
-      // 2. Despesas (Contas a Pagar)
       const { data: expenses } = await supabase
         .from('expenses')
         .select('amount, status, due_date')
         .eq('user_id', user.id);
 
-      // 3. Assinaturas (MRR)
       const { data: subs } = await supabase
         .from('subscriptions')
         .select('amount')
@@ -94,7 +100,6 @@ const Dashboard = () => {
 
       const mrr = subs?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
 
-      // --- CÁLCULOS ---
       let entradasTotais = 0;
       let aReceber = 0;
       
@@ -119,7 +124,6 @@ const Dashboard = () => {
 
       const lucroLiquido = entradasTotais - saidasTotais;
 
-      // --- DADOS PARA O GRÁFICO (Ilustrativo comparativo global) ---
       const chartData = [
         {
           name: 'Realizado (Pago)',
@@ -251,14 +255,31 @@ const Dashboard = () => {
           {/* INDICADORES SECUNDÁRIOS */}
           <div className="space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
-              <div className="flex items-center gap-3 text-zinc-500 mb-2">
-                <Wallet size={16} className="text-orange-500" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Carteira Woovi</span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3 text-zinc-500">
+                  <Wallet size={16} className="text-orange-500" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Woovi</span>
+                </div>
+                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Em tempo real</p>
               </div>
-              <p className="text-2xl font-bold text-zinc-100 mb-1">
-                {wallet.loading ? "..." : currencyFormatter.format(wallet.balance)}
+              <p className="text-3xl font-bold text-zinc-100 mb-4">
+                {wallet.loading ? "..." : currencyFormatter.format(wallet.total)}
               </p>
-              <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Em tempo real</p>
+              
+              <div className="grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Disponível</p>
+                  <p className="text-sm font-bold text-emerald-400">
+                    {wallet.loading ? "..." : currencyFormatter.format(wallet.available)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Bloqueado</p>
+                  <p className="text-sm font-bold text-zinc-400">
+                    {wallet.loading ? "..." : currencyFormatter.format(wallet.blocked)}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">

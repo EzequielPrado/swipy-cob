@@ -35,7 +35,6 @@ const OverviewDashboard = () => {
       setLoading(true);
       
       try {
-        // 1. Buscar MRR (Recorrência de Assinaturas Ativas)
         const { data: subs } = await supabase
           .from('subscriptions')
           .select('amount')
@@ -44,7 +43,6 @@ const OverviewDashboard = () => {
           
         const totalMrr = subs?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
         
-        // 2. Buscar Estoque
         const { data: products } = await supabase
           .from('products')
           .select('id, name, stock_quantity, cost_price, sku')
@@ -65,7 +63,6 @@ const OverviewDashboard = () => {
           lowStock = products.filter(p => (p.stock_quantity || 0) <= 5).slice(0, 5);
         }
 
-        // 3. Contas Vencendo Hoje (Despesas)
         const todayStr = new Date().toISOString().split('T')[0];
         const { data: expenses } = await supabase
           .from('expenses')
@@ -77,7 +74,6 @@ const OverviewDashboard = () => {
         const expensesTodayCount = expenses?.length || 0;
         const expensesTodayAmount = expenses?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
-        // 4. Saldo Total (Contas Manuais + Integração Woovi)
         const { data: accounts } = await supabase
           .from('bank_accounts')
           .select('balance, type')
@@ -103,6 +99,7 @@ const OverviewDashboard = () => {
             });
             const apiData = await response.json();
             if (!apiData.error && apiData.balance) {
+              // Somamos à Visão Geral o Saldo Total da carteira
               swipyBalance = apiData.balance.total / 100;
             }
           } catch (e) {
@@ -148,7 +145,6 @@ const OverviewDashboard = () => {
         {/* Indicadores Globais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          {/* BLOCO 1: FINANCEIRO (MRR) */}
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
             <div>
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -163,7 +159,6 @@ const OverviewDashboard = () => {
             <p className="text-[10px] text-zinc-500 mt-2">Receita recorrente mensal ativa</p>
           </div>
 
-          {/* BLOCO 2: DESPESAS HOJE */}
           <Link to="/financeiro/pagar" className="bg-zinc-900 border border-zinc-800 hover:border-red-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
             <div>
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -189,7 +184,6 @@ const OverviewDashboard = () => {
             )}
           </Link>
 
-          {/* BLOCO 3: SALDO EM CONTAS */}
           <Link to="/financeiro/bancos" className="bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
             <div>
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -204,7 +198,6 @@ const OverviewDashboard = () => {
             <p className="text-[10px] text-zinc-500 mt-2">Soma de todos os bancos + Swipy</p>
           </Link>
 
-          {/* BLOCO 4: ESTOQUE (SKUs e Valor) */}
           <Link to="/estoque/produtos" className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
             <div>
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -230,7 +223,6 @@ const OverviewDashboard = () => {
         {/* Alertas e Módulos */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
           
-          {/* Coluna Esquerda: Alertas (Estoque, etc) */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -264,7 +256,6 @@ const OverviewDashboard = () => {
             </div>
           </div>
 
-          {/* Coluna Direita: CTA Principal */}
           <div className="lg:col-span-2">
             <div className="h-full bg-gradient-to-br from-orange-500/10 to-transparent border border-orange-500/20 rounded-[2.5rem] p-10 flex flex-col justify-center relative overflow-hidden">
               <div className="absolute top-0 right-0 p-10 opacity-5">

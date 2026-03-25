@@ -22,7 +22,7 @@ const BankAccounts = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Estados para integração com a API da Swipy (Woovi)
-  const [swipyBalance, setSwipyBalance] = useState<number | null>(null);
+  const [swipyBalance, setSwipyBalance] = useState<{available: number, blocked: number, total: number} | null>(null);
   const [loadingSwipy, setLoadingSwipy] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -54,7 +54,11 @@ const BankAccounts = () => {
       const data = await response.json();
       
       if (!data.error && data.balance) {
-        setSwipyBalance(data.balance.total / 100);
+        setSwipyBalance({
+          available: data.balance.available / 100,
+          blocked: data.balance.blocked / 100,
+          total: data.balance.total / 100
+        });
       }
     } catch (err) {
       console.error("Erro ao buscar saldo Swipy:", err);
@@ -95,7 +99,6 @@ const BankAccounts = () => {
       const balanceNum = isSwipy ? 0 : parseFloat(formData.balance.replace(',', '.'));
       
       if (editingId) {
-        // Modo Edição
         const { error } = await supabase.from('bank_accounts').update({
           name: formData.name,
           type: formData.type,
@@ -104,7 +107,6 @@ const BankAccounts = () => {
         if (error) throw error;
         showSuccess("Conta atualizada!");
       } else {
-        // Modo Criação
         const { error } = await supabase.from('bank_accounts').insert({
           user_id: user?.id,
           name: formData.name,
@@ -167,7 +169,7 @@ const BankAccounts = () => {
           ) : (
             accounts.map((acc) => {
               const isSwipy = acc.type === 'swipy' || acc.type === 'digital';
-              const displayBalance = isSwipy ? (swipyBalance !== null ? swipyBalance : 0) : acc.balance;
+              const displayBalance = isSwipy ? (swipyBalance?.total ?? 0) : acc.balance;
 
               return (
                 <div key={acc.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between group relative overflow-hidden">
@@ -199,7 +201,7 @@ const BankAccounts = () => {
                   
                   <div className="mt-8 pt-6 border-t border-zinc-800/50 relative z-10">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Saldo Atual</p>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Saldo Total</p>
                       {isSwipy && (
                         <div className="flex items-center gap-1 text-[9px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                           {loadingSwipy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />} 
@@ -210,6 +212,23 @@ const BankAccounts = () => {
                     <p className="text-2xl font-bold text-zinc-300">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(displayBalance)}
                     </p>
+
+                    {isSwipy && swipyBalance !== null && (
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-0.5">Disponível</p>
+                          <p className="text-xs font-bold text-emerald-400">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.available)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-0.5">Bloqueado</p>
+                          <p className="text-xs font-bold text-zinc-400">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.blocked)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

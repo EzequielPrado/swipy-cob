@@ -23,7 +23,6 @@ serve(async (req) => {
     
     if (authError || !user) throw new Error("Não autorizado")
 
-    // Busca o AppID no perfil
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('woovi_api_key')
@@ -42,9 +41,6 @@ serve(async (req) => {
     const action = url.searchParams.get('action') || 'balance'
     
     if (action === 'balance') {
-      console.log("[woovi-wallet] Consultando /api/v1/account para obter saldo...");
-
-      // Fazemos o GET na rota de account genérica. A Woovi retornará as contas ligadas ao AppID.
       const response = await fetch('https://api.woovi.com/api/v1/account', {
         method: 'GET',
         headers: { 'Authorization': appID }
@@ -52,7 +48,6 @@ serve(async (req) => {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn(`[woovi-wallet] Falha na consulta de conta: Status ${response.status}: ${errorText}`);
         if (response.status === 403) {
           throw new Error("Seu AppID não tem permissão para ler a Conta. Ative no painel da Woovi.");
         }
@@ -60,28 +55,34 @@ serve(async (req) => {
       }
 
       const data = await response.json();
-      console.log("[woovi-wallet] Resposta /account:", JSON.stringify(data));
-
-      let balanceInCents = 0;
       
-      // Tratando os possíveis retornos da API da Woovi
-      if (data.account && typeof data.account.balance === 'number') {
-         balanceInCents = data.account.balance;
-      } else if (data.accounts && data.accounts.length > 0 && typeof data.accounts[0].balance === 'number') {
-         balanceInCents = data.accounts[0].balance;
-      } else if (typeof data.balance === 'number') {
-         balanceInCents = data.balance;
-      }
+      let balanceInCents = 0;
+      let blockedBalanceInCents = 0;
 
-      return new Response(JSON.stringify({ balance: { total: balanceInCents }, raw: data }), { 
+      // Localiza o objeto da conta na resposta
+      const acc = data.account || (data.accounts && data.accounts[0]) || data;
+
+      // Mapeia o saldo disponível e bloqueado
+      if (typeof acc.balance === 'number') balanceInCents = acc.balance;
+      if (typeof acc.blockedBalance === 'number') blockedBalanceInCents = acc.blockedBalance;
+      else if (typeof acc.lockedBalance === 'number') blockedBalanceInCents = acc.lockedBalance;
+
+      const totalInCents = balanceInCents + blockedBalanceInCents;
+
+      return new Response(JSON.stringify({ 
+        balance: { 
+          available: balanceInCents,
+          blocked: blockedBalanceInCents,
+          total: totalInCents 
+        }, 
+        raw: data 
+      }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
     if (action === 'withdraw') {
       const { amount, pixKey, pixKeyType } = await req.json()
-      
-      // Para Cashout (Saque)
       const response = await fetch(`https://api.woovi.com/api/v1/cashout`, {
         method: 'POST',
         headers: { 
@@ -105,7 +106,6 @@ serve(async (req) => {
     throw new Error("Ação inválida")
 
   } catch (error: any) {
-    console.error("[woovi-wallet] Erro:", error.message)
     return new Response(JSON.stringify({ error: "API_ERROR", message: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
