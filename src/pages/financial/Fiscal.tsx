@@ -16,17 +16,30 @@ const Fiscal = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const fetchInvoices = async () => {
+    if (!user) return;
     setLoading(true);
     try {
+      // Busca os logs de sistema que contêm a mensagem "Fatura Fiscal emitida"
+      // e faz o join com a tabela de charges para pegar o valor e o nome do cliente
       const { data, error } = await supabase
-        .from('charges')
-        .select('*, customers(*)')
-        .not('pix_url', 'is', null)
-        .eq('user_id', user?.id)
+        .from('notification_logs')
+        .select(`
+          *,
+          charges!inner (
+            amount,
+            user_id,
+            customers (
+              name
+            )
+          )
+        `)
+        .eq('type', 'system')
+        .ilike('message', '%Fatura Fiscal emitida%')
+        .eq('charges.user_id', user.id) // Garante que só puxa as da empresa atual
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setInvoices(data);
+      setInvoices(data || []);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -35,13 +48,19 @@ const Fiscal = () => {
   };
 
   useEffect(() => {
-    if (user) fetchInvoices();
+    fetchInvoices();
   }, [user]);
 
-  const filtered = invoices.filter(i => 
-    i.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    i.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filtra as faturas na tela (por nome do cliente)
+  const filtered = invoices.filter(inv => 
+    inv.charges?.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Extrai o link da mensagem salva no log
+  const extractUrl = (msg: string) => {
+    const parts = msg.split('Link: ');
+    return parts.length > 1 ? parts[1].trim() : '#';
+  };
 
   return (
     <AppLayout>
@@ -68,7 +87,7 @@ const Fiscal = () => {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por cliente ou descrição..." 
+            placeholder="Buscar por cliente..." 
             className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
           />
         </div>
@@ -104,7 +123,7 @@ const Fiscal = () => {
           ) : filtered.length === 0 ? (
              <div className="text-center py-20 text-zinc-500">
                 <FileText size={48} className="mx-auto mb-4 opacity-20" />
-                <p>Nenhuma fatura emitida ainda.</p>
+                <p>Nenhuma fatura encontrada.</p>
              </div>
           ) : (
             <table className="w-full text-left">
@@ -112,7 +131,7 @@ const Fiscal = () => {
                 <tr>
                   <th className="px-8 py-5">Fatura / Cliente</th>
                   <th className="px-8 py-5">Emissão</th>
-                  <th className="px-8 py-5">Valor</th>
+                  <th className="px-8 py-5">Valor Original</th>
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
@@ -120,8 +139,8 @@ const Fiscal = () => {
                 {filtered.map((inv) => (
                   <tr key={inv.id} className="hover:bg-zinc-800/30 transition-colors">
                     <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-100">{inv.description || 'Fatura de Serviço'}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{inv.customers?.name}</p>
+                      <p className="text-sm font-bold text-zinc-100">Fatura de Serviço</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{inv.charges?.customers?.name || 'Cliente Geral'}</p>
                     </td>
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -130,12 +149,12 @@ const Fiscal = () => {
                       </div>
                     </td>
                     <td className="px-8 py-5 text-sm font-bold text-zinc-100">
-                      R$ {inv.amount.toFixed(2)}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.charges?.amount || 0)}
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-3">
                         <a 
-                          href={inv.pix_url} 
+                          href={extractUrl(inv.message)} 
                           target="_blank" 
                           rel="noreferrer"
                           className="p-2 bg-zinc-800 hover:bg-zinc-700 text-orange-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
