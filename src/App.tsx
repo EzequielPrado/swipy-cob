@@ -24,6 +24,9 @@ import Expenses from "./pages/financial/Expenses";
 import SwipyAccount from "./pages/financial/SwipyAccount";
 import Fiscal from "./pages/financial/Fiscal";
 
+// RH / Gente e Gestão
+import Employees from "./pages/hr/Employees";
+
 // Cadastros e Configurações
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/CustomerDetail";
@@ -73,7 +76,10 @@ const App = () => (
             
             {/* MÓDULOS EM BREVE */}
             <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/rh/metas" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+
+            {/* GENTE E GESTÃO (RH) */}
+            <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
 
             {/* FINANCEIRO E CONTA DIGITAL */}
             <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

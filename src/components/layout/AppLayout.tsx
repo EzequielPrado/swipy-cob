@@ -33,15 +33,18 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 
+// Adicionado controle de papéis (roles) permitidos por módulo
 const menuStructure = [
   {
     title: 'Visão Geral',
     icon: LayoutDashboard,
-    path: '/'
+    path: '/',
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque']
   },
   {
     title: 'Vendas',
     icon: ShoppingCart,
+    roles: ['Admin', 'Vendas'],
     submenus: [
       { label: 'Dashboard de Vendas', path: '/vendas/dashboard' },
       { label: 'Gestão de Vendas', path: '/vendas/lista' },
@@ -52,6 +55,7 @@ const menuStructure = [
   {
     title: 'Estoque',
     icon: Package,
+    roles: ['Admin', 'Estoque', 'Vendas'],
     submenus: [
       { label: 'Produtos', path: '/estoque/produtos' },
       { label: 'Movimentações', path: '/estoque/movimentacoes' },
@@ -60,6 +64,7 @@ const menuStructure = [
   {
     title: 'Financeiro',
     icon: Landmark,
+    roles: ['Admin', 'Financeiro'],
     submenus: [
       { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
@@ -72,6 +77,7 @@ const menuStructure = [
   {
     title: 'Gente e Gestão',
     icon: Users,
+    roles: ['Admin', 'RH'],
     submenus: [
       { label: 'Colaboradores', path: '/rh/colaboradores' },
       { label: 'Metas e Comissões', path: '/rh/metas' },
@@ -80,6 +86,7 @@ const menuStructure = [
   {
     title: 'Cadastros',
     icon: Contact,
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH'],
     submenus: [
       { label: 'Clientes', path: '/clientes' },
     ]
@@ -87,7 +94,8 @@ const menuStructure = [
   {
     title: 'Personalização',
     icon: Palette,
-    path: '/configuracoes'
+    path: '/configuracoes',
+    roles: ['Admin']
   }
 ];
 
@@ -100,13 +108,12 @@ const adminItems = [
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, systemRole, isAdmin } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [hasNew, setHasNew] = useState(false);
   const [openMenus, setOpenMenus] = useState<string[]>([]);
 
-  // Abre os submenus automaticamente se a rota atual pertencer a eles
   useEffect(() => {
     const currentOpen = [...openMenus];
     menuStructure.forEach(menu => {
@@ -130,12 +137,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         .channel('realtime-payments')
         .on(
           'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'charges',
-            filter: `user_id=eq.${user.id}`
-          },
+          { event: 'UPDATE', schema: 'public', table: 'charges', filter: `user_id=eq.${user.id}` },
           (payload) => {
             if (payload.new.status === 'pago' && payload.old.status !== 'pago') {
               const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload.new.amount);
@@ -155,16 +157,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         )
         .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+      return () => { supabase.removeChannel(channel); };
     }
   }, [user]);
 
   const toggleMenu = (title: string) => {
-    setOpenMenus(prev => 
-      prev.includes(title) ? prev.filter(m => m !== title) : [...prev, title]
-    );
+    setOpenMenus(prev => prev.includes(title) ? prev.filter(m => m !== title) : [...prev, title]);
   };
 
   const handleLogout = async () => {
@@ -172,9 +170,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     navigate('/login');
   };
 
-  const clearNotifications = () => {
-    setHasNew(false);
-  };
+  // Filtro RBAC: Quais menus o usuário atual pode ver?
+  const visibleMenus = menuStructure.filter(menu => menu.roles.includes(systemRole));
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
@@ -193,7 +190,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <nav className="space-y-1">
               <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-3">Módulos ERP</p>
               
-              {menuStructure.map((item) => {
+              {visibleMenus.map((item) => {
                 const isActive = item.path ? location.pathname === item.path : false;
                 const hasSubmenus = !!item.submenus;
                 const isOpen = openMenus.includes(item.title);
@@ -236,7 +233,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                       </Link>
                     )}
 
-                    {/* Submenus rendering */}
                     {hasSubmenus && isOpen && (
                       <div className="mt-1 mb-2 ml-4 pl-4 border-l border-zinc-800 space-y-1">
                         {item.submenus!.map(sub => {
@@ -262,30 +258,31 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 );
               })}
 
-              {/* BOTÃO EM DESTAQUE DA SWIPY CONTA */}
-              <div className="pt-4 mt-4 border-t border-zinc-800/50">
-                <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Banco Digital</p>
-                <Link
-                  to="/conta-swipy"
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border",
-                    location.pathname === "/conta-swipy"
-                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5"
-                      : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
-                  )}
-                >
-                  <Wallet size={18} className={cn(
-                    location.pathname === "/conta-swipy" ? "text-emerald-400" : "text-emerald-500 group-hover:text-emerald-400"
-                  )} />
-                  <span className="font-bold tracking-wide">Swipy Conta</span>
-                </Link>
-              </div>
+              {['Admin', 'Financeiro'].includes(systemRole) && (
+                <div className="pt-4 mt-4 border-t border-zinc-800/50">
+                  <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Banco Digital</p>
+                  <Link
+                    to="/conta-swipy"
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border",
+                      location.pathname === "/conta-swipy"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5"
+                        : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
+                    )}
+                  >
+                    <Wallet size={18} className={cn(
+                      location.pathname === "/conta-swipy" ? "text-emerald-400" : "text-emerald-500 group-hover:text-emerald-400"
+                    )} />
+                    <span className="font-bold tracking-wide">Swipy Conta</span>
+                  </Link>
+                </div>
+              )}
 
             </nav>
 
-            {profile?.is_admin && (
+            {isAdmin && (
               <nav className="space-y-1 pt-4 border-t border-zinc-800/50">
-                <p className="text-[10px] font-bold text-orange-500/50 uppercase tracking-widest px-3 mb-2">Administração</p>
+                <p className="text-[10px] font-bold text-orange-500/50 uppercase tracking-widest px-3 mb-2">Administração Global</p>
                 {adminItems.map((item) => (
                   <Link
                     key={item.path}
@@ -324,11 +321,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center gap-4">
             <h1 className="text-sm font-medium text-zinc-400">
               Olá, <span className="text-zinc-100 font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span>
-              {profile?.is_admin && <span className="ml-2 text-[10px] bg-orange-500 text-zinc-950 px-2 py-0.5 rounded-full font-bold">ADMIN</span>}
+              <span className="ml-3 text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-0.5 rounded-full font-bold tracking-widest uppercase">
+                {systemRole}
+              </span>
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <DropdownMenu onOpenChange={(open) => open && clearNotifications()}>
+            <DropdownMenu onOpenChange={(open) => open && setHasNew(false)}>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative focus:outline-none bg-zinc-900 rounded-full border border-zinc-800">
                   <Bell size={18} />

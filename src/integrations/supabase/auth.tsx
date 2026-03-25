@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   profile: any | null;
   isAdmin: boolean;
+  systemRole: string;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   isAdmin: false,
+  systemRole: 'Admin',
   loading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -75,6 +77,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       user, 
       profile, 
       isAdmin: profile?.is_admin || false, 
+      systemRole: profile?.system_role || 'Admin',
       loading, 
       signOut,
       refreshProfile
