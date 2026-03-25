@@ -6,20 +6,24 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 
-// Novas Páginas e Placeholders
+// Visão Geral e Placeholders
 import OverviewDashboard from "./pages/OverviewDashboard";
 import ComingSoon from "./pages/ComingSoon";
 
-// Módulos ERP (Fase 2)
+// Estoque
 import Products from "./pages/inventory/Products";
 import Movements from "./pages/inventory/Movements";
 
-// Módulos Antigos (Agora em Financeiro/Cadastros)
+// Financeiro
 import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
-import Customers from "./pages/Customers";
 import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
+import BankAccounts from "./pages/financial/BankAccounts";
+import Expenses from "./pages/financial/Expenses";
+
+// Cadastros e Configurações
+import Customers from "./pages/Customers";
 import Settings from "./pages/Settings";
 
 // Auth e Públicos
@@ -57,7 +61,7 @@ const App = () => (
             <Route path="/pagar/:id" element={<Checkout />} />
             <Route path="/meu-painel" element={<ClientPortal />} />
             
-            {/* VISÃO GERAL (NOVO HOME) */}
+            {/* VISÃO GERAL */}
             <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
             
             {/* ESTOQUE E PRODUTOS */}
@@ -67,15 +71,15 @@ const App = () => (
             {/* MÓDULOS EM BREVE */}
             <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/financeiro/pagar" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/financeiro/bancos" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/financeiro/fiscal" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
 
-            {/* FINANCEIRO (ANTIGO HOME) */}
+            {/* FINANCEIRO */}
             <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/financeiro/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
             <Route path="/financeiro/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
             <Route path="/financeiro/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+            <Route path="/financeiro/bancos" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
+            <Route path="/financeiro/pagar" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
             
             {/* CADASTROS E CONFIG */}
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
