@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { Landmark, Plus, Loader2, Trash2, Wallet, Building, RefreshCcw } from 'lucide-react';
+import { Landmark, Plus, Loader2, Trash2, Wallet, Building, RefreshCcw, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -16,8 +16,10 @@ const BankAccounts = () => {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Estados para integração com a API da Swipy (Woovi)
   const [swipyBalance, setSwipyBalance] = useState<number | null>(null);
@@ -68,27 +70,52 @@ const BankAccounts = () => {
     }
   }, [user]);
 
+  const openAddModal = () => {
+    setEditingId(null);
+    setFormData({ name: '', type: 'corrente', balance: '0' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (acc: any) => {
+    setEditingId(acc.id);
+    setFormData({ 
+      name: acc.name, 
+      type: acc.type, 
+      balance: acc.balance.toString().replace('.', ',') 
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
 
     try {
-      // Se for Swipy Conta, o saldo inicial no banco de dados não importa muito, mas salvamos como 0.
       const isSwipy = formData.type === 'swipy';
       const balanceNum = isSwipy ? 0 : parseFloat(formData.balance.replace(',', '.'));
       
-      const { error } = await supabase.from('bank_accounts').insert({
-        user_id: user?.id,
-        name: formData.name,
-        type: formData.type,
-        balance: isNaN(balanceNum) ? 0 : balanceNum
-      });
+      if (editingId) {
+        // Modo Edição
+        const { error } = await supabase.from('bank_accounts').update({
+          name: formData.name,
+          type: formData.type,
+          balance: isNaN(balanceNum) ? 0 : balanceNum
+        }).eq('id', editingId);
+        if (error) throw error;
+        showSuccess("Conta atualizada!");
+      } else {
+        // Modo Criação
+        const { error } = await supabase.from('bank_accounts').insert({
+          user_id: user?.id,
+          name: formData.name,
+          type: formData.type,
+          balance: isNaN(balanceNum) ? 0 : balanceNum
+        });
+        if (error) throw error;
+        showSuccess("Conta bancária adicionada!");
+      }
 
-      if (error) throw error;
-
-      showSuccess("Conta bancária adicionada!");
-      setIsAddOpen(false);
-      setFormData({ name: '', type: 'corrente', balance: '0' });
+      setIsModalOpen(false);
       fetchAccounts();
     } catch (err: any) {
       showError(err.message);
@@ -119,7 +146,7 @@ const BankAccounts = () => {
             <p className="text-zinc-400 mt-1">Gerencie suas contas e carteiras para conciliação de despesas.</p>
           </div>
           <button 
-            onClick={() => setIsAddOpen(true)}
+            onClick={openAddModal}
             className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
           >
             <Plus size={18} /> Nova Conta
@@ -155,17 +182,22 @@ const BankAccounts = () => {
                       )}>
                         {isSwipy ? <div className="font-bold text-lg">S</div> : <Landmark size={20} />}
                       </div>
-                      <button onClick={() => handleDelete(acc.id, acc.name)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity relative z-10">
+                        <button onClick={() => openEditModal(acc)} className="p-1 text-zinc-500 hover:text-orange-400 transition-colors">
+                          <Edit2 size={16} />
+                        </button>
+                        <button onClick={() => handleDelete(acc.id, acc.name)} className="p-1 text-zinc-500 hover:text-red-400 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold text-zinc-100">{acc.name}</h3>
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">
+                    <h3 className="text-xl font-bold text-zinc-100 relative z-10">{acc.name}</h3>
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1 relative z-10">
                       {isSwipy ? 'Carteira Inteligente' : acc.type === 'poupanca' ? 'Conta Poupança' : 'Conta Corrente'}
                     </p>
                   </div>
                   
-                  <div className="mt-8 pt-6 border-t border-zinc-800/50">
+                  <div className="mt-8 pt-6 border-t border-zinc-800/50 relative z-10">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Saldo Atual</p>
                       {isSwipy && (
@@ -186,12 +218,12 @@ const BankAccounts = () => {
         </div>
       </div>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Landmark className="text-orange-500" size={20} />
-              Adicionar Conta
+              {editingId ? "Editar Conta" : "Adicionar Conta"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-6 pt-4">
@@ -221,7 +253,7 @@ const BankAccounts = () => {
             
             {formData.type !== 'swipy' && (
               <div className="space-y-2">
-                <Label>Saldo Inicial (R$)</Label>
+                <Label>Saldo (R$)</Label>
                 <Input 
                   placeholder="0,00"
                   className="bg-zinc-950 border-zinc-800 h-11"
@@ -233,7 +265,7 @@ const BankAccounts = () => {
 
             {formData.type === 'swipy' && (
               <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl text-xs text-orange-400 leading-relaxed italic">
-                O saldo desta conta será sincronizado em tempo real com as suas cobranças recebidas pelo sistema.
+                O saldo desta conta é sincronizado em tempo real com as suas cobranças recebidas pelo sistema.
               </div>
             )}
 
@@ -243,7 +275,7 @@ const BankAccounts = () => {
                 disabled={saving}
                 className="w-full bg-orange-500 text-zinc-950 font-bold py-3.5 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2"
               >
-                {saving ? <Loader2 className="animate-spin" size={18} /> : "Salvar Conta"}
+                {saving ? <Loader2 className="animate-spin" size={18} /> : "Salvar"}
               </button>
             </DialogFooter>
           </form>

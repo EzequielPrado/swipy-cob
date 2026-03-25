@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, AlertTriangle, Building, Tag } from 'lucide-react';
+import { ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, AlertTriangle, Building, Tag, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -27,9 +27,11 @@ const Expenses = () => {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Modal de Adicionar
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  // Modal de Adicionar/Editar
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     description: '', amount: '', category: CATEGORIES[0], dueDate: ''
   });
@@ -43,7 +45,6 @@ const Expenses = () => {
     if (!user) return;
     setLoading(true);
     
-    // Buscar Despesas
     const { data: expData, error: expError } = await supabase
       .from('expenses')
       .select('*, bank_accounts(name)')
@@ -51,7 +52,6 @@ const Expenses = () => {
       .order('due_date', { ascending: true });
 
     if (!expError && expData) {
-      // Atualiza o status visualmente se estiver atrasado
       const today = new Date().toISOString().split('T')[0];
       const updatedExpenses = expData.map(exp => ({
         ...exp,
@@ -60,7 +60,6 @@ const Expenses = () => {
       setExpenses(updatedExpenses);
     }
 
-    // Buscar Contas para o Modal de Pagamento
     const { data: accData } = await supabase.from('bank_accounts').select('id, name').eq('user_id', user.id);
     if (accData) setAccounts(accData);
 
@@ -71,23 +70,46 @@ const Expenses = () => {
     fetchData();
   }, [user]);
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
+  const openAddModal = () => {
+    setEditingId(null);
+    setFormData({ description: '', amount: '', category: CATEGORIES[0], dueDate: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (exp: any) => {
+    setEditingId(exp.id);
+    setFormData({ 
+      description: exp.description, 
+      amount: exp.amount.toString().replace('.', ','), 
+      category: exp.category || CATEGORIES[0], 
+      dueDate: exp.due_date 
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       const amountNum = parseFloat(formData.amount.replace(',', '.'));
-      const { error } = await supabase.from('expenses').insert({
-        user_id: user?.id,
+      const payload = {
         description: formData.description,
         amount: isNaN(amountNum) ? 0 : amountNum,
         category: formData.category,
         due_date: formData.dueDate
-      });
+      };
 
-      if (error) throw error;
-      showSuccess("Despesa cadastrada!");
-      setIsAddOpen(false);
-      setFormData({ description: '', amount: '', category: CATEGORIES[0], dueDate: '' });
+      if (editingId) {
+        const { error } = await supabase.from('expenses').update(payload).eq('id', editingId);
+        if (error) throw error;
+        showSuccess("Despesa atualizada!");
+      } else {
+        const { error } = await supabase.from('expenses').insert({ user_id: user?.id, ...payload });
+        if (error) throw error;
+        showSuccess("Despesa cadastrada!");
+      }
+
+      setIsModalOpen(false);
       fetchData();
     } catch (err: any) {
       showError(err.message);
@@ -109,11 +131,6 @@ const Expenses = () => {
       }).eq('id', selectedExpense.id);
 
       if (error) throw error;
-
-      // Opcional: Subtrair saldo da conta bancária
-      // const account = accounts.find(a => a.id === payData.accountId);
-      // await supabase.from('bank_accounts').update({ balance: account.balance - selectedExpense.amount }).eq('id', payData.accountId);
-
       showSuccess("Despesa marcada como paga!");
       setIsPayOpen(false);
       fetchData();
@@ -148,7 +165,7 @@ const Expenses = () => {
             <p className="text-zinc-400 mt-1">Controle suas despesas, fornecedores e obrigações.</p>
           </div>
           <button 
-            onClick={() => setIsAddOpen(true)}
+            onClick={openAddModal}
             className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-red-500/20"
           >
             <Plus size={18} /> Nova Despesa
@@ -219,7 +236,7 @@ const Expenses = () => {
                       </div>
                     </td>
                     <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         {exp.status !== 'pago' && (
                           <button 
                             onClick={() => { setSelectedExpense(exp); setIsPayOpen(true); }}
@@ -229,6 +246,13 @@ const Expenses = () => {
                             <CheckCircle2 size={18}/>
                           </button>
                         )}
+                        <button 
+                          onClick={() => openEditModal(exp)}
+                          className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 size={16}/>
+                        </button>
                         <button 
                           onClick={() => handleDelete(exp.id)}
                           className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
@@ -246,16 +270,16 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Modal Nova Despesa */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      {/* Modal Adicionar/Editar */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowUpRight className="text-red-500" size={20} />
-              Nova Despesa
+              {editingId ? "Editar Despesa" : "Nova Despesa"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddSubmit} className="space-y-4 pt-4">
+          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div className="space-y-2">
               <Label>Descrição da Despesa</Label>
               <Input required placeholder="Ex: Conta de Luz, Fornecedor X" className="bg-zinc-950 border-zinc-800" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
@@ -281,7 +305,7 @@ const Expenses = () => {
             </div>
             <DialogFooter className="pt-4">
               <button type="submit" disabled={saving} className="w-full bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="animate-spin" size={18} /> : "Cadastrar Despesa"}
+                {saving ? <Loader2 className="animate-spin" size={18} /> : "Salvar"}
               </button>
             </DialogFooter>
           </form>
