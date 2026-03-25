@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, Building } from 'lucide-react';
+import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, Send } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface AddEmployeeModalProps {
@@ -30,7 +30,7 @@ const SYSTEM_ROLES = [
 ];
 
 const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   
@@ -52,6 +52,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
     if (step === 1 && (!formData.full_name || !formData.cpf)) {
       return showError("Preencha o Nome e CPF.");
     }
+    if (step === 1 && formData.system_access && !formData.email) {
+      return showError("Para ter acesso ao sistema, o e-mail é obrigatório.");
+    }
     setStep(step + 1);
   };
 
@@ -63,8 +66,35 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
 
     setLoading(true);
     try {
-      const salary = parseFloat(formData.base_salary.replace(',', '.'));
+      // 1. Criar o usuário de Acesso e enviar E-mail (Se habilitado)
+      if (formData.system_access) {
+        if (!formData.email) throw new Error("E-mail é obrigatório para criar acesso.");
+        
+        const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/invite-employee`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            fullName: formData.full_name,
+            systemRole: formData.system_role,
+            companyName: profile?.company || profile?.full_name || 'Nossa Empresa',
+            origin: window.location.origin
+          })
+        });
 
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Erro ao enviar e-mail de convite. Verifique se este e-mail já não está cadastrado.");
+        }
+        
+        showSuccess("Acesso criado e e-mail com senha enviado!");
+      }
+
+      // 2. Salvar na Folha / RH
+      const salary = parseFloat(formData.base_salary.replace(',', '.'));
       const payload = {
         user_id: user?.id,
         full_name: formData.full_name,
@@ -82,16 +112,10 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
       };
 
       const { error } = await supabase.from('employees').insert(payload);
-      
       if (error) throw error;
 
-      showSuccess("Colaborador cadastrado com sucesso!");
+      showSuccess("Colaborador registrado na Folha de Pagamento!");
       
-      if (formData.system_access) {
-        // Alerta educativo sobre o envio de convites de login (Mock por enquanto)
-        setTimeout(() => showSuccess("Um convite de acesso será enviado para o e-mail do colaborador em breve."), 1500);
-      }
-
       onSuccess();
       onClose();
       setStep(1);
@@ -117,7 +141,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
             Admissão de Colaborador
           </DialogTitle>
           
-          {/* Stepper Visual */}
           <div className="flex items-center gap-2">
             {[
               { id: 1, icon: UserPlus, label: 'Pessoais' },
@@ -144,7 +167,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             
-            {/* STEP 1: DADOS PESSOAIS */}
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                 <div className="space-y-2">
@@ -162,13 +184,12 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>E-mail (Pessoal ou Corporativo)</Label>
-                  <Input type="email" placeholder="joao@empresa.com" className="bg-zinc-950 border-zinc-800 h-11" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  <Label>E-mail (Necessário para dar acesso)</Label>
+                  <Input type="email" required={formData.system_access} placeholder="joao@empresa.com" className="bg-zinc-950 border-zinc-800 h-11" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
               </div>
             )}
 
-            {/* STEP 2: DADOS DO CONTRATO */}
             {step === 2 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -217,13 +238,12 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
               </div>
             )}
 
-            {/* STEP 3: ACESSOS (RBAC) */}
             {step === 3 && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                 <div className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800 rounded-2xl">
                   <div className="space-y-0.5">
                     <Label className="text-sm font-bold text-zinc-100">Dar acesso ao sistema Swipy ERP?</Label>
-                    <p className="text-[10px] text-zinc-500">O colaborador poderá logar com o e-mail cadastrado.</p>
+                    <p className="text-[10px] text-zinc-500">Um e-mail será enviado com as credenciais.</p>
                   </div>
                   <Switch 
                     checked={formData.system_access} 
@@ -261,6 +281,11 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                           </div>
                         </div>
                       ))}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl mt-4">
+                      <Send size={16} className="text-blue-400" />
+                      <p className="text-[10px] text-blue-400 leading-tight">Ao concluir, enviaremos um e-mail com a senha temporária para <strong>{formData.email}</strong>.</p>
                     </div>
                   </div>
                 )}
