@@ -8,13 +8,19 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddProductModal from '@/components/inventory/AddProductModal';
+import ProductDetailsModal from '@/components/inventory/ProductDetailsModal';
 
 const Products = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Controle do modal de detalhes
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const fetchProducts = async () => {
     if (!user) return;
@@ -44,7 +50,8 @@ const Products = () => {
     );
   }, [products, searchTerm]);
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation(); // Evita abrir o modal de detalhes ao clicar na lixeira
     if (!confirm(`Deseja excluir o produto "${name}"? Esta ação não pode ser desfeita.`)) return;
     
     try {
@@ -56,6 +63,11 @@ const Products = () => {
     } catch (err: any) {
       showError(err.message);
     }
+  };
+
+  const handleRowClick = (product: any) => {
+    setSelectedProduct(product);
+    setIsDetailsModalOpen(true);
   };
 
   return (
@@ -125,10 +137,14 @@ const Products = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <tr 
+                    key={product.id} 
+                    className="hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+                    onClick={() => handleRowClick(product)}
+                  >
                     <td className="px-8 py-5">
                       <div>
-                        <p className="text-sm font-bold text-zinc-100">{product.name}</p>
+                        <p className="text-sm font-bold text-zinc-100 group-hover:text-orange-400 transition-colors">{product.name}</p>
                         <p className="text-xs text-zinc-500 font-mono mt-0.5">{product.sku || 'Sem SKU'}</p>
                       </div>
                     </td>
@@ -152,7 +168,7 @@ const Products = () => {
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => handleDelete(product.id, product.name)}
+                          onClick={(e) => handleDelete(e, product.id, product.name)}
                           className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
                           title="Excluir"
                         >
@@ -172,6 +188,12 @@ const Products = () => {
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
         onSuccess={fetchProducts}
+      />
+
+      <ProductDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        product={selectedProduct}
       />
     </AppLayout>
   );

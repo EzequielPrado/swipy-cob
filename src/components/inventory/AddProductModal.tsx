@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Package, DollarSign } from 'lucide-react';
+import { Loader2, Package, DollarSign, Wand2 } from 'lucide-react';
 
 interface AddProductModalProps {
   isOpen: boolean;
@@ -22,10 +22,16 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     name: '',
     description: '',
     price: '',
+    costPrice: '',
     sku: '',
     category: '',
     stock_quantity: '0'
   });
+
+  const generateSKU = () => {
+    const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `PRD-${randomChars}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,24 +40,43 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
 
     try {
       const priceNum = parseFloat(formData.price.replace(',', '.'));
-      if (isNaN(priceNum)) throw new Error("Valor inválido");
+      const costNum = parseFloat(formData.costPrice.replace(',', '.') || '0');
+      
+      if (isNaN(priceNum)) throw new Error("Preço de venda inválido");
+      if (isNaN(costNum)) throw new Error("Preço de custo inválido");
 
-      const { error } = await supabase.from('products').insert({
+      const finalSku = formData.sku.trim() || generateSKU();
+      const stockQty = parseInt(formData.stock_quantity) || 0;
+
+      // 1. Cadastra o Produto
+      const { data: product, error } = await supabase.from('products').insert({
         user_id: user.id,
         name: formData.name,
         description: formData.description,
         price: priceNum,
-        sku: formData.sku,
+        cost_price: costNum,
+        sku: finalSku,
         category: formData.category,
-        stock_quantity: parseInt(formData.stock_quantity) || 0
-      });
+        stock_quantity: stockQty
+      }).select().single();
 
       if (error) throw error;
+
+      // 2. Se houver estoque inicial, registra no Histórico de Movimentações
+      if (product && stockQty > 0) {
+        await supabase.from('inventory_movements').insert({
+          user_id: user.id,
+          product_id: product.id,
+          type: 'in',
+          quantity: stockQty,
+          notes: 'Estoque inicial (Cadastro manual)'
+        });
+      }
 
       showSuccess('Produto cadastrado com sucesso!');
       onSuccess();
       onClose();
-      setFormData({ name: '', description: '', price: '', sku: '', category: '', stock_quantity: '0' });
+      setFormData({ name: '', description: '', price: '', costPrice: '', sku: '', category: '', stock_quantity: '0' });
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -61,7 +86,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px]">
+      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <Package className="text-orange-500" size={20} />
@@ -81,22 +106,34 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Preço de Venda (R$)</Label>
+              <Label className="text-zinc-400">Custo (R$)</Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" size={14} />
+                <Input 
+                  placeholder="0,00"
+                  className="bg-zinc-950 border-zinc-800 h-11 pl-8 text-sm"
+                  value={formData.costPrice}
+                  onChange={(e) => setFormData({...formData, costPrice: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold">Preço Venda (R$)</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500" size={14} />
                 <Input 
                   required
                   placeholder="0,00"
-                  className="bg-zinc-950 border-zinc-800 h-11 pl-9"
+                  className="bg-zinc-950 border-orange-500/30 h-11 pl-8 text-sm focus-visible:ring-orange-500"
                   value={formData.price}
                   onChange={(e) => setFormData({...formData, price: e.target.value})}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Quantidade em Estoque</Label>
+              <Label>Qtd. Estoque</Label>
               <Input 
                 type="number"
                 min="0"
@@ -109,11 +146,16 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Código / SKU</Label>
+              <div className="flex justify-between items-center">
+                <Label>Código / SKU</Label>
+                <span className="text-[9px] text-zinc-500 italic flex items-center gap-1">
+                  <Wand2 size={10} /> Deixe vazio para auto-gerar
+                </span>
+              </div>
               <Input 
-                className="bg-zinc-950 border-zinc-800 h-11"
+                className="bg-zinc-950 border-zinc-800 h-11 font-mono text-sm"
                 value={formData.sku}
-                onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                onChange={(e) => setFormData({...formData, sku: e.target.value.toUpperCase()})}
                 placeholder="Ex: PROD-001"
               />
             </div>
