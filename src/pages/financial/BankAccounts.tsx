@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { Landmark, Plus, Loader2, Trash2, Wallet, Building } from 'lucide-react';
+import { Landmark, Plus, Loader2, Trash2, Wallet, Building, RefreshCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -18,6 +18,10 @@ const BankAccounts = () => {
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Estados para integração com a API da Swipy (Woovi)
+  const [swipyBalance, setSwipyBalance] = useState<number | null>(null);
+  const [loadingSwipy, setLoadingSwipy] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -38,8 +42,30 @@ const BankAccounts = () => {
     setLoading(false);
   };
 
+  const fetchSwipyBalance = async () => {
+    setLoadingSwipy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
+      const data = await response.json();
+      
+      if (!data.error && data.balance) {
+        setSwipyBalance(data.balance.total / 100);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar saldo Swipy:", err);
+    } finally {
+      setLoadingSwipy(false);
+    }
+  };
+
   useEffect(() => {
-    fetchAccounts();
+    if (user) {
+      fetchAccounts();
+      fetchSwipyBalance();
+    }
   }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +73,9 @@ const BankAccounts = () => {
     setSaving(true);
 
     try {
-      const balanceNum = parseFloat(formData.balance.replace(',', '.'));
+      // Se for Swipy Conta, o saldo inicial no banco de dados não importa muito, mas salvamos como 0.
+      const isSwipy = formData.type === 'swipy';
+      const balanceNum = isSwipy ? 0 : parseFloat(formData.balance.replace(',', '.'));
       
       const { error } = await supabase.from('bank_accounts').insert({
         user_id: user?.id,
@@ -107,40 +135,53 @@ const BankAccounts = () => {
             <div className="col-span-full bg-zinc-900 border border-zinc-800 rounded-3xl p-12 text-center text-zinc-500">
               <Landmark size={48} className="mx-auto mb-4 opacity-20" />
               <p>Nenhuma conta cadastrada ainda.</p>
-              <p className="text-xs mt-2">Adicione seu banco principal ou a Carteira Woovi.</p>
+              <p className="text-xs mt-2">Adicione seu banco principal ou a Swipy Conta.</p>
             </div>
           ) : (
-            accounts.map((acc) => (
-              <div key={acc.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                  {acc.type === 'digital' ? <Wallet size={80} /> : <Building size={80} />}
-                </div>
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                      acc.type === 'digital' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                    )}>
-                      {acc.type === 'digital' ? <Wallet size={20} /> : <Landmark size={20} />}
-                    </div>
-                    <button onClick={() => handleDelete(acc.id, acc.name)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Trash2 size={16} />
-                    </button>
+            accounts.map((acc) => {
+              const isSwipy = acc.type === 'swipy' || acc.type === 'digital';
+              const displayBalance = isSwipy ? (swipyBalance !== null ? swipyBalance : 0) : acc.balance;
+
+              return (
+                <div key={acc.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between group relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                    {isSwipy ? <Wallet size={80} /> : <Building size={80} />}
                   </div>
-                  <h3 className="text-xl font-bold text-zinc-100">{acc.name}</h3>
-                  <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">
-                    {acc.type === 'digital' ? 'Carteira Digital' : acc.type === 'poupanca' ? 'Conta Poupança' : 'Conta Corrente'}
-                  </p>
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
+                        isSwipy ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-zinc-800 text-zinc-400 border-zinc-700"
+                      )}>
+                        {isSwipy ? <div className="font-bold text-lg">S</div> : <Landmark size={20} />}
+                      </div>
+                      <button onClick={() => handleDelete(acc.id, acc.name)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <h3 className="text-xl font-bold text-zinc-100">{acc.name}</h3>
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">
+                      {isSwipy ? 'Carteira Inteligente' : acc.type === 'poupanca' ? 'Conta Poupança' : 'Conta Corrente'}
+                    </p>
+                  </div>
+                  
+                  <div className="mt-8 pt-6 border-t border-zinc-800/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Saldo Atual</p>
+                      {isSwipy && (
+                        <div className="flex items-center gap-1 text-[9px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          {loadingSwipy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />} 
+                          Integrado API
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-2xl font-bold text-zinc-300">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(displayBalance)}
+                    </p>
+                  </div>
                 </div>
-                
-                <div className="mt-8 pt-6 border-t border-zinc-800/50">
-                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Saldo Atual</p>
-                  <p className="text-2xl font-bold text-zinc-300">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(acc.balance)}
-                  </p>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -158,7 +199,7 @@ const BankAccounts = () => {
               <Label>Nome da Conta ou Banco</Label>
               <Input 
                 required
-                placeholder="Ex: Itaú, Nubank, Caixa..."
+                placeholder="Ex: Itaú, Swipy Conta Principal..."
                 className="bg-zinc-950 border-zinc-800 h-11"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -173,19 +214,29 @@ const BankAccounts = () => {
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                   <SelectItem value="corrente">Conta Corrente</SelectItem>
                   <SelectItem value="poupanca">Conta Poupança</SelectItem>
-                  <SelectItem value="digital">Carteira Digital (Woovi, MercadoPago)</SelectItem>
+                  <SelectItem value="swipy">Swipy Conta (Automática)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Saldo Inicial (R$)</Label>
-              <Input 
-                placeholder="0,00"
-                className="bg-zinc-950 border-zinc-800 h-11"
-                value={formData.balance}
-                onChange={(e) => setFormData({...formData, balance: e.target.value})}
-              />
-            </div>
+            
+            {formData.type !== 'swipy' && (
+              <div className="space-y-2">
+                <Label>Saldo Inicial (R$)</Label>
+                <Input 
+                  placeholder="0,00"
+                  className="bg-zinc-950 border-zinc-800 h-11"
+                  value={formData.balance}
+                  onChange={(e) => setFormData({...formData, balance: e.target.value})}
+                />
+              </div>
+            )}
+
+            {formData.type === 'swipy' && (
+              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl text-xs text-orange-400 leading-relaxed italic">
+                O saldo desta conta será sincronizado em tempo real com as suas cobranças recebidas pelo sistema.
+              </div>
+            )}
+
             <DialogFooter>
               <button 
                 type="submit" 
