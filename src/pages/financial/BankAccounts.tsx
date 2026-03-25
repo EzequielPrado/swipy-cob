@@ -21,7 +21,6 @@ const BankAccounts = () => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Estados para integração com a API da Swipy (Woovi)
   const [swipyBalance, setSwipyBalance] = useState<{available: number, blocked: number, total: number} | null>(null);
   const [loadingSwipy, setLoadingSwipy] = useState(false);
 
@@ -53,7 +52,14 @@ const BankAccounts = () => {
       });
       const data = await response.json();
       
-      if (!data.error && data.balance) {
+      console.log("[Contas] Retorno API Carteira:", data);
+
+      if (data.error) {
+        showError(`Erro na Woovi: ${data.message}`);
+        return;
+      }
+      
+      if (data.balance) {
         setSwipyBalance({
           available: data.balance.available / 100,
           blocked: data.balance.blocked / 100,

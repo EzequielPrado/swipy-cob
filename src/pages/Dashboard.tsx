@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { showError } from '@/utils/toast';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -62,7 +63,15 @@ const Dashboard = () => {
       });
       const data = await response.json();
       
-      if (!data.error && data.balance) {
+      console.log("[Dashboard] Retorno da Carteira Woovi:", data); // Log para debug no console F12
+
+      if (data.error) {
+        showError(`Erro na Woovi: ${data.message}`);
+        setWallet({ available: 0, blocked: 0, total: 0, loading: false });
+        return;
+      }
+      
+      if (data.balance) {
         setWallet({
           available: data.balance.available / 100,
           blocked: data.balance.blocked / 100,
@@ -72,7 +81,8 @@ const Dashboard = () => {
       } else {
         setWallet({ available: 0, blocked: 0, total: 0, loading: false });
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Falha ao consultar carteira:", err);
       setWallet({ available: 0, blocked: 0, total: 0, loading: false });
     }
   };
@@ -258,7 +268,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3 text-zinc-500">
                   <Wallet size={16} className="text-orange-500" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Woovi</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Carteira Woovi</span>
                 </div>
                 <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Em tempo real</p>
               </div>

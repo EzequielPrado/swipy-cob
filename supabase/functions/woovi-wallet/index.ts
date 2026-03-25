@@ -32,7 +32,7 @@ serve(async (req) => {
     const appID = profile?.woovi_api_key?.trim();
 
     if (!appID) {
-      return new Response(JSON.stringify({ error: "MISSING_KEY" }), { 
+      return new Response(JSON.stringify({ error: "MISSING_KEY", message: "Token Woovi não configurado." }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }
@@ -41,31 +41,56 @@ serve(async (req) => {
     const action = url.searchParams.get('action') || 'balance'
     
     if (action === 'balance') {
-      const response = await fetch('https://api.woovi.com/api/v1/account', {
+      // 1. Primeiro, listamos a conta para descobrir o ID correto dela
+      const listResponse = await fetch('https://api.woovi.com/api/v1/account', {
         method: 'GET',
         headers: { 'Authorization': appID }
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        if (response.status === 403) {
-          throw new Error("Seu AppID não tem permissão para ler a Conta. Ative no painel da Woovi.");
-        }
-        throw new Error(`Falha ao acessar conta: ${errorText}`);
+      if (!listResponse.ok) {
+        const errorText = await listResponse.text();
+        return new Response(JSON.stringify({ error: "WOOVI_ERROR", message: `Falha ao listar contas: ${errorText}` }), { 
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
       }
 
-      const data = await response.json();
-      
+      const listData = await listResponse.json();
+      let accountId = null;
+      let rawData = listData;
+
+      // Pega o ID da primeira conta retornada
+      if (listData.accounts && listData.accounts.length > 0) {
+        accountId = listData.accounts[0].id || listData.accounts[0].identifier || listData.accounts[0]._id;
+      } else if (listData.account) {
+        accountId = listData.account.id || listData.account.identifier || listData.account._id;
+      }
+
       let balanceInCents = 0;
       let blockedBalanceInCents = 0;
 
-      // Localiza o objeto da conta na resposta
-      const acc = data.account || (data.accounts && data.accounts[0]) || data;
+      // 2. Se encontrou o ID, faz a requisição ESPECÍFICA para a conta (igual ao seu código)
+      if (accountId) {
+        const detailResponse = await fetch(`https://api.woovi.com/api/v1/account/${accountId}`, {
+          method: 'GET',
+          headers: { 'Authorization': appID }
+        });
 
-      // Mapeia o saldo disponível e bloqueado
-      if (typeof acc.balance === 'number') balanceInCents = acc.balance;
-      if (typeof acc.blockedBalance === 'number') blockedBalanceInCents = acc.blockedBalance;
-      else if (typeof acc.lockedBalance === 'number') blockedBalanceInCents = acc.lockedBalance;
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json();
+          rawData = detailData; // Usamos este retorno como base oficial
+          
+          const accDetail = detailData.account || detailData;
+          if (typeof accDetail.balance === 'number') balanceInCents = accDetail.balance;
+          if (typeof accDetail.blockedBalance === 'number') blockedBalanceInCents = accDetail.blockedBalance;
+          else if (typeof accDetail.lockedBalance === 'number') blockedBalanceInCents = accDetail.lockedBalance;
+        }
+      } else {
+        // Fallback caso não venha ID na listagem
+        const accFallback = listData.account || (listData.accounts && listData.accounts[0]) || listData;
+        if (typeof accFallback.balance === 'number') balanceInCents = accFallback.balance;
+        if (typeof accFallback.blockedBalance === 'number') blockedBalanceInCents = accFallback.blockedBalance;
+        else if (typeof accFallback.lockedBalance === 'number') blockedBalanceInCents = accFallback.lockedBalance;
+      }
 
       const totalInCents = balanceInCents + blockedBalanceInCents;
 
@@ -75,7 +100,7 @@ serve(async (req) => {
           blocked: blockedBalanceInCents,
           total: totalInCents 
         }, 
-        raw: data 
+        raw: rawData 
       }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
