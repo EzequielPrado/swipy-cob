@@ -99,7 +99,6 @@ const OverviewDashboard = () => {
             });
             const apiData = await response.json();
             if (!apiData.error && apiData.balance) {
-              // Somamos à Visão Geral o Saldo Total da carteira
               swipyBalance = apiData.balance.total / 100;
             }
           } catch (e) {
