@@ -68,7 +68,7 @@ serve(async (req) => {
       let balanceInCents = 0;
       let blockedBalanceInCents = 0;
 
-      // 2. Se encontrou o ID, faz a requisição ESPECÍFICA para a conta (igual ao seu código)
+      // 2. Se encontrou o ID, faz a requisição ESPECÍFICA para a conta
       if (accountId) {
         const detailResponse = await fetch(`https://api.woovi.com/api/v1/account/${accountId}`, {
           method: 'GET',
@@ -77,7 +77,7 @@ serve(async (req) => {
 
         if (detailResponse.ok) {
           const detailData = await detailResponse.json();
-          rawData = detailData; // Usamos este retorno como base oficial
+          rawData = detailData; 
           
           const accDetail = detailData.account || detailData;
           if (typeof accDetail.balance === 'number') balanceInCents = accDetail.balance;
@@ -103,6 +103,45 @@ serve(async (req) => {
         raw: rawData 
       }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    if (action === 'transactions') {
+      // 1. Busca Cobranças Pagas (Entradas)
+      const chargeRes = await fetch('https://api.woovi.com/api/v1/charge', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const chargeData = chargeRes.ok ? await chargeRes.json() : { charges: [] };
+      const paidCharges = (chargeData.charges || [])
+        .filter((c: any) => c.status === 'COMPLETED')
+        .map((c: any) => ({
+          ...c,
+          type: 'IN',
+          value: c.value,
+          time: c.createdAt || c.updatedAt
+        }));
+
+      // 2. Busca Saques (Saídas/Transferências)
+      const cashoutRes = await fetch('https://api.woovi.com/api/v1/cashout', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const cashoutData = cashoutRes.ok ? await cashoutRes.json() : { cashouts: [] };
+      const cashouts = (cashoutData.cashouts || []).map((c: any) => ({
+        ...c,
+        type: 'OUT',
+        value: -(c.value),
+        time: c.createdAt
+      }));
+
+      // 3. Junta tudo e ordena do mais recente pro mais antigo
+      const allTransactions = [...paidCharges, ...cashouts].sort((a, b) => {
+        return new Date(b.time).getTime() - new Date(a.time).getTime();
+      });
+
+      return new Response(JSON.stringify({ transactions: allTransactions }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
