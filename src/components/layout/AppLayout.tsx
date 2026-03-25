@@ -33,7 +33,6 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 
-// Adicionado controle de papéis (roles) permitidos por módulo
 const menuStructure = [
   {
     title: 'Visão Geral',
@@ -80,6 +79,7 @@ const menuStructure = [
     roles: ['Admin', 'RH'],
     submenus: [
       { label: 'Colaboradores', path: '/rh/colaboradores' },
+      { label: 'Folha Gerencial', path: '/rh/folha' },
       { label: 'Metas e Comissões', path: '/rh/metas' },
     ]
   },

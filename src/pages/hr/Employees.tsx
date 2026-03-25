@@ -3,17 +3,23 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Plus, Loader2, Users, Building2, Briefcase, ShieldAlert, Key } from 'lucide-react';
+import { Search, Plus, Loader2, Users, Building2, Briefcase, ShieldAlert, Key, Edit3, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { showError, showSuccess } from '@/utils/toast';
 import AddEmployeeModal from '@/components/hr/AddEmployeeModal';
+import EditEmployeeModal from '@/components/hr/EditEmployeeModal';
 
 const Employees = () => {
   const { user } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
 
   const fetchEmployees = async () => {
     if (!user) return;
@@ -34,6 +40,27 @@ const Employees = () => {
   useEffect(() => {
     fetchEmployees();
   }, [user]);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Tem certeza que deseja desligar/remover o colaborador ${name}?`)) return;
+    
+    setActionLoading(id);
+    try {
+      const { error } = await supabase.from('employees').delete().eq('id', id);
+      if (error) throw error;
+      showSuccess(`Colaborador ${name} removido com sucesso.`);
+      fetchEmployees();
+    } catch (err: any) {
+      showError("Erro ao remover: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEdit = (employee: any) => {
+    setSelectedEmployee(employee);
+    setIsEditModalOpen(true);
+  };
 
   const filteredEmployees = employees.filter(e => 
     e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,7 +96,7 @@ const Employees = () => {
              </div>
              <div>
                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Headcount</p>
-                <p className="text-2xl font-bold text-zinc-100">{employees.length} <span className="text-sm font-normal text-zinc-500">ativos</span></p>
+                <p className="text-2xl font-bold text-zinc-100">{employees.filter(e => e.status === 'Ativo').length} <span className="text-sm font-normal text-zinc-500">ativos</span></p>
              </div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex items-center gap-4 md:col-span-2">
@@ -79,7 +106,7 @@ const Employees = () => {
              <div>
                 <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Folha Base (Projeção)</p>
                 <p className="text-2xl font-bold text-red-400">
-                  {currencyFormatter.format(employees.reduce((acc, curr) => acc + Number(curr.base_salary || 0), 0))}
+                  {currencyFormatter.format(employees.filter(e => e.status !== 'Inativo').reduce((acc, curr) => acc + Number(curr.base_salary || 0), 0))}
                 </p>
              </div>
           </div>
@@ -112,18 +139,26 @@ const Employees = () => {
                   <th className="px-8 py-5">Contrato & Setor</th>
                   <th className="px-8 py-5">Salário Base</th>
                   <th className="px-8 py-5">Acesso ao Sistema</th>
+                  <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <tr key={emp.id} className={cn("hover:bg-zinc-800/30 transition-colors", emp.status === 'Inativo' && "opacity-50 grayscale")}>
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700 flex items-center justify-center text-xs font-bold text-orange-500 shadow-lg">
                           {emp.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-zinc-100">{emp.full_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold text-zinc-100">{emp.full_name}</p>
+                            {emp.status !== 'Ativo' && (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider font-bold bg-zinc-800 text-zinc-400 border border-zinc-700">
+                                {emp.status}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-zinc-500 font-mono mt-0.5">Admitido em {new Date(emp.hire_date).toLocaleDateString('pt-BR')}</p>
                         </div>
                       </div>
@@ -151,6 +186,25 @@ const Employees = () => {
                         </span>
                       )}
                     </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleEdit(emp)}
+                          className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit3 size={16}/>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(emp.id, emp.full_name)}
+                          disabled={actionLoading === emp.id}
+                          className="p-2 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                          title="Excluir"
+                        >
+                          {actionLoading === emp.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -163,6 +217,16 @@ const Employees = () => {
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
         onSuccess={fetchEmployees} 
+      />
+
+      <EditEmployeeModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedEmployee(null);
+        }}
+        onSuccess={fetchEmployees}
+        employee={selectedEmployee}
       />
     </AppLayout>
   );

@@ -26,6 +26,7 @@ import Fiscal from "./pages/financial/Fiscal";
 
 // RH / Gente e Gestão
 import Employees from "./pages/hr/Employees";
+import Payroll from "./pages/hr/Payroll";
 
 // Cadastros e Configurações
 import Customers from "./pages/Customers";
@@ -80,6 +81,7 @@ const App = () => (
 
             {/* GENTE E GESTÃO (RH) */}
             <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
+            <Route path="/rh/folha" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
 
             {/* FINANCEIRO E CONTA DIGITAL */}
             <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
