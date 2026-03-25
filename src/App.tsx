@@ -21,7 +21,8 @@ import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
 import BankAccounts from "./pages/financial/BankAccounts";
 import Expenses from "./pages/financial/Expenses";
-import SwipyAccount from "./pages/financial/SwipyAccount"; // <- IMPORTAÇÃO DA NOVA PÁGINA
+import SwipyAccount from "./pages/financial/SwipyAccount";
+import Fiscal from "./pages/financial/Fiscal";
 
 // Cadastros e Configurações
 import Customers from "./pages/Customers";
@@ -73,7 +74,6 @@ const App = () => (
             {/* MÓDULOS EM BREVE */}
             <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/financeiro/fiscal" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
 
             {/* FINANCEIRO E CONTA DIGITAL */}
             <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -82,8 +82,8 @@ const App = () => (
             <Route path="/financeiro/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
             <Route path="/financeiro/bancos" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
             <Route path="/financeiro/pagar" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+            <Route path="/financeiro/fiscal" element={<ProtectedRoute><Fiscal /></ProtectedRoute>} />
             
-            {/* ROTA DA SWIPY CONTA */}
             <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
             
             {/* CADASTROS E CONFIG */}
