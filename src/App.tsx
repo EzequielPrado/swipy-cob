@@ -12,6 +12,7 @@ import ComingSoon from "./pages/ComingSoon";
 
 // Módulos ERP (Fase 2)
 import Products from "./pages/inventory/Products";
+import Movements from "./pages/inventory/Movements";
 
 // Módulos Antigos (Agora em Financeiro/Cadastros)
 import Dashboard from "./pages/Dashboard";
@@ -61,10 +62,10 @@ const App = () => (
             
             {/* ESTOQUE E PRODUTOS */}
             <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+            <Route path="/estoque/movimentacoes" element={<ProtectedRoute><Movements /></ProtectedRoute>} />
             
             {/* MÓDULOS EM BREVE */}
             <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/estoque/movimentacoes" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/financeiro/pagar" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/financeiro/bancos" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
