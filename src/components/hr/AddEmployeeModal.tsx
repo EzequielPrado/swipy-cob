@@ -9,8 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, Send, AlertTriangle, Copy } from 'lucide-react';
+import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, Send, CheckCircle2, Copy, FileDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { jsPDF } from "jspdf";
 
 interface AddEmployeeModalProps {
   isOpen: boolean;
@@ -76,17 +77,16 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
     e.preventDefault();
     if (step !== 3 && !generatedPassword) return nextStep();
     if (generatedPassword) {
-      // Se a senha já foi mostrada, apenas fecha e limpa
       onClose();
       resetForm();
       return;
     }
 
     setLoading(true);
-    let fallbackPassword = null;
+    let finalPassword = null;
 
     try {
-      // 1. Criar o usuário de Acesso e enviar E-mail (Se habilitado)
+      // 1. Criar o usuário de Acesso via Edge Function
       if (formData.system_access) {
         if (!formData.email) throw new Error("E-mail é obrigatório para criar acesso.");
         
@@ -110,16 +110,11 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
           throw new Error(result.error || "Erro na criação do usuário.");
         }
         
-        if (result.warning) {
-          // SMTP Falhou! Guardamos a senha para exibir na tela.
-          fallbackPassword = result.tempPassword;
-          showError("Acesso criado, mas houve falha no SMTP ao enviar o e-mail.");
-        } else {
-          showSuccess("Acesso criado e e-mail com senha enviado!");
-        }
+        // Salvamos a senha gerada (mesmo que o e-mail tenha falhado)
+        finalPassword = result.tempPassword;
       }
 
-      // 2. Salvar na Folha / RH (Mesmo se o e-mail falhou, o usuário foi criado no Auth)
+      // 2. Salvar na Folha / RH
       const salary = parseFloat(formData.base_salary.replace(',', '.'));
       const payload = {
         user_id: user?.id,
@@ -143,9 +138,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
       showSuccess("Colaborador registrado na Folha de Pagamento!");
       onSuccess();
 
-      // 3. Se a senha tiver que ser exibida manualmente, não fechamos o modal, mostramos a senha.
-      if (fallbackPassword) {
-        setGeneratedPassword(fallbackPassword);
+      // 3. Verifica se tem senha para mostrar na tela
+      if (finalPassword) {
+        setGeneratedPassword(finalPassword);
       } else {
         onClose();
         resetForm();
@@ -165,6 +160,47 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
     }
   };
 
+  const downloadPDF = () => {
+    if (!generatedPassword) return;
+
+    const doc = new jsPDF();
+    const company = profile?.company || profile?.full_name || 'Nossa Empresa';
+    const loginUrl = `${window.location.origin}/login`;
+
+    // Cabeçalho
+    doc.setFontSize(22);
+    doc.setTextColor(249, 115, 22); // Laranja Swipy
+    doc.text("Bem-vindo ao ERP!", 20, 30);
+
+    // Corpo
+    doc.setFontSize(14);
+    doc.setTextColor(33, 33, 33);
+    doc.text(`Olá, ${formData.full_name}`, 20, 45);
+
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Seu acesso foi liberado por ${company}. Abaixo estão suas credenciais:`, 20, 55);
+
+    // Box das credenciais
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(20, 65, 170, 40, 3, 3, "F");
+
+    doc.setFontSize(12);
+    doc.setTextColor(33, 33, 33);
+    doc.text(`Login (E-mail): ${formData.email}`, 25, 78);
+    doc.text(`Senha Temporária: ${generatedPassword}`, 25, 93);
+
+    // Informações Extras
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Perfil de Acesso: ${formData.system_role} | Departamento: ${formData.department}`, 20, 120);
+    doc.text("Recomendamos que você altere sua senha no primeiro acesso.", 20, 128);
+    doc.text(`Acesse em: ${loginUrl}`, 20, 136);
+
+    doc.save(`Acesso_ERP_${formData.full_name.replace(/\s+/g, '_')}.pdf`);
+    showSuccess("PDF baixado com sucesso!");
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open && !generatedPassword) {
@@ -182,7 +218,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
             Admissão de Colaborador
           </DialogTitle>
           
-          {/* Stepper Visual (Some quando exibe a senha) */}
+          {/* Stepper Visual */}
           {!generatedPassword && (
             <div className="flex items-center gap-2">
               {[
@@ -211,32 +247,41 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             
-            {/* SUCESSO SEM SMTP: MOSTRAR A SENHA GERADA MANUALMENTE */}
+            {/* TELA DE SUCESSO: MOSTRAR A SENHA E BOTÃO DO PDF */}
             {generatedPassword ? (
               <div className="space-y-6 animate-in fade-in zoom-in duration-500 text-center py-4">
-                <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-yellow-500/20">
-                  <AlertTriangle className="text-yellow-500" size={32} />
+                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                  <CheckCircle2 className="text-emerald-500" size={32} />
                 </div>
                 <h3 className="text-xl font-bold">Colaborador Cadastrado!</h3>
                 <p className="text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
-                  O colaborador foi cadastrado no sistema, mas não conseguimos enviar o e-mail automático devido a um problema no seu servidor SMTP. 
+                  O acesso foi liberado com sucesso. Envie as credenciais abaixo para o novo funcionário.
                 </p>
 
                 <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 mt-6">
-                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Envie isso para o colaborador:</p>
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Credenciais de Acesso:</p>
                   
                   <div className="text-left space-y-3 bg-zinc-900 p-4 rounded-xl font-mono text-sm border border-zinc-800">
                     <p><span className="text-zinc-500">Login:</span> <span className="text-emerald-400">{formData.email}</span></p>
                     <p><span className="text-zinc-500">Senha:</span> <span className="text-orange-400">{generatedPassword}</span></p>
                   </div>
 
-                  <button 
-                    type="button" 
-                    onClick={copyPassword}
-                    className="w-full mt-4 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
-                  >
-                    <Copy size={16} /> Copiar Credenciais
-                  </button>
+                  <div className="flex flex-col gap-3 mt-6">
+                    <button 
+                      type="button" 
+                      onClick={downloadPDF}
+                      className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
+                    >
+                      <FileDown size={18} /> Baixar PDF com Acesso
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={copyPassword}
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Copy size={16} /> Copiar Texto (WhatsApp)
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -317,7 +362,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                     <div className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800 rounded-2xl">
                       <div className="space-y-0.5">
                         <Label className="text-sm font-bold text-zinc-100">Dar acesso ao sistema Swipy ERP?</Label>
-                        <p className="text-[10px] text-zinc-500">Um e-mail será enviado com as credenciais.</p>
+                        <p className="text-[10px] text-zinc-500">O sistema gerará um PDF com a senha para envio manual.</p>
                       </div>
                       <Switch 
                         checked={formData.system_access} 
@@ -357,9 +402,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                           ))}
                         </div>
                         
-                        <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl mt-4">
-                          <Send size={16} className="text-blue-400" />
-                          <p className="text-[10px] text-blue-400 leading-tight">Ao concluir, enviaremos um e-mail com a senha temporária para <strong>{formData.email}</strong>.</p>
+                        <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mt-4">
+                          <CheckCircle2 size={16} className="text-emerald-500" />
+                          <p className="text-[10px] text-emerald-500 leading-tight">Ao concluir, você poderá baixar um <strong>PDF</strong> com o login e senha do colaborador.</p>
                         </div>
                       </div>
                     )}
@@ -376,7 +421,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                 onClick={() => { onClose(); resetForm(); }}
                 className="w-full bg-zinc-100 text-zinc-950 font-bold py-3.5 rounded-xl hover:bg-white transition-all flex items-center justify-center gap-2 shadow-lg"
               >
-                Concluir
+                Concluir e Fechar
               </button>
             ) : (
               <>
