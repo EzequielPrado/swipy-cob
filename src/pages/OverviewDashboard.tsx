@@ -2,7 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { LayoutDashboard, TrendingUp, Package, Users, ShoppingCart, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  TrendingUp, 
+  Package, 
+  ArrowRight, 
+  Loader2, 
+  AlertTriangle,
+  CalendarClock,
+  Landmark
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -14,7 +23,10 @@ const OverviewDashboard = () => {
     mrr: 0,
     skus: 0,
     stockValue: 0,
-    lowStockItems: [] as any[]
+    lowStockItems: [] as any[],
+    expensesTodayCount: 0,
+    expensesTodayAmount: 0,
+    totalBalance: 0
   });
 
   useEffect(() => {
@@ -32,7 +44,7 @@ const OverviewDashboard = () => {
           
         const totalMrr = subs?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
         
-        // 2. Buscar Estoque (Quantidade de SKUs e Valor Total de Custo)
+        // 2. Buscar Estoque
         const { data: products } = await supabase
           .from('products')
           .select('id, name, stock_quantity, cost_price, sku')
@@ -50,16 +62,64 @@ const OverviewDashboard = () => {
             const cost = Number(curr.cost_price || 0);
             return acc + (qty * cost);
           }, 0);
-          
-          // Filtra produtos com estoque crítico (<= 5)
           lowStock = products.filter(p => (p.stock_quantity || 0) <= 5).slice(0, 5);
         }
+
+        // 3. Contas Vencendo Hoje (Despesas)
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { data: expenses } = await supabase
+          .from('expenses')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('due_date', todayStr)
+          .neq('status', 'pago');
+
+        const expensesTodayCount = expenses?.length || 0;
+        const expensesTodayAmount = expenses?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+
+        // 4. Saldo Total (Contas Manuais + Integração Woovi)
+        const { data: accounts } = await supabase
+          .from('bank_accounts')
+          .select('balance, type')
+          .eq('user_id', user.id);
+
+        let manualBalance = 0;
+        let hasSwipy = false;
+
+        accounts?.forEach(acc => {
+          if (acc.type === 'swipy' || acc.type === 'digital') {
+            hasSwipy = true;
+          } else {
+            manualBalance += Number(acc.balance || 0);
+          }
+        });
+
+        let swipyBalance = 0;
+        if (hasSwipy) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+              headers: { 'Authorization': `Bearer ${session?.access_token}` }
+            });
+            const apiData = await response.json();
+            if (!apiData.error && apiData.balance) {
+              swipyBalance = apiData.balance.total / 100;
+            }
+          } catch (e) {
+            console.error("Erro ao puxar saldo da API Woovi:", e);
+          }
+        }
+
+        const totalBalance = manualBalance + swipyBalance;
         
         setStats({
           mrr: totalMrr,
           skus: totalSkus,
           stockValue: totalStockValue,
-          lowStockItems: lowStock
+          lowStockItems: lowStock,
+          expensesTodayCount,
+          expensesTodayAmount,
+          totalBalance
         });
       } catch (err) {
         console.error("Erro ao buscar dados do dashboard:", err);
@@ -103,8 +163,49 @@ const OverviewDashboard = () => {
             <p className="text-[10px] text-zinc-500 mt-2">Receita recorrente mensal ativa</p>
           </div>
 
-          {/* BLOCO 2: ESTOQUE (SKUs e Valor) */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+          {/* BLOCO 2: DESPESAS HOJE */}
+          <Link to="/financeiro/pagar" className="bg-zinc-900 border border-zinc-800 hover:border-red-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
+            <div>
+              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <CalendarClock size={16} className="text-red-500" /> Vencem Hoje
+              </h3>
+              {loading ? (
+                <Loader2 className="animate-spin text-zinc-500" size={24} />
+              ) : (
+                <>
+                  <p className="text-3xl font-bold text-zinc-100">
+                    {stats.expensesTodayCount} <span className="text-sm font-normal text-zinc-500">contas</span>
+                  </p>
+                  {stats.expensesTodayCount > 0 && (
+                    <p className="text-sm font-bold text-red-400 mt-1">
+                      {currencyFormatter.format(stats.expensesTodayAmount)} <span className="text-[10px] text-zinc-500 font-normal ml-1">em despesas</span>
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            {stats.expensesTodayCount === 0 && !loading && (
+              <p className="text-[10px] text-emerald-500 mt-2">Nenhuma conta para pagar hoje! 🎉</p>
+            )}
+          </Link>
+
+          {/* BLOCO 3: SALDO EM CONTAS */}
+          <Link to="/financeiro/bancos" className="bg-zinc-900 border border-zinc-800 hover:border-emerald-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
+            <div>
+              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Landmark size={16} className="text-emerald-500" /> Saldo nas Contas
+              </h3>
+              {loading ? (
+                <Loader2 className="animate-spin text-zinc-500" size={24} />
+              ) : (
+                <p className="text-3xl font-bold text-emerald-400">{currencyFormatter.format(stats.totalBalance)}</p>
+              )}
+            </div>
+            <p className="text-[10px] text-zinc-500 mt-2">Soma de todos os bancos + Swipy</p>
+          </Link>
+
+          {/* BLOCO 4: ESTOQUE (SKUs e Valor) */}
+          <Link to="/estoque/produtos" className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 transition-colors p-6 rounded-2xl shadow-xl flex flex-col justify-between group">
             <div>
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Package size={16} className="text-orange-500" /> Resumo de Estoque
@@ -114,37 +215,16 @@ const OverviewDashboard = () => {
               ) : (
                 <>
                   <p className="text-3xl font-bold text-zinc-100">
-                    {stats.skus} <span className="text-sm font-normal text-zinc-500">SKUs cadastrados</span>
+                    {stats.skus} <span className="text-sm font-normal text-zinc-500">SKUs</span>
                   </p>
                   <p className="text-sm font-bold text-orange-400 mt-1">
-                    {currencyFormatter.format(stats.stockValue)} <span className="text-[10px] text-zinc-500 font-normal ml-1">em custo total</span>
+                    {currencyFormatter.format(stats.stockValue)} <span className="text-[10px] text-zinc-500 font-normal ml-1">em custo</span>
                   </p>
                 </>
               )}
             </div>
-          </div>
+          </Link>
 
-          {/* BLOCO 3: VENDAS (Aguardando Módulo) */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between opacity-70">
-            <div>
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <ShoppingCart size={16} className="text-blue-500" /> Vendas Hoje
-              </h3>
-              <p className="text-3xl font-bold text-zinc-100">--</p>
-            </div>
-            <p className="text-[10px] text-zinc-500 mt-2 italic">Aguardando módulo de Vendas</p>
-          </div>
-
-          {/* BLOCO 4: RH (Aguardando Módulo) */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between opacity-70">
-            <div>
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Users size={16} className="text-purple-500" /> Aniversariantes
-              </h3>
-              <p className="text-3xl font-bold text-zinc-100">--</p>
-            </div>
-            <p className="text-[10px] text-zinc-500 mt-2 italic">Aguardando módulo de RH</p>
-          </div>
         </div>
 
         {/* Alertas e Módulos */}
