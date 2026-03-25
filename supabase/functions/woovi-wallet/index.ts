@@ -41,7 +41,6 @@ serve(async (req) => {
     const action = url.searchParams.get('action') || 'balance'
 
     if (action === 'balance') {
-      // Buscar o saldo REAL direto do Banco Central / Woovi
       const accRes = await fetch('https://api.woovi.com/api/v1/account', {
         method: 'GET',
         headers: { 'Authorization': appID }
@@ -57,17 +56,40 @@ serve(async (req) => {
 
       let available = 0;
       let blocked = 0;
+      let total = 0;
       let found = false;
 
-      // Localiza o saldo no objeto de resposta da conta
-      if (accData.account && typeof accData.account.balance === 'number') {
-         available = accData.account.balance;
-         blocked = accData.account.blockedBalance || accData.account.lockedBalance || 0;
-         found = true;
-      } else if (accData.accounts && accData.accounts.length > 0 && typeof accData.accounts[0].balance === 'number') {
-         available = accData.accounts[0].balance;
-         blocked = accData.accounts[0].blockedBalance || accData.accounts[0].lockedBalance || 0;
-         found = true;
+      // Percorre todas as contas se for um array
+      if (accData.accounts && Array.isArray(accData.accounts)) {
+         accData.accounts.forEach((acc: any) => {
+            if (acc.balance && typeof acc.balance === 'object') {
+               total += (acc.balance.total || 0);
+               blocked += (acc.balance.blocked || acc.balance.locked || 0);
+               let accAvailable = acc.balance.available !== undefined ? acc.balance.available : ((acc.balance.total || 0) - (acc.balance.blocked || acc.balance.locked || 0));
+               available += accAvailable;
+               found = true;
+            } else if (typeof acc.balance === 'number') {
+               let accAvailable = acc.balance;
+               let accBlocked = acc.blockedBalance || acc.lockedBalance || 0;
+               available += accAvailable;
+               blocked += accBlocked;
+               total += (accAvailable + accBlocked);
+               found = true;
+            }
+         });
+      } else if (accData.account) {
+         const acc = accData.account;
+         if (acc.balance && typeof acc.balance === 'object') {
+             total = acc.balance.total || 0;
+             blocked = acc.balance.blocked || acc.balance.locked || 0;
+             available = acc.balance.available !== undefined ? acc.balance.available : (total - blocked);
+             found = true;
+         } else if (typeof acc.balance === 'number') {
+             available = acc.balance;
+             blocked = acc.blockedBalance || acc.lockedBalance || 0;
+             total = available + blocked;
+             found = true;
+         }
       }
 
       if (found) {
@@ -75,14 +97,13 @@ serve(async (req) => {
            balance: { 
              available: available, 
              blocked: blocked, 
-             total: available + blocked 
+             total: total 
            } 
          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } else {
-         // Caso a Woovi mude a estrutura da resposta, enviamos o erro para a tela para mapearmos
          return new Response(JSON.stringify({ 
            error: true, 
-           message: `Estrutura de conta diferente: ${JSON.stringify(accData).substring(0, 100)}...` 
+           message: `Estrutura de conta não mapeada: ${JSON.stringify(accData).substring(0, 100)}...` 
          }), { 
            status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
          });
