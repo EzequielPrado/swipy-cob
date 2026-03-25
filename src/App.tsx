@@ -24,6 +24,7 @@ import Expenses from "./pages/financial/Expenses";
 
 // Cadastros e Configurações
 import Customers from "./pages/Customers";
+import CustomerDetail from "./pages/CustomerDetail";
 import Settings from "./pages/Settings";
 
 // Auth e Públicos
@@ -83,6 +84,7 @@ const App = () => (
             
             {/* CADASTROS E CONFIG */}
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+            <Route path="/clientes/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ADMIN */}

@@ -3,9 +3,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Mail, Plus, Loader2, Edit3, Trash2, FileText, Download } from 'lucide-react';
+import { Search, Mail, Plus, Loader2, Edit3, Trash2, FileText, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { useNavigate } from 'react-router-dom';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
 import EditCustomerModal from '@/components/customers/EditCustomerModal';
 import { showError, showSuccess } from '@/utils/toast';
@@ -13,6 +14,7 @@ import { exportToCSV, exportToPDF } from '@/utils/exportUtils';
 
 const Customers = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,7 +47,7 @@ const Customers = () => {
     return customers.filter(c => 
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.tax_id.includes(searchTerm)
+      (c.tax_id && c.tax_id.includes(searchTerm))
     );
   }, [customers, searchTerm]);
 
@@ -61,12 +63,14 @@ const Customers = () => {
     showSuccess("PDF gerado com sucesso!");
   };
 
-  const handleEditClick = (customer: any) => {
+  const handleEditClick = (e: React.MouseEvent, customer: any) => {
+    e.stopPropagation();
     setSelectedCustomer(customer);
     setIsEditModalOpen(true);
   };
 
-  const handleDelete = async (customer: any) => {
+  const handleDelete = async (e: React.MouseEvent, customer: any) => {
+    e.stopPropagation();
     if (!confirm(`Tem certeza que deseja excluir o cliente ${customer.name}?`)) return;
 
     setActionLoading(customer.id);
@@ -98,10 +102,10 @@ const Customers = () => {
     }
   };
 
-  const handleSendEmail = async (customer: any) => {
+  const handleSendEmail = async (e: React.MouseEvent, customer: any) => {
+    e.stopPropagation();
     setActionLoading(`email-${customer.id}`);
     
-    // Adicionamos um AbortController para cancelar a requisição após 15 segundos
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -123,12 +127,9 @@ const Customers = () => {
       });
 
       clearTimeout(timeoutId);
-
       const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.details || result.error || 'Erro ao enviar e-mail');
-      }
+      if (!response.ok) throw new Error(result.details || result.error || 'Erro ao enviar e-mail');
       
       showSuccess(`E-mail enviado para ${customer.email}`);
     } catch (error: any) {
@@ -148,7 +149,7 @@ const Customers = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Clientes</h2>
-            <p className="text-zinc-400 mt-1">Gerencie sua base de assinantes e acompanhe a saúde financeira individual.</p>
+            <p className="text-zinc-400 mt-1">Gerencie sua base e clique em um cliente para ver o histórico (CRM).</p>
           </div>
           <div className="flex gap-3">
             <button 
@@ -206,14 +207,21 @@ const Customers = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {filteredCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <tr 
+                    key={customer.id} 
+                    onClick={() => navigate(`/clientes/${customer.id}`)}
+                    className="hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+                  >
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700 flex items-center justify-center text-xs font-bold text-orange-500 shadow-lg">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700 flex items-center justify-center text-xs font-bold text-orange-500 shadow-lg group-hover:border-orange-500/50 transition-colors">
                           {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-zinc-100">{customer.name}</p>
+                          <p className="text-sm font-bold text-zinc-100 group-hover:text-orange-400 transition-colors flex items-center gap-2">
+                            {customer.name}
+                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-orange-500" />
+                          </p>
                           <p className="text-xs text-zinc-500">{customer.email}</p>
                         </div>
                       </div>
@@ -235,7 +243,7 @@ const Customers = () => {
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button 
-                          onClick={() => handleSendEmail(customer)}
+                          onClick={(e) => handleSendEmail(e, customer)}
                           disabled={actionLoading === `email-${customer.id}`}
                           title="Enviar Notificação" 
                           className="p-2.5 text-zinc-500 hover:text-orange-400 transition-colors disabled:opacity-50"
@@ -243,14 +251,14 @@ const Customers = () => {
                           {actionLoading === `email-${customer.id}` ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16}/>}
                         </button>
                         <button 
-                          onClick={() => handleEditClick(customer)}
+                          onClick={(e) => handleEditClick(e, customer)}
                           title="Editar" 
                           className="p-2.5 text-zinc-500 hover:text-blue-400 transition-colors"
                         >
                           <Edit3 size={16}/>
                         </button>
                         <button 
-                          onClick={() => handleDelete(customer)}
+                          onClick={(e) => handleDelete(e, customer)}
                           disabled={actionLoading === customer.id}
                           title="Excluir" 
                           className="p-2.5 text-zinc-500 hover:text-red-400 transition-colors disabled:opacity-50"
