@@ -25,7 +25,7 @@ const Charges = () => {
     const { data, error } = await supabase
       .from('charges')
       .select('*, customers(name)')
-      .eq('user_id', user.id) // FILTRO CRÍTICO
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -118,7 +118,7 @@ const Charges = () => {
                     <tr 
                       key={charge.id} 
                       className="hover:bg-zinc-800/30 transition-colors cursor-pointer group"
-                      onClick={() => navigate(`/cobrancas/${charge.id}`)}
+                      onClick={() => navigate(`/financeiro/cobrancas/${charge.id}`)}
                     >
                       <td className="px-6 py-4">
                         <span className="text-sm font-semibold text-zinc-100">{charge.customers?.name || 'Cliente removido'}</span>

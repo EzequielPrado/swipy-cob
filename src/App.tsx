@@ -5,20 +5,30 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./integrations/supabase/auth";
+
+// Novas Páginas e Placeholders
+import OverviewDashboard from "./pages/OverviewDashboard";
+import ComingSoon from "./pages/ComingSoon";
+
+// Módulos Antigos (Agora em Financeiro/Cadastros)
 import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
 import Customers from "./pages/Customers";
 import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
+import Settings from "./pages/Settings";
+
+// Auth e Públicos
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Checkout from "./pages/Checkout";
-import Settings from "./pages/Settings";
+import ClientPortal from "./pages/ClientPortal";
 import NotFound from "./pages/NotFound";
+
+// Admin
 import UserManagement from "./pages/admin/UserManagement";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import GlobalAutomation from "./pages/admin/GlobalAutomation";
-import ClientPortal from "./pages/ClientPortal";
 
 const queryClient = new QueryClient();
 
@@ -43,13 +53,28 @@ const App = () => (
             <Route path="/pagar/:id" element={<Checkout />} />
             <Route path="/meu-painel" element={<ClientPortal />} />
             
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+            {/* VISÃO GERAL (NOVO HOME) */}
+            <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
+            
+            {/* MÓDULOS EM BREVE */}
+            <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/estoque/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/financeiro/pagar" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/financeiro/bancos" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/financeiro/fiscal" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+
+            {/* FINANCEIRO (ANTIGO HOME) */}
+            <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/financeiro/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
+            <Route path="/financeiro/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
+            <Route path="/financeiro/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+            
+            {/* CADASTROS E CONFIG */}
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-            <Route path="/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
-            <Route path="/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
+            {/* ADMIN */}
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/usuarios" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />

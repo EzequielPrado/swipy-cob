@@ -7,14 +7,6 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   Clock, 
-  Send, 
-  AlertCircle, 
-  RefreshCcw, 
-  Landmark, 
-  Loader2,
-  QrCode,
-  ExternalLink,
-  FileText,
   Mail,
   Copy,
   Calendar,
@@ -22,7 +14,10 @@ import {
   Trash2,
   XCircle,
   MessageSquare,
-  Eye
+  Eye,
+  Loader2,
+  QrCode,
+  FileText
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
@@ -48,7 +43,7 @@ const ChargeDetail = () => {
 
       if (error) {
         showError("Cobrança não encontrada");
-        navigate('/cobrancas');
+        navigate('/financeiro/cobrancas');
         return;
       }
       
@@ -71,7 +66,6 @@ const ChargeDetail = () => {
   useEffect(() => {
     fetchChargeDetails();
     
-    // Escutar mudanças em tempo real nos logs (para ver as visualizações ao vivo)
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -101,7 +95,6 @@ const ChargeDetail = () => {
 
       if (error) throw error;
       
-      // Log manual do pagamento
       await supabase.from('notification_logs').insert({
         charge_id: id,
         type: 'payment',
@@ -138,7 +131,7 @@ const ChargeDetail = () => {
       if (error) throw error;
       
       showSuccess("Cobrança excluída.");
-      navigate('/cobrancas');
+      navigate('/financeiro/cobrancas');
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -205,7 +198,7 @@ const ChargeDetail = () => {
       <div className="flex flex-col gap-8 print:p-0">
         <div className="flex items-center justify-between print:hidden">
           <div className="flex items-center gap-4">
-            <Link to="/cobrancas" className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 transition-colors">
+            <Link to="/financeiro/cobrancas" className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 transition-colors">
               <ArrowLeft size={20} />
             </Link>
             <div>
