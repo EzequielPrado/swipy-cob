@@ -10,6 +10,9 @@ import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 import OverviewDashboard from "./pages/OverviewDashboard";
 import ComingSoon from "./pages/ComingSoon";
 
+// Módulos ERP (Fase 2)
+import Products from "./pages/inventory/Products";
+
 // Módulos Antigos (Agora em Financeiro/Cadastros)
 import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
@@ -56,9 +59,12 @@ const App = () => (
             {/* VISÃO GERAL (NOVO HOME) */}
             <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
             
+            {/* ESTOQUE E PRODUTOS */}
+            <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+            
             {/* MÓDULOS EM BREVE */}
             <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/estoque/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/estoque/movimentacoes" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/rh/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/financeiro/pagar" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/financeiro/bancos" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
