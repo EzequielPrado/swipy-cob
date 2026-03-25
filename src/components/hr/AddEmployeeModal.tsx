@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, Send, CheckCircle2, Copy, FileDown } from 'lucide-react';
+import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, CheckCircle2, Copy, FileDown, FileText } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
 
@@ -86,7 +86,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
     let finalPassword = null;
 
     try {
-      // 1. Criar o usuário de Acesso via Edge Function
+      // 1. Criar o usuário de Acesso via Edge Function (agora sem SMTP)
       if (formData.system_access) {
         if (!formData.email) throw new Error("E-mail é obrigatório para criar acesso.");
         
@@ -100,8 +100,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
             email: formData.email,
             fullName: formData.full_name,
             systemRole: formData.system_role,
-            companyName: profile?.company || profile?.full_name || 'Nossa Empresa',
-            origin: window.location.origin
+            companyName: profile?.company || profile?.full_name || 'Nossa Empresa'
           })
         });
 
@@ -110,7 +109,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
           throw new Error(result.error || "Erro na criação do usuário.");
         }
         
-        // Salvamos a senha gerada (mesmo que o e-mail tenha falhado)
         finalPassword = result.tempPassword;
       }
 
@@ -135,7 +133,7 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
       const { error } = await supabase.from('employees').insert(payload);
       if (error) throw error;
 
-      showSuccess("Colaborador registrado na Folha de Pagamento!");
+      showSuccess("Colaborador registrado com sucesso!");
       onSuccess();
 
       // 3. Verifica se tem senha para mostrar na tela
@@ -253,9 +251,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                 <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
                   <CheckCircle2 className="text-emerald-500" size={32} />
                 </div>
-                <h3 className="text-xl font-bold">Colaborador Cadastrado!</h3>
+                <h3 className="text-xl font-bold">Acesso Liberado!</h3>
                 <p className="text-sm text-zinc-400 max-w-sm mx-auto leading-relaxed">
-                  O acesso foi liberado com sucesso. Envie as credenciais abaixo para o novo funcionário.
+                  O colaborador já pode acessar o sistema. Envie as credenciais abaixo ou baixe o PDF.
                 </p>
 
                 <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 mt-6">
@@ -402,9 +400,9 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                           ))}
                         </div>
                         
-                        <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mt-4">
-                          <CheckCircle2 size={16} className="text-emerald-500" />
-                          <p className="text-[10px] text-emerald-500 leading-tight">Ao concluir, você poderá baixar um <strong>PDF</strong> com o login e senha do colaborador.</p>
+                        <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl mt-4">
+                          <FileText size={16} className="text-blue-400" />
+                          <p className="text-[10px] text-blue-400 leading-tight">Ao concluir, o sistema gerará uma <strong>Senha Temporária</strong> e um <strong>PDF</strong> para você enviar ao colaborador.</p>
                         </div>
                       </div>
                     )}
