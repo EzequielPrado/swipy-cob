@@ -263,7 +263,7 @@ const OverviewDashboard = () => {
               
               <h3 className="text-2xl font-bold text-orange-500 mb-3 relative z-10">O ERP está ganhando forma!</h3>
               <p className="text-zinc-400 max-w-lg mb-8 text-sm leading-relaxed relative z-10">
-                O seu antigo painel principal de cobranças agora vive no menu lateral, em <strong>Financeiro > Dashboard Financeiro</strong>. Em breve, os módulos de Vendas e RH também estarão operacionais aqui na Visão Geral.
+                O seu antigo painel principal de cobranças agora vive no menu lateral, em <strong>Financeiro {'>'} Dashboard Financeiro</strong>. Em breve, os módulos de Vendas e RH também estarão operacionais aqui na Visão Geral.
               </p>
               
               <div className="relative z-10">
