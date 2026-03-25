@@ -41,45 +41,48 @@ serve(async (req) => {
     const url = new URL(req.url)
     const action = url.searchParams.get('action') || 'balance'
     
-    // Tentamos Woovi primeiro, se falhar tentamos OpenPix (comum em Wallet)
-    const API_DOMAINS = ['https://api.woovi.com/api/v1', 'https://api.openpix.com.br/api/v1']
-
     if (action === 'balance') {
-      let lastError = '';
+      console.log("[woovi-wallet] Consultando /api/v1/account para obter saldo...");
+
+      // Fazemos o GET na rota de account genérica. A Woovi retornará as contas ligadas ao AppID.
+      const response = await fetch('https://api.woovi.com/api/v1/account', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
       
-      for (const base of API_DOMAINS) {
-        const endpoint = `${base}/balance`;
-        console.log(`[woovi-wallet] Tentando GET ${endpoint}`);
-
-        const response = await fetch(endpoint, {
-          headers: { 'Authorization': appID }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          return new Response(JSON.stringify(data), { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          })
-        }
-
+      if (!response.ok) {
         const errorText = await response.text();
-        lastError = `Status ${response.status}: ${errorText}`;
-        console.warn(`[woovi-wallet] Falha em ${base}: ${lastError}`);
-        
-        // Se for 403, é erro de permissão definitivo no AppID
+        console.warn(`[woovi-wallet] Falha na consulta de conta: Status ${response.status}: ${errorText}`);
         if (response.status === 403) {
-          throw new Error("Seu AppID não tem permissão de 'Wallet'. Ative-a no painel da Woovi (API -> Editar AppID -> Permissões).");
+          throw new Error("Seu AppID não tem permissão para ler a Conta. Ative no painel da Woovi.");
         }
+        throw new Error(`Falha ao acessar conta: ${errorText}`);
       }
+
+      const data = await response.json();
+      console.log("[woovi-wallet] Resposta /account:", JSON.stringify(data));
+
+      let balanceInCents = 0;
       
-      throw new Error(`Não foi possível acessar o saldo. Detalhes: ${lastError}`);
+      // Tratando os possíveis retornos da API da Woovi
+      if (data.account && typeof data.account.balance === 'number') {
+         balanceInCents = data.account.balance;
+      } else if (data.accounts && data.accounts.length > 0 && typeof data.accounts[0].balance === 'number') {
+         balanceInCents = data.accounts[0].balance;
+      } else if (typeof data.balance === 'number') {
+         balanceInCents = data.balance;
+      }
+
+      return new Response(JSON.stringify({ balance: { total: balanceInCents }, raw: data }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     if (action === 'withdraw') {
       const { amount, pixKey, pixKeyType } = await req.json()
       
-      // Para Cashout (Saque), a API costuma ser mais rigorosa no domínio
-      const response = await fetch(`${API_DOMAINS[0]}/cashout`, {
+      // Para Cashout (Saque)
+      const response = await fetch(`https://api.woovi.com/api/v1/cashout`, {
         method: 'POST',
         headers: { 
           'Authorization': appID,
