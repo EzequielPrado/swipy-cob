@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, FileText, Send, User } from 'lucide-react';
+import { Loader2, FileText, Send } from 'lucide-react';
 
 interface IssueInvoiceModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface IssueInvoiceModalProps {
 }
 
 const IssueInvoiceModal = ({ isOpen, onClose, onSuccess }: IssueInvoiceModalProps) => {
+  const { user } = useAuth(); // Pegando o usuário logado
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -25,12 +27,17 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess }: IssueInvoiceModalProp
   });
 
   useEffect(() => {
-    if (isOpen) {
-      supabase.from('customers').select('id, name').order('name').then(({ data }) => {
-        if (data) setCustomers(data);
-      });
+    // FILTRO: Puxar apenas os clientes do lojista atual
+    if (isOpen && user) {
+      supabase.from('customers')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .order('name')
+        .then(({ data }) => {
+          if (data) setCustomers(data);
+        });
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,7 +77,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess }: IssueInvoiceModalProp
       <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
-            <FileText className="text-blue-500" size={20} />
+            <FileText className="text-orange-500" size={20} />
             Emitir Fatura / NF
           </DialogTitle>
         </DialogHeader>
@@ -114,8 +121,8 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess }: IssueInvoiceModalProp
             />
           </div>
 
-          <div className="bg-blue-500/5 border border-blue-500/10 p-4 rounded-xl flex items-start gap-3">
-             <Send className="text-blue-400 mt-1" size={16} />
+          <div className="bg-orange-500/5 border border-orange-500/10 p-4 rounded-xl flex items-start gap-3">
+             <Send className="text-orange-500 mt-1" size={16} />
              <p className="text-[11px] text-zinc-400 leading-relaxed">
                Ao confirmar, o sistema gerará o link oficial na Woovi e disparará uma mensagem para o WhatsApp do cliente com o PDF da fatura.
              </p>
@@ -125,7 +132,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess }: IssueInvoiceModalProp
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <FileText size={18} />}
               Emitir e Enviar Nota

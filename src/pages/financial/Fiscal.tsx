@@ -5,6 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { FileText, Plus, Search, Loader2, ExternalLink, Calendar, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { showError } from '@/utils/toast';
 import IssueInvoiceModal from '@/components/fiscal/IssueInvoiceModal';
 
 const Fiscal = () => {
@@ -16,23 +17,31 @@ const Fiscal = () => {
 
   const fetchInvoices = async () => {
     setLoading(true);
-    // Buscamos nos logs os registros de emissão de invoice (onde o link da Woovi foi salvo)
-    const { data } = await supabase
-      .from('notification_logs')
-      .select('*, charges(amount, customers(name))')
-      .eq('type', 'system')
-      .ilike('message', '%Fatura Fiscal emitida%')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('charges')
+        .select('*, customers(*)')
+        .not('pix_url', 'is', null)
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
 
-    if (data) setInvoices(data);
-    setLoading(false);
+      if (error) throw error;
+      setInvoices(data);
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (user) fetchInvoices();
   }, [user]);
 
-  const extractUrl = (msg: string) => msg.split('Link: ')[1] || '#';
+  const filtered = invoices.filter(i => 
+    i.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    i.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <AppLayout>
@@ -40,22 +49,33 @@ const Fiscal = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <FileText className="text-blue-500" size={32} />
+              <FileText className="text-orange-500" size={32} />
               Módulo Fiscal
             </h2>
-            <p className="text-zinc-400 mt-1">Gestão de Invoices e Documentos de Cobrança.</p>
+            <p className="text-zinc-400 mt-1">Acompanhe as faturas e notas oficiais emitidas pela Woovi.</p>
           </div>
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
           >
             <Plus size={20} /> Emitir Fatura
           </button>
         </div>
 
+        <div className="relative max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <input 
+            type="text" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por cliente ou descrição..." 
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-xl flex items-center gap-4">
-             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
+             <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center text-orange-500">
                 <CheckCircle2 size={24} />
              </div>
              <div>
@@ -74,49 +94,55 @@ const Fiscal = () => {
           </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-xl min-h-[400px]">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
           <div className="p-6 border-b border-zinc-800 bg-zinc-950/30">
              <h3 className="font-bold text-zinc-100">Histórico de Documentos</h3>
           </div>
           
           {loading ? (
-             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-500" size={40} /></div>
-          ) : invoices.length === 0 ? (
-             <div className="text-center py-20 text-zinc-500">Nenhuma fatura emitida neste módulo.</div>
+             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
+          ) : filtered.length === 0 ? (
+             <div className="text-center py-20 text-zinc-500">
+                <FileText size={48} className="mx-auto mb-4 opacity-20" />
+                <p>Nenhuma fatura emitida ainda.</p>
+             </div>
           ) : (
             <table className="w-full text-left">
               <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
                 <tr>
+                  <th className="px-8 py-5">Fatura / Cliente</th>
                   <th className="px-8 py-5">Emissão</th>
-                  <th className="px-8 py-5">Cliente</th>
-                  <th className="px-8 py-5">Valor Original</th>
-                  <th className="px-8 py-5 text-right">Ação</th>
+                  <th className="px-8 py-5">Valor</th>
+                  <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
-                {invoices.map((inv) => (
+                {filtered.map((inv) => (
                   <tr key={inv.id} className="hover:bg-zinc-800/30 transition-colors">
                     <td className="px-8 py-5">
-                       <p className="text-sm font-bold text-zinc-200">{new Date(inv.created_at).toLocaleDateString('pt-BR')}</p>
-                       <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Protocolo API</p>
+                      <p className="text-sm font-bold text-zinc-100">{inv.description || 'Fatura de Serviço'}</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">{inv.customers?.name}</p>
                     </td>
                     <td className="px-8 py-5">
-                       <p className="text-sm font-bold text-zinc-100">{inv.charges?.customers?.name || 'Cliente Geral'}</p>
+                      <div className="flex items-center gap-2 text-xs text-zinc-400">
+                        <Calendar size={14} />
+                        {new Date(inv.created_at).toLocaleDateString('pt-BR')}
+                      </div>
                     </td>
-                    <td className="px-8 py-5">
-                       <p className="text-sm font-bold text-zinc-100">
-                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.charges?.amount || 0)}
-                       </p>
+                    <td className="px-8 py-5 text-sm font-bold text-zinc-100">
+                      R$ {inv.amount.toFixed(2)}
                     </td>
                     <td className="px-8 py-5 text-right">
-                       <a 
-                        href={extractUrl(inv.message)} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-blue-400 px-4 py-2 rounded-lg text-xs font-bold transition-all"
-                       >
-                         <ExternalLink size={14} /> ABRIR PDF
-                       </a>
+                      <div className="flex items-center justify-end gap-3">
+                        <a 
+                          href={inv.pix_url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="p-2 bg-zinc-800 hover:bg-zinc-700 text-orange-400 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                        >
+                          <ExternalLink size={14} /> Ver PDF
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}

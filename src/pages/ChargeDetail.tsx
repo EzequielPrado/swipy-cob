@@ -144,7 +144,7 @@ const ChargeDetail = () => {
              <button 
               onClick={handleEmitInvoice}
               disabled={!!actionLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20 disabled:opacity-50"
             >
               {actionLoading === 'invoice' ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
               Emitir Fatura / NF
@@ -196,7 +196,7 @@ const ChargeDetail = () => {
                 {logs.map((log) => (
                   <div key={log.id} className="flex gap-4 p-4 bg-zinc-950/30 border border-zinc-800 rounded-xl">
                     <div className="mt-1">
-                      {log.type === 'system' ? <FileText size={16} className="text-blue-400" /> : <MessageSquare size={16} className="text-emerald-400" />}
+                      {log.type === 'system' ? <FileText size={16} className="text-orange-400" /> : <MessageSquare size={16} className="text-emerald-400" />}
                     </div>
                     <div>
                       <p className="text-sm text-zinc-200">{log.message}</p>
