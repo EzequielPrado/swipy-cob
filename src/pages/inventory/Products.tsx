@@ -3,18 +3,22 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Plus, Loader2, Edit3, Trash2, Package, Tag, Archive } from 'lucide-react';
+import { Search, Plus, Loader2, Trash2, Package, Tag, Archive, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddProductModal from '@/components/inventory/AddProductModal';
 import ProductDetailsModal from '@/components/inventory/ProductDetailsModal';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Products = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados de Filtro
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
@@ -42,16 +46,27 @@ const Products = () => {
     fetchProducts();
   }, [user]);
 
+  // Extrair categorias únicas para o filtro
+  const categories = useMemo(() => {
+    const cats = products.map(p => p.category).filter(Boolean);
+    return [...new Set(cats)].sort();
+  }, [products]);
+
+  // Aplica a busca por texto E o filtro de categoria
   const filteredProducts = useMemo(() => {
-    return products.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [products, searchTerm]);
+    return products.filter(p => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = p.name.toLowerCase().includes(searchLower) ||
+                            (p.sku && p.sku.toLowerCase().includes(searchLower));
+      
+      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchTerm, selectedCategory]);
 
   const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
-    e.stopPropagation(); // Evita abrir o modal de detalhes ao clicar na lixeira
+    e.stopPropagation();
     if (!confirm(`Deseja excluir o produto "${name}"? Esta ação não pode ser desfeita.`)) return;
     
     try {
@@ -103,15 +118,33 @@ const Products = () => {
           </div>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-          <input 
-            type="text" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome, SKU ou categoria..." 
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
-          />
+        {/* Área de Filtros Aprimorada */}
+        <div className="flex flex-col md:flex-row gap-4 items-center bg-zinc-900/50 p-2 rounded-3xl border border-zinc-800/50">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+            <input 
+              type="text" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome ou SKU..." 
+              className="w-full bg-zinc-900 border-none rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-0 outline-none transition-all"
+            />
+          </div>
+          
+          <div className="w-full md:w-auto flex items-center gap-2 pr-2">
+            <Filter size={16} className="text-zinc-500 ml-2 md:ml-0" />
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full md:w-[220px] bg-zinc-900 border-zinc-800 h-11 rounded-xl text-xs font-semibold">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectItem value="all" className="font-bold text-orange-400">Todas as Categorias</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
@@ -122,7 +155,15 @@ const Products = () => {
           ) : filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <Package size={48} className="mb-4 opacity-20" />
-              <p>Nenhum produto encontrado.</p>
+              <p>Nenhum produto encontrado com esses filtros.</p>
+              {(searchTerm || selectedCategory !== 'all') && (
+                <button 
+                  onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
+                  className="mt-4 text-xs text-orange-500 hover:underline"
+                >
+                  Limpar Filtros
+                </button>
+              )}
             </div>
           ) : (
             <table className="w-full text-left">
