@@ -39,7 +39,7 @@ const AdminDashboard = () => {
     try {
       const { count: users } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
       const { data: chargesData } = await supabase.from('charges').select('amount, status');
-      const { count: subs } = await supabase.from('subscriptions').select('*', { count: 'exact', head: true, filter: 'status=eq.active' });
+      const { count: subs } = await supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active');
 
       const overdue = chargesData?.filter(c => c.status === 'atrasado').reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
 
