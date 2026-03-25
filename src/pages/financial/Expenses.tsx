@@ -1,8 +1,23 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, AlertTriangle, Building, Tag, Edit2 } from 'lucide-react';
+import { 
+  ArrowUpRight, 
+  Plus, 
+  Loader2, 
+  Trash2, 
+  Calendar, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Building, 
+  Tag, 
+  Edit2,
+  Paperclip,
+  Eye,
+  UploadCloud,
+  CalendarDays
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -23,10 +38,31 @@ const CATEGORIES = [
 
 const Expenses = () => {
   const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   
+  // Filtro de Mês
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6); 
+    for(let i=0; i<12; i++) {
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      d.setMonth(d.getMonth() + 1);
+    }
+    return options;
+  }, []);
+
   // Modal de Adicionar/Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,10 +81,17 @@ const Expenses = () => {
     if (!user) return;
     setLoading(true);
     
+    // Filtro de data
+    const [year, month] = selectedMonth.split('-');
+    const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
+    const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
+
     const { data: expData, error: expError } = await supabase
       .from('expenses')
       .select('*, bank_accounts(name)')
       .eq('user_id', user.id)
+      .gte('due_date', startDate)
+      .lte('due_date', endDate)
       .order('due_date', { ascending: true });
 
     if (!expError && expData) {
@@ -68,7 +111,7 @@ const Expenses = () => {
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [user, selectedMonth]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -153,28 +196,99 @@ const Expenses = () => {
     }
   };
 
+  const triggerFileUpload = (id: string) => {
+    setSelectedExpense({ id }); // Guarda o ID para saber qual linha está enviando
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const expId = selectedExpense?.id;
+    if (!file || !expId) return;
+
+    setUploadingId(expId);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${expId}-${Math.random()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, file);
+        
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('expenses')
+        .update({ receipt_url: publicUrl })
+        .eq('id', expId);
+
+      if (updateError) throw updateError;
+
+      showSuccess("Comprovante anexado com sucesso!");
+      fetchData();
+    } catch (err: any) {
+      console.error(err);
+      showError("Erro ao anexar comprovante. Certifique-se de ter rodado o SQL no Supabase para criar o bucket e a coluna.");
+    } finally {
+      setUploadingId(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const totalPendente = expenses.filter(e => e.status !== 'pago').reduce((acc, curr) => acc + Number(curr.amount), 0);
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-end">
+      <div className="flex flex-col gap-8 pb-12">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Contas a Pagar</h2>
             <p className="text-zinc-400 mt-1">Controle suas despesas, fornecedores e obrigações.</p>
           </div>
-          <button 
-            onClick={openAddModal}
-            className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-red-500/20"
-          >
-            <Plus size={18} /> Nova Despesa
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
+              <div className="pl-3 text-zinc-500">
+                <CalendarDays size={16} />
+              </div>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <button 
+              onClick={openAddModal}
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-red-500/20"
+            >
+              <Plus size={18} /> Nova Despesa
+            </button>
+          </div>
         </div>
+
+        {/* Input escondido para upload de arquivo */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleUploadReceipt} 
+          className="hidden" 
+          accept="image/*,.pdf" 
+        />
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl w-full max-w-sm border-l-red-500/50">
           <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-2 flex items-center gap-2">
-            <ArrowUpRight size={14} className="text-red-500" /> Total Pendente
+            <ArrowUpRight size={14} className="text-red-500" /> Total Pendente ({monthOptions.find(o => o.value === selectedMonth)?.label})
           </p>
           <p className="text-3xl font-bold text-zinc-100">{currencyFormatter.format(totalPendente)}</p>
         </div>
@@ -185,7 +299,7 @@ const Expenses = () => {
           ) : expenses.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
-              <p>Nenhuma conta a pagar registrada. Tudo em dia!</p>
+              <p>Nenhuma conta registrada neste mês. Tudo em dia!</p>
             </div>
           ) : (
             <table className="w-full text-left">
@@ -200,7 +314,7 @@ const Expenses = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {expenses.map((exp) => (
-                  <tr key={exp.id} className={cn("hover:bg-zinc-800/30 transition-colors", exp.status === 'pago' && "opacity-60")}>
+                  <tr key={exp.id} className={cn("hover:bg-zinc-800/30 transition-colors", exp.status === 'pago' && "opacity-60 hover:opacity-100")}>
                     <td className="px-8 py-5">
                       <p className={cn("text-sm font-bold", exp.status === 'pago' ? "text-zinc-400 line-through" : "text-zinc-100")}>{exp.description}</p>
                       <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-zinc-500 uppercase tracking-widest">
@@ -237,6 +351,32 @@ const Expenses = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        
+                        {/* Controle do Comprovante (Apenas se já foi pago) */}
+                        {exp.status === 'pago' && (
+                          exp.receipt_url ? (
+                            <a 
+                              href={exp.receipt_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors flex items-center gap-1"
+                              title="Ver Comprovante"
+                            >
+                              <Eye size={16} /> <span className="text-[10px] font-bold">Ver</span>
+                            </a>
+                          ) : (
+                            <button 
+                              onClick={() => triggerFileUpload(exp.id)}
+                              disabled={uploadingId === exp.id}
+                              className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                              title="Anexar Comprovante"
+                            >
+                              {uploadingId === exp.id ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                              <span className="text-[10px] font-bold">Anexar</span>
+                            </button>
+                          )
+                        )}
+
                         {exp.status !== 'pago' && (
                           <button 
                             onClick={() => { setSelectedExpense(exp); setIsPayOpen(true); }}

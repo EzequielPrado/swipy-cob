@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
@@ -11,7 +11,8 @@ import {
   Target, 
   Loader2, 
   RefreshCw,
-  Scale
+  Scale,
+  CalendarDays
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -23,6 +24,7 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError } from '@/utils/toast';
@@ -31,6 +33,25 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   
+  // Controle de Mês/Ano
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6); // Volta 6 meses
+    for(let i=0; i<12; i++) {
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      d.setMonth(d.getMonth() + 1);
+    }
+    return options;
+  }, []);
+
   const [finance, setFinance] = useState({
     entradasTotais: 0,
     saidasTotais: 0,
@@ -62,8 +83,6 @@ const Dashboard = () => {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const data = await response.json();
-      
-      console.log("[Dashboard] Retorno da Carteira Woovi:", data); // Log para debug no console F12
 
       if (data.error) {
         showError(`Erro na Woovi: ${data.message}`);
@@ -92,15 +111,26 @@ const Dashboard = () => {
     setLoading(true);
 
     try {
+      // Definir range do mês selecionado
+      const [year, month] = selectedMonth.split('-');
+      // Primeiro dia do mês
+      const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
+      // Último dia do mês
+      const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
+
       const { data: charges } = await supabase
         .from('charges')
-        .select('amount, status, created_at')
-        .eq('user_id', user.id);
+        .select('amount, status, created_at, due_date')
+        .eq('user_id', user.id)
+        .gte('due_date', startDate)
+        .lte('due_date', endDate);
 
       const { data: expenses } = await supabase
         .from('expenses')
-        .select('amount, status, due_date')
-        .eq('user_id', user.id);
+        .select('amount, status, due_date, payment_date')
+        .eq('user_id', user.id)
+        .gte('due_date', startDate)
+        .lte('due_date', endDate);
 
       const { data: subs } = await supabase
         .from('subscriptions')
@@ -166,24 +196,46 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchFinancialData();
-    fetchWalletBalance();
+  }, [user, selectedMonth]); // Atualiza sempre que o mês mudar
+
+  useEffect(() => {
+    if(user) fetchWalletBalance();
   }, [user]);
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Visão Financeira</h2>
             <p className="text-zinc-400 mt-1">Fluxo de Caixa, Desempenho e Conciliação</p>
           </div>
-          <button 
-            onClick={fetchWalletBalance}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-800 transition-colors"
-          >
-            {wallet.loading ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <RefreshCw size={16} className="text-zinc-400" />}
-            Sincronizar Dados
-          </button>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
+              <div className="pl-3 text-zinc-500">
+                <CalendarDays size={16} />
+              </div>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <button 
+              onClick={fetchWalletBalance}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-800 transition-colors"
+            >
+              {wallet.loading ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <RefreshCw size={16} className="text-zinc-400" />}
+              Sincronizar
+            </button>
+          </div>
         </div>
 
         {/* TOP CARDS: O DRE BÁSICO */}
@@ -196,7 +248,7 @@ const Dashboard = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(finance.entradasTotais)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Cobranças Pagas Pelos Clientes</p>
+            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
@@ -207,7 +259,7 @@ const Dashboard = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(finance.saidasTotais)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Despesas e Contas Quitadas</p>
+            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
           </div>
 
           <div className={cn(
@@ -226,7 +278,7 @@ const Dashboard = () => {
                 {currencyFormatter.format(finance.lucroLiquido)}
               </p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">O que Sobrou no Caixa (Líquido)</p>
+            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Caixa Líquido no Mês</p>
           </div>
         </div>
 
@@ -305,11 +357,11 @@ const Dashboard = () => {
 
             <div className="grid grid-cols-2 gap-4">
                <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Receber</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Receber (Mês)</span>
                 <p className="text-lg font-bold text-zinc-300 mt-1">{loading ? "..." : currencyFormatter.format(finance.aReceber)}</p>
               </div>
               <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Pagar</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Pagar (Mês)</span>
                 <p className="text-lg font-bold text-red-400 mt-1">{loading ? "..." : currencyFormatter.format(finance.aPagar)}</p>
               </div>
             </div>
