@@ -17,7 +17,8 @@ import {
   Contact,
   ChevronDown,
   ChevronRight,
-  Wallet
+  Wallet,
+  Factory
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -49,6 +50,14 @@ const menuStructure = [
       { label: 'Gestão de Vendas', path: '/vendas/lista' },
       { label: 'Orçamentos', path: '/vendas/orcamentos' },
       { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' },
+    ]
+  },
+  {
+    title: 'Indústria',
+    icon: Factory,
+    roles: ['Admin', 'Estoque'],
+    submenus: [
+      { label: 'Controle de Produção', path: '/industria/producao' },
     ]
   },
   {
@@ -144,7 +153,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               
               const newNotification = {
                 id: Date.now(),
-                title: 'Pagamento Confirmado!',
+                title: 'Pagamento Confirmação!',
                 message: `Recebemos o pagamento de ${amount}.`,
                 time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               };

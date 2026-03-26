@@ -22,6 +22,9 @@ import SalesDashboard from "./pages/sales/SalesDashboard";
 import Products from "./pages/inventory/Products";
 import Movements from "./pages/inventory/Movements";
 
+// Indústria
+import Production from "./pages/industry/Production";
+
 // Financeiro e Conta Digital
 import Dashboard from "./pages/Dashboard";
 import Subscriptions from "./pages/Subscriptions";
@@ -84,7 +87,6 @@ const App = () => (
             {/* VENDAS */}
             <Route path="/vendas/orcamentos" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
             <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
-            {/* Rota para Editar Orçamento */}
             <Route path="/vendas/orcamentos/:id/editar" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
             
             <Route path="/vendas/dashboard" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
@@ -95,6 +97,9 @@ const App = () => (
             <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
             <Route path="/estoque/movimentacoes" element={<ProtectedRoute><Movements /></ProtectedRoute>} />
             
+            {/* INDÚSTRIA */}
+            <Route path="/industria/producao" element={<ProtectedRoute><Production /></ProtectedRoute>} />
+
             {/* RH */}
             <Route path="/rh/metas" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />

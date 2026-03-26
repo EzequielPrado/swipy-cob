@@ -4,10 +4,11 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Package, DollarSign, Wand2 } from 'lucide-react';
+import { Loader2, Package, DollarSign, Wand2, Factory } from 'lucide-react';
 
 interface AddProductModalProps {
   isOpen: boolean;
@@ -25,7 +26,8 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     costPrice: '',
     sku: '',
     category: '',
-    stock_quantity: '0'
+    stock_quantity: '0',
+    is_produced: false
   });
 
   const generateSKU = () => {
@@ -57,7 +59,8 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
         cost_price: costNum,
         sku: finalSku,
         category: formData.category,
-        stock_quantity: stockQty
+        stock_quantity: stockQty,
+        is_produced: formData.is_produced
       }).select().single();
 
       if (error) throw error;
@@ -76,7 +79,10 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
       showSuccess('Produto cadastrado com sucesso!');
       onSuccess();
       onClose();
-      setFormData({ name: '', description: '', price: '', costPrice: '', sku: '', category: '', stock_quantity: '0' });
+      setFormData({ 
+        name: '', description: '', price: '', costPrice: '', sku: '', 
+        category: '', stock_quantity: '0', is_produced: false 
+      });
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -103,6 +109,22 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
               value={formData.name}
               onChange={(e) => setFormData({...formData, name: e.target.value})}
               placeholder="Ex: Consultoria, Teclado Mecânico..."
+            />
+          </div>
+
+          {/* Toggle de Produção */}
+          <div className="flex items-center justify-between p-4 bg-orange-500/5 border border-orange-500/10 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <Factory className="text-orange-500" size={20} />
+              <div>
+                <Label className="text-sm font-bold text-zinc-100">Produzido pela Indústria?</Label>
+                <p className="text-[10px] text-zinc-500">Vendas deste item gerarão Ordens de Produção automaticamente.</p>
+              </div>
+            </div>
+            <Switch 
+              checked={formData.is_produced}
+              onCheckedChange={(val) => setFormData({...formData, is_produced: val})}
+              className="data-[state=checked]:bg-orange-500"
             />
           </div>
 

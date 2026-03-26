@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, 
-  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag, Truck
+  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag, Truck, Factory
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -93,7 +93,7 @@ const POS = () => {
         }
         return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
       }
-      if (product.stock_quantity <= 0) {
+      if (!product.is_produced && product.stock_quantity <= 0) {
         showError("Produto sem estoque!");
         return prev;
       }
@@ -107,7 +107,7 @@ const POS = () => {
         if (item.id === id) {
           const newQty = item.qty + delta;
           if (newQty < 1) return item;
-          if (newQty > item.stock_quantity) {
+          if (!item.is_produced && newQty > item.stock_quantity) {
             showError("Estoque máximo atingido.");
             return item;
           }
@@ -129,7 +129,6 @@ const POS = () => {
     setIsCheckoutOpen(false);
   };
 
-  // Atualiza a lista e seleciona o novo cliente automaticamente
   const handleCustomerAdded = async () => {
     const { data } = await supabase
       .from('customers')
@@ -158,15 +157,16 @@ const POS = () => {
         customer_id: checkoutData.customerId,
         seller_id: checkoutData.sellerId === 'none' ? null : checkoutData.sellerId,
         total_amount: totalAmount,
-        status: 'completed', // <-- Status de PDV
+        status: 'completed',
         expires_at: new Date().toISOString()
       }).select().single();
 
       if (quoteError) throw quoteError;
 
-      // 2. Inserir Itens e Baixar Estoque
+      // 2. Inserir Itens, Baixar Estoque e Gerar Ordens de Produção
       const quoteItems = [];
       const movements = [];
+      const productionOrders = [];
       
       for (const item of cart) {
         quoteItems.push({
@@ -177,21 +177,39 @@ const POS = () => {
           total_price: item.price * item.qty
         });
 
-        movements.push({
-          user_id: user?.id,
-          product_id: item.id,
-          type: 'out',
-          quantity: item.qty,
-          notes: `Venda PDV #${quote.id.split('-')[0].toUpperCase()}`
-        });
+        // Só gera saída de estoque imediata se NÃO for produzido. 
+        // Se for produzido, o estoque só baixa quando a produção terminar (ou baixa insumos, mas aqui simplificaremos)
+        if (!item.is_produced) {
+          movements.push({
+            user_id: user?.id,
+            product_id: item.id,
+            type: 'out',
+            quantity: item.qty,
+            notes: `Venda PDV #${quote.id.split('-')[0].toUpperCase()}`
+          });
 
-        await supabase.from('products')
-          .update({ stock_quantity: item.stock_quantity - item.qty })
-          .eq('id', item.id);
+          await supabase.from('products')
+            .update({ stock_quantity: Math.max(0, item.stock_quantity - item.qty) })
+            .eq('id', item.id);
+        } else {
+          // GERA ORDEM DE PRODUÇÃO
+          productionOrders.push({
+            user_id: user?.id,
+            product_id: item.id,
+            quote_id: quote.id,
+            quantity: item.qty,
+            status: 'pending',
+            notes: `Venda PDV Cliente: ${customers.find(c => c.id === checkoutData.customerId)?.name}`
+          });
+        }
       }
 
       await supabase.from('quote_items').insert(quoteItems);
-      await supabase.from('inventory_movements').insert(movements);
+      if (movements.length > 0) await supabase.from('inventory_movements').insert(movements);
+      if (productionOrders.length > 0) {
+        await supabase.from('production_orders').insert(productionOrders);
+        showSuccess(`${productionOrders.length} Ordens de Produção geradas.`);
+      }
 
       // 3. Processar Pagamento
       if (checkoutData.method === 'pix') {
@@ -301,13 +319,14 @@ const POS = () => {
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-500 border border-zinc-800 group-hover:bg-orange-500/10 group-hover:text-orange-500 transition-colors">
-                        {prod.name.charAt(0).toUpperCase()}
+                        {prod.is_produced ? <Factory size={20} className="text-orange-500" /> : prod.name.charAt(0).toUpperCase()}
                       </div>
                       <span className={cn(
                         "text-[10px] font-bold px-2 py-1 rounded-md",
+                        prod.is_produced ? "bg-orange-500/10 text-orange-400" :
                         prod.stock_quantity > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
                       )}>
-                        {prod.stock_quantity} un
+                        {prod.is_produced ? 'INDUSTRIAL' : `${prod.stock_quantity} un`}
                       </span>
                     </div>
                     <p className="font-bold text-zinc-200 line-clamp-2 mb-1 group-hover:text-orange-400 transition-colors">{prod.name}</p>
@@ -437,7 +456,7 @@ const POS = () => {
                   onClick={() => setIsAddCustomerModalOpen(true)}
                   className="text-[10px] text-orange-500 font-bold uppercase tracking-widest hover:underline flex items-center gap-1"
                 >
-                  <Plus size={12} /> Novo
+                  <Plus size={12} /> Novo Cliente
                 </button>
               </div>
               <Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}>
