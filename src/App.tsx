@@ -10,10 +10,11 @@ import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 import OverviewDashboard from "./pages/OverviewDashboard";
 import ComingSoon from "./pages/ComingSoon";
 
-// Vendas / Orçamentos
+// Vendas / Orçamentos / PDV
 import Quotes from "./pages/sales/Quotes";
 import QuoteBuilder from "./pages/sales/QuoteBuilder";
 import QuotePublicView from "./pages/QuotePublicView";
+import POS from "./pages/sales/POS";
 
 // Estoque
 import Products from "./pages/inventory/Products";
@@ -83,7 +84,7 @@ const App = () => (
             <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
             <Route path="/vendas/dashboard" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
             <Route path="/vendas/lista" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-            <Route path="/vendas/pdv" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/vendas/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
 
             {/* ESTOQUE E PRODUTOS */}
             <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
