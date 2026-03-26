@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from 'react-router-dom';
+import AddCustomerModal from '@/components/customers/AddCustomerModal';
 
 const POS = () => {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ const POS = () => {
   
   // Checkout
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [checkoutData, setCheckoutData] = useState({
     customerId: '',
@@ -122,6 +124,27 @@ const POS = () => {
     setCart([]);
     setDiscount('');
     setIsCheckoutOpen(false);
+  };
+
+  // Atualiza a lista e seleciona o novo cliente automaticamente
+  const handleCustomerAdded = async () => {
+    const { data } = await supabase
+      .from('customers')
+      .select('id, name')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false }); // Traz o mais novo primeiro
+
+    if (data) {
+      setCustomers(data.sort((a, b) => a.name.localeCompare(b.name))); // Mantém ordenado na lista
+      
+      // Encontra o mais recente (primeiro da lista antes do sort, então buscamos de novo pelo id se necessário, 
+      // ou apenas pegamos do original desc)
+      const newest = data.reduce((prev, current) => (prev.id > current.id) ? prev : current, data[0]);
+      
+      if (data.length > 0) {
+        setCheckoutData(prev => ({ ...prev, customerId: data[0].id }));
+      }
+    }
   };
 
   const handleCheckout = async () => {
@@ -402,7 +425,15 @@ const POS = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2"><User size={14} className="text-orange-500" /> Cliente</Label>
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2"><User size={14} className="text-orange-500" /> Cliente</Label>
+                <button 
+                  onClick={() => setIsAddCustomerModalOpen(true)}
+                  className="text-[10px] text-orange-500 font-bold uppercase tracking-widest hover:underline flex items-center gap-1"
+                >
+                  <Plus size={12} /> Novo
+                </button>
+              </div>
               <Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}>
                 <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Selecione o cliente..." /></SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
@@ -460,6 +491,13 @@ const POS = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL DE CADASTRO DE NOVO CLIENTE */}
+      <AddCustomerModal 
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        onSuccess={handleCustomerAdded}
+      />
     </AppLayout>
   );
 };
