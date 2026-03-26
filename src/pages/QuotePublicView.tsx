@@ -6,6 +6,7 @@ import { Loader2, CheckCircle2, AlertTriangle, FileText, Download, ArrowRight, S
 import { showError, showSuccess } from '@/utils/toast';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { cn } from "@/lib/utils";
 
 const QuotePublicView = () => {
   const { id } = useParams();
@@ -110,14 +111,14 @@ const QuotePublicView = () => {
     doc.setTextColor(33, 33, 33);
     doc.text("CLIENTE:", 110, 50);
     doc.setFontSize(10);
-    doc.text(customer?.name || "Cliente", 110, 56);
+    doc.text(customer?.name || "Cliente Excluído", 110, 56);
     doc.text(`CPF/CNPJ: ${customer?.tax_id || "-"}`, 110, 62);
     doc.text(`Email: ${customer?.email || "-"}`, 110, 68);
 
     // Tabela de Produtos
     const tableColumn = ["Item", "Descrição", "Qtd", "V. Unit", "Total"];
     const tableRows = items.map(item => [
-      item.products?.name || 'Item',
+      item.products?.name || 'Item Removido',
       item.products?.description || '-',
       item.quantity || 0,
       currencyFormatter.format(item.unit_price || 0),
@@ -226,7 +227,7 @@ const QuotePublicView = () => {
                   {items.map((item) => (
                     <tr key={item.id} className="bg-zinc-900/50">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-zinc-200">{item.products?.name || "Produto"}</p>
+                        <p className="font-bold text-zinc-200">{item.products?.name || "Produto Removido"}</p>
                         <p className="text-xs text-zinc-500 mt-1">{item.products?.description || '-'}</p>
                       </td>
                       <td className="px-6 py-4 text-center text-zinc-400 font-mono">{item.quantity}</td>
