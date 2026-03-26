@@ -24,15 +24,20 @@ const ProductDetailsModal = ({ isOpen, onClose, product }: ProductDetailsModalPr
 
   const fetchMovements = async () => {
     setLoading(true);
+    
+    // Removido o join com profiles que estava causando erro silencioso
     const { data, error } = await supabase
       .from('inventory_movements')
-      .select('*, profiles:user_id(full_name, company)')
+      .select('*')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
+    if (error) {
+      console.error("Erro ao buscar histórico:", error.message);
+    } else if (data) {
       setMovements(data);
     }
+    
     setLoading(false);
   };
 
