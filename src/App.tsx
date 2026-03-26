@@ -84,6 +84,9 @@ const App = () => (
             {/* VENDAS */}
             <Route path="/vendas/orcamentos" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
             <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
+            {/* Rota para Editar Orçamento */}
+            <Route path="/vendas/orcamentos/:id/editar" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
+            
             <Route path="/vendas/dashboard" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
             <Route path="/vendas/lista" element={<ProtectedRoute><SalesList /></ProtectedRoute>} />
             <Route path="/vendas/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />

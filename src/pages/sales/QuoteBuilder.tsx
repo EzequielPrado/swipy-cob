@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -13,14 +13,17 @@ import { Input } from "@/components/ui/input";
 const QuoteBuilder = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams(); // Para edição
+
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
 
   const [customerId, setCustomerId] = useState('');
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 7); // Validade de 7 dias padrão
+    d.setDate(d.getDate() + 7);
     return d.toISOString().split('T')[0];
   });
   
@@ -30,9 +33,54 @@ const QuoteBuilder = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('customers').select('id, name').eq('user_id', user.id).order('name').then(({data}) => setCustomers(data || []));
-    supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name').then(({data}) => setProducts(data || []));
-  }, [user]);
+    
+    const loadInitialData = async () => {
+      setDataLoading(true);
+      // Carrega clientes e produtos
+      const [custRes, prodRes] = await Promise.all([
+        supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
+        supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name')
+      ]);
+
+      if (custRes.data) setCustomers(custRes.data);
+      if (prodRes.data) setProducts(prodRes.data);
+
+      // Se tiver ID, carrega o orçamento existente
+      if (id) {
+        const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).single();
+        const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id);
+
+        if (quote) {
+          setCustomerId(quote.customer_id);
+          setExpiresAt(quote.expires_at ? quote.expires_at.split('T')[0] : '');
+
+          if (itemsData && itemsData.length > 0) {
+            const mappedItems = itemsData.map((i: any) => ({
+              productId: i.product_id,
+              quantity: i.quantity,
+              unitPrice: i.unit_price,
+            }));
+            setItems(mappedItems);
+
+            // Calcula o frete/desconto com base na diferença entre o total_amount e a soma dos itens
+            const subtotal = mappedItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
+            const diff = quote.total_amount - subtotal;
+            
+            if (diff < 0) {
+              setDiscount(Math.abs(diff).toFixed(2).replace('.', ','));
+              setFreight('');
+            } else if (diff > 0) {
+              setFreight(diff.toFixed(2).replace('.', ','));
+              setDiscount('');
+            }
+          }
+        }
+      }
+      setDataLoading(false);
+    };
+
+    loadInitialData();
+  }, [user, id]);
 
   const handleProductChange = (index: number, productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -71,34 +119,64 @@ const QuoteBuilder = () => {
     
     setLoading(true);
     try {
-      // 1. Criar Orçamento
-      const { data: quote, error: quoteError } = await supabase
-        .from('quotes')
-        .insert({
-          user_id: user?.id,
-          customer_id: customerId,
-          total_amount: totalAmount, // Salva o total final calculado
-          expires_at: expiresAt,
-          status: 'draft'
-        })
-        .select()
-        .single();
+      if (id) {
+        // UPDATE (Edição)
+        const { error: quoteError } = await supabase
+          .from('quotes')
+          .update({
+            customer_id: customerId,
+            total_amount: totalAmount,
+            expires_at: expiresAt,
+          })
+          .eq('id', id);
 
-      if (quoteError) throw quoteError;
+        if (quoteError) throw quoteError;
 
-      // 2. Criar Itens
-      const quoteItemsToInsert = items.map(item => ({
-        quote_id: quote.id,
-        product_id: item.productId,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        total_price: item.quantity * item.unitPrice
-      }));
+        // Limpar itens antigos e inserir os novos
+        await supabase.from('quote_items').delete().eq('quote_id', id);
 
-      const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
-      if (itemsError) throw itemsError;
+        const quoteItemsToInsert = items.map(item => ({
+          quote_id: id,
+          product_id: item.productId,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total_price: item.quantity * item.unitPrice
+        }));
 
-      showSuccess("Orçamento criado com sucesso!");
+        const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
+        if (itemsError) throw itemsError;
+
+        showSuccess("Orçamento atualizado com sucesso!");
+      } else {
+        // INSERT (Novo)
+        const { data: quote, error: quoteError } = await supabase
+          .from('quotes')
+          .insert({
+            user_id: user?.id,
+            customer_id: customerId,
+            total_amount: totalAmount,
+            expires_at: expiresAt,
+            status: 'draft'
+          })
+          .select()
+          .single();
+
+        if (quoteError) throw quoteError;
+
+        const quoteItemsToInsert = items.map(item => ({
+          quote_id: quote.id,
+          product_id: item.productId,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          total_price: item.quantity * item.unitPrice
+        }));
+
+        const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
+        if (itemsError) throw itemsError;
+
+        showSuccess("Orçamento criado com sucesso!");
+      }
+      
       navigate('/vendas/orcamentos');
     } catch (err: any) {
       showError(err.message);
@@ -109,6 +187,10 @@ const QuoteBuilder = () => {
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  if (dataLoading) {
+    return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
+  }
+
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12 max-w-5xl mx-auto">
@@ -118,7 +200,7 @@ const QuoteBuilder = () => {
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Criar Orçamento</h2>
+              <h2 className="text-2xl font-bold tracking-tight">{id ? "Editar Orçamento" : "Criar Orçamento"}</h2>
               <p className="text-zinc-400 mt-1 text-sm">Monte a proposta comercial para seu cliente.</p>
             </div>
           </div>
@@ -128,7 +210,7 @@ const QuoteBuilder = () => {
             className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
           >
             {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-            Finalizar Orçamento
+            {id ? "Salvar Alterações" : "Finalizar Orçamento"}
           </button>
         </div>
 

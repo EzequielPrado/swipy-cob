@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Plus, Loader2, FileText, Copy, ExternalLink, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Loader2, FileText, Copy, ExternalLink, Trash2, CheckCircle2, Edit3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -132,6 +132,15 @@ const Quotes = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {quote.status === 'draft' && (
+                          <button 
+                            onClick={() => navigate(`/vendas/orcamentos/${quote.id}/editar`)}
+                            className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
+                            title="Editar Orçamento"
+                          >
+                            <Edit3 size={16}/>
+                          </button>
+                        )}
                         <button 
                           onClick={() => window.open(`/orcamento/${quote.id}`, '_blank')}
                           className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
