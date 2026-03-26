@@ -24,6 +24,7 @@ const Quotes = () => {
       .from('quotes')
       .select('*, customers(name)')
       .eq('user_id', user.id)
+      .in('status', ['draft', 'approved']) // FILTRO CRÍTICO: Esconde vendas de PDV (completed) e pedidos em andamento
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -94,7 +95,7 @@ const Quotes = () => {
           ) : filteredQuotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <FileText size={48} className="mb-4 opacity-20" />
-              <p>Nenhum orçamento encontrado.</p>
+              <p>Nenhum orçamento em aberto encontrado.</p>
             </div>
           ) : (
             <table className="w-full text-left">
@@ -124,10 +125,10 @@ const Quotes = () => {
                       <span className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
                         quote.status === 'approved' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                        "bg-zinc-800 text-zinc-400 border-zinc-700"
+                        "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
                       )}>
-                        {quote.status === 'approved' && <CheckCircle2 size={12} />}
-                        {quote.status === 'approved' ? 'Aprovado' : 'Aguardando'}
+                        {quote.status === 'approved' ? <CheckCircle2 size={12} /> : <FileText size={12} />}
+                        {quote.status === 'approved' ? 'Aprovado' : 'Em Aberto'}
                       </span>
                     </td>
                     <td className="px-8 py-5 text-right">
