@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, 
-  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact
+  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -25,8 +25,9 @@ const POS = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // Estado do Carrinho
+  // Estado do Carrinho e Desconto
   const [cart, setCart] = useState<any[]>([]);
+  const [discount, setDiscount] = useState('');
   
   // Checkout
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -73,7 +74,10 @@ const POS = () => {
     });
   }, [products, searchTerm, categoryFilter]);
 
-  const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  // Cálculos do Carrinho
+  const subtotalAmount = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  const discountValue = parseFloat(discount.replace(',', '.')) || 0;
+  const totalAmount = Math.max(0, subtotalAmount - discountValue);
 
   const addToCart = (product: any) => {
     setCart(prev => {
@@ -114,9 +118,16 @@ const POS = () => {
     setCart(prev => prev.filter(i => i.id !== id));
   };
 
+  const resetCart = () => {
+    setCart([]);
+    setDiscount('');
+    setIsCheckoutOpen(false);
+  };
+
   const handleCheckout = async () => {
     if (!checkoutData.customerId) return showError("Selecione um cliente para a venda.");
     if (cart.length === 0) return showError("O carrinho está vazio.");
+    if (totalAmount <= 0) return showError("O valor total da venda deve ser maior que zero.");
 
     setProcessing(true);
     try {
@@ -185,8 +196,7 @@ const POS = () => {
         if (!response.ok) throw new Error(result.error);
 
         showSuccess("Venda PIX gerada! Direcionando para o QRCode...");
-        setIsCheckoutOpen(false);
-        setCart([]);
+        resetCart();
         navigate(`/financeiro/cobrancas/${result.id}`);
 
       } else {
@@ -204,8 +214,7 @@ const POS = () => {
         if (chargeError) throw chargeError;
 
         showSuccess("Venda finalizada com sucesso!");
-        setIsCheckoutOpen(false);
-        setCart([]);
+        resetCart();
         
         // Atualiza a listagem de produtos para refletir o estoque
         const { data } = await supabase.from('products').select('*').eq('user_id', user?.id).order('name');
@@ -221,10 +230,10 @@ const POS = () => {
 
   return (
     <AppLayout>
-      <div className="flex h-[calc(100vh-8rem)] gap-6">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-8rem)] gap-6">
         
         {/* LADO ESQUERDO: CATÁLOGO */}
-        <div className="flex-1 flex flex-col bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative">
+        <div className="flex-1 flex flex-col bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative min-h-[500px] lg:min-h-0">
           
           <div className="p-6 border-b border-zinc-800 bg-zinc-950/50 flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
             <div className="relative w-full sm:w-96">
@@ -294,15 +303,20 @@ const POS = () => {
         </div>
 
         {/* LADO DIREITO: CARRINHO */}
-        <div className="w-full max-w-[380px] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col shrink-0">
-          <div className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0">
+        <div className="w-full lg:max-w-[380px] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col shrink-0">
+          <div className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0 flex items-center justify-between">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <ShoppingCart className="text-orange-500" size={20} />
               Carrinho Ativo
             </h2>
+            {cart.length > 0 && (
+              <button onClick={() => { setCart([]); setDiscount(''); }} className="text-xs font-bold text-zinc-500 hover:text-red-400 transition-colors">
+                Limpar
+              </button>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 min-h-[300px] lg:min-h-0">
             {cart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-zinc-600 opacity-50">
                 <ShoppingCart size={40} className="mb-4" />
@@ -335,11 +349,29 @@ const POS = () => {
             )}
           </div>
 
+          {/* RESUMO DO CARRINHO COM DESCONTO */}
           <div className="p-6 bg-zinc-950 border-t border-zinc-800 shrink-0 rounded-b-3xl">
-            <div className="flex items-center justify-between mb-6">
-              <span className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Total da Venda</span>
-              <span className="text-3xl font-black text-zinc-100">{currencyFormatter.format(totalAmount)}</span>
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center justify-between text-sm text-zinc-400">
+                <span className="font-medium">Subtotal</span>
+                <span>{currencyFormatter.format(subtotalAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-zinc-400">
+                <span className="flex items-center gap-1 font-medium"><Tag size={14} className="text-orange-500" /> Desconto (R$)</span>
+                <input 
+                  type="text"
+                  placeholder="0,00"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-zinc-100 font-bold"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t border-zinc-800/50">
+                <span className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Total da Venda</span>
+                <span className="text-3xl font-black text-zinc-100">{currencyFormatter.format(totalAmount)}</span>
+              </div>
             </div>
+
             <button 
               onClick={() => setIsCheckoutOpen(true)}
               disabled={cart.length === 0}
@@ -359,9 +391,14 @@ const POS = () => {
           </DialogHeader>
           
           <div className="space-y-6 py-4">
-            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor a Cobrar</p>
               <p className="text-4xl font-black text-orange-500">{currencyFormatter.format(totalAmount)}</p>
+              {discountValue > 0 && (
+                <p className="text-xs text-zinc-500 mt-2 font-bold bg-zinc-900 inline-block px-3 py-1 rounded-lg">
+                  Desconto aplicado: {currencyFormatter.format(discountValue)}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
