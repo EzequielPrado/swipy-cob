@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
-  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact
+  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
+  CalendarDays
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const FULFILLMENT_STAGES = [
   { id: 'approved', label: 'Aprovado', icon: CheckCircle2 },
@@ -27,6 +29,25 @@ const SalesList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Controle de Mês/Ano
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6); // Volta 6 meses
+    for(let i=0; i<12; i++) {
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      d.setMonth(d.getMonth() + 1);
+    }
+    return options;
+  }, []);
+  
   // Modal de Detalhes
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -36,7 +57,11 @@ const SalesList = () => {
     if (!user) return;
     setLoading(true);
     
-    // Agora busca o nome do Vendedor também (employees)
+    // Definir range do mês selecionado
+    const [year, month] = selectedMonth.split('-');
+    const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
+    const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
+
     const { data, error } = await supabase
       .from('quotes')
       .select(`
@@ -49,6 +74,8 @@ const SalesList = () => {
         )
       `)
       .eq('user_id', user.id)
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -61,7 +88,7 @@ const SalesList = () => {
 
   useEffect(() => {
     fetchSales();
-  }, [user]);
+  }, [user, selectedMonth]);
 
   const filteredSales = useMemo(() => {
     return sales.filter(s => 
@@ -186,9 +213,26 @@ const SalesList = () => {
             </h2>
             <p className="text-zinc-400 mt-1">Acompanhe seus pedidos e movimente-os pelo fluxo de atendimento.</p>
           </div>
-          <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-400">
-             <Globe size={18} />
-             <span className="text-xs font-bold uppercase tracking-widest">Integrações em Breve</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
+              <div className="pl-3 text-zinc-500">
+                <CalendarDays size={16} />
+              </div>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400 h-[42px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-400 h-[42px]">
+               <Globe size={18} />
+               <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Integrações em Breve</span>
+            </div>
           </div>
         </div>
 
@@ -202,7 +246,7 @@ const SalesList = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-3xl font-black text-zinc-100">{currencyFormatter.format(metrics.totalVolume)}</p>
             )}
-            <p className="text-[10px] text-emerald-500 mt-2 font-bold">Pedidos aprovados/fechados</p>
+            <p className="text-[10px] text-emerald-500 mt-2 font-bold">Pedidos aprovados/fechados no mês</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
@@ -223,7 +267,7 @@ const SalesList = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-3xl font-black text-blue-400">{currencyFormatter.format(metrics.avgTicket)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Por venda fechada</p>
+            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Por venda fechada no mês</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
@@ -258,7 +302,7 @@ const SalesList = () => {
           ) : filteredSales.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <ShoppingBag size={48} className="mb-4 opacity-20" />
-              <p>Nenhum pedido encontrado.</p>
+              <p>Nenhum pedido encontrado neste período.</p>
             </div>
           ) : (
             <table className="w-full text-left">
