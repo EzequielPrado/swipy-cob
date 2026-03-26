@@ -116,12 +116,12 @@ const POS = () => {
 
     setProcessing(true);
     try {
-      // 1. Criar Venda (Quote aprovada)
+      // 1. Criar Venda como Concluída (bypass pipeline)
       const { data: quote, error: quoteError } = await supabase.from('quotes').insert({
         user_id: user?.id,
         customer_id: checkoutData.customerId,
         total_amount: totalAmount,
-        status: 'approved',
+        status: 'completed', // <-- Status de PDV
         expires_at: new Date().toISOString()
       }).select().single();
 

@@ -123,7 +123,6 @@ const SalesList = () => {
     setUpdatingStatus(true);
 
     try {
-      // 1. Emitir a Fatura via Edge Function
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
         method: 'POST',
@@ -132,7 +131,7 @@ const SalesList = () => {
           'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
-          chargeId: selectedSale.id, // Usa o ID do pedido como correlation
+          chargeId: selectedSale.id,
           customerId: selectedSale.customer_id,
           amount: selectedSale.total_amount,
           description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}`
@@ -142,7 +141,6 @@ const SalesList = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro ao emitir fatura.");
 
-      // 2. Atualizar o status para Faturado
       const nextStage = 'invoiced';
       const { error } = await supabase
         .from('quotes')
@@ -153,7 +151,6 @@ const SalesList = () => {
 
       showSuccess("Fatura emitida e enviada via WhatsApp!");
       
-      // 3. Atualizar a tela
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
@@ -167,6 +164,8 @@ const SalesList = () => {
 
   const getStatusDisplay = (status: string) => {
     if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
+    if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+    
     const stage = FULFILLMENT_STAGES.find(s => s.id === status);
     if (!stage) return { label: status, color: 'bg-zinc-800 text-zinc-400 border-zinc-700' };
     
@@ -285,8 +284,11 @@ const SalesList = () => {
                         <p className="text-xs text-zinc-500">{sale.customers?.email}</p>
                       </td>
                       <td className="px-8 py-5">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-300 border border-zinc-700">
-                          <Store size={10} /> ERP / Balcão
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight border",
+                          sale.status === 'completed' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-zinc-800 text-zinc-300 border-zinc-700"
+                        )}>
+                          <Store size={10} /> {sale.status === 'completed' ? 'PDV' : 'Orçamento'}
                         </span>
                       </td>
                       <td className="px-8 py-5 text-sm font-bold text-orange-400">
@@ -343,8 +345,8 @@ const SalesList = () => {
 
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 
-                {/* PIPELINE DE ATENDIMENTO (Só exibe se for aprovado/fechado) */}
-                {selectedSale.status !== 'draft' && (
+                {/* PIPELINE DE ATENDIMENTO (Só exibe se for aprovado/fechado e não for PDV direto) */}
+                {selectedSale.status !== 'draft' && selectedSale.status !== 'completed' && (
                   <div className="p-6 border-b border-zinc-800 bg-zinc-950/20">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Fluxo de Atendimento</h4>
@@ -374,10 +376,8 @@ const SalesList = () => {
                     </div>
                     
                     <div className="relative flex justify-between items-center px-4 mt-8 mb-4">
-                      {/* Linha de Fundo */}
                       <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 bg-zinc-800 -z-10 -translate-y-1/2"></div>
                       
-                      {/* Linha de Progresso */}
                       {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) > 0 && (
                         <div 
                           className="absolute left-[10%] top-1/2 h-0.5 bg-orange-500 -z-10 -translate-y-1/2 transition-all duration-500"
@@ -385,7 +385,6 @@ const SalesList = () => {
                         ></div>
                       )}
 
-                      {/* Etapas */}
                       {FULFILLMENT_STAGES.map((stage, index) => {
                         const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
                         const isCompleted = index <= currentIndex;
@@ -409,6 +408,27 @@ const SalesList = () => {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {/* VENDA PDV (FRENTE DE CAIXA) - Bypass Pipeline */}
+                {selectedSale.status === 'completed' && (
+                  <div className="p-6 border-b border-zinc-800 bg-purple-500/5 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 text-purple-500">
+                      <CheckCircle2 size={24} />
+                      <div>
+                        <h4 className="font-bold">Venda de Balcão (Frente de Caixa)</h4>
+                        <p className="text-xs text-purple-500/80">Esta venda foi realizada no PDV e entregue no ato ao cliente.</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleInvoiceAndAdvance}
+                      disabled={updatingStatus}
+                      className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 whitespace-nowrap"
+                    >
+                      {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} 
+                      Emitir Fatura
+                    </button>
                   </div>
                 )}
 
