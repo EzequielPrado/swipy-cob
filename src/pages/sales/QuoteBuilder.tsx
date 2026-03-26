@@ -6,7 +6,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { ArrowLeft, Plus, Trash2, Save, Calculator, Loader2, Tag } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Loader2, Tag, Truck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
@@ -26,6 +26,7 @@ const QuoteBuilder = () => {
   
   const [items, setItems] = useState([{ productId: '', quantity: 1, unitPrice: 0 }]);
   const [discount, setDiscount] = useState('');
+  const [freight, setFreight] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -61,7 +62,8 @@ const QuoteBuilder = () => {
 
   const subtotalAmount = items.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
   const discountValue = parseFloat(discount.replace(',', '.')) || 0;
-  const totalAmount = Math.max(0, subtotalAmount - discountValue);
+  const freightValue = parseFloat(freight.replace(',', '.')) || 0;
+  const totalAmount = Math.max(0, subtotalAmount - discountValue + freightValue);
 
   const handleSave = async () => {
     if (!customerId) return showError("Selecione um cliente.");
@@ -75,7 +77,7 @@ const QuoteBuilder = () => {
         .insert({
           user_id: user?.id,
           customer_id: customerId,
-          total_amount: totalAmount, // Salva o total já com desconto
+          total_amount: totalAmount, // Salva o total final calculado
           expires_at: expiresAt,
           status: 'draft'
         })
@@ -223,11 +225,21 @@ const QuoteBuilder = () => {
                     className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-zinc-100 font-bold"
                   />
                 </div>
+                <div className="flex items-center justify-between text-sm text-zinc-400">
+                  <span className="flex items-center gap-1 font-medium"><Truck size={14} className="text-blue-500" /> Frete / Taxa (R$)</span>
+                  <input 
+                    type="text"
+                    placeholder="0,00"
+                    value={freight}
+                    onChange={(e) => setFreight(e.target.value)}
+                    className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-zinc-100 font-bold"
+                  />
+                </div>
                 
                 <div className="pt-4 border-t border-zinc-800/50">
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 flex justify-between">
                     Valor Final
-                    {discountValue > 0 && <span className="text-emerald-500">Desconto Aplicado!</span>}
+                    {(discountValue > 0 || freightValue > 0) && <span className="text-emerald-500">Valores Aplicados</span>}
                   </p>
                   <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(totalAmount)}</p>
                 </div>

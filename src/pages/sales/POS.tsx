@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, 
-  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag
+  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag, Truck
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -26,9 +26,10 @@ const POS = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // Estado do Carrinho e Desconto
+  // Estado do Carrinho, Desconto e Frete
   const [cart, setCart] = useState<any[]>([]);
   const [discount, setDiscount] = useState('');
+  const [freight, setFreight] = useState('');
   
   // Checkout
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -79,7 +80,8 @@ const POS = () => {
   // Cálculos do Carrinho
   const subtotalAmount = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   const discountValue = parseFloat(discount.replace(',', '.')) || 0;
-  const totalAmount = Math.max(0, subtotalAmount - discountValue);
+  const freightValue = parseFloat(freight.replace(',', '.')) || 0;
+  const totalAmount = Math.max(0, subtotalAmount - discountValue + freightValue);
 
   const addToCart = (product: any) => {
     setCart(prev => {
@@ -123,6 +125,7 @@ const POS = () => {
   const resetCart = () => {
     setCart([]);
     setDiscount('');
+    setFreight('');
     setIsCheckoutOpen(false);
   };
 
@@ -132,15 +135,10 @@ const POS = () => {
       .from('customers')
       .select('id, name')
       .eq('user_id', user?.id)
-      .order('created_at', { ascending: false }); // Traz o mais novo primeiro
+      .order('created_at', { ascending: false }); 
 
     if (data) {
-      setCustomers(data.sort((a, b) => a.name.localeCompare(b.name))); // Mantém ordenado na lista
-      
-      // Encontra o mais recente (primeiro da lista antes do sort, então buscamos de novo pelo id se necessário, 
-      // ou apenas pegamos do original desc)
-      const newest = data.reduce((prev, current) => (prev.id > current.id) ? prev : current, data[0]);
-      
+      setCustomers(data.sort((a, b) => a.name.localeCompare(b.name))); 
       if (data.length > 0) {
         setCheckoutData(prev => ({ ...prev, customerId: data[0].id }));
       }
@@ -187,7 +185,6 @@ const POS = () => {
           notes: `Venda PDV #${quote.id.split('-')[0].toUpperCase()}`
         });
 
-        // Atualizar estoque real
         await supabase.from('products')
           .update({ stock_quantity: item.stock_quantity - item.qty })
           .eq('id', item.id);
@@ -223,7 +220,6 @@ const POS = () => {
         navigate(`/financeiro/cobrancas/${result.id}`);
 
       } else {
-        // Dinheiro ou Cartão -> Pagamento Local e Liquidado
         const { error: chargeError } = await supabase.from('charges').insert({
           user_id: user?.id,
           customer_id: checkoutData.customerId,
@@ -231,7 +227,7 @@ const POS = () => {
           description: `Venda PDV #${quote.id.split('-')[0].toUpperCase()} (${checkoutData.method})`,
           method: checkoutData.method,
           due_date: new Date().toISOString().split('T')[0],
-          status: 'pago' // Já entra como pago
+          status: 'pago' 
         });
 
         if (chargeError) throw chargeError;
@@ -239,7 +235,6 @@ const POS = () => {
         showSuccess("Venda finalizada com sucesso!");
         resetCart();
         
-        // Atualiza a listagem de produtos para refletir o estoque
         const { data } = await supabase.from('products').select('*').eq('user_id', user?.id).order('name');
         if (data) setProducts(data);
       }
@@ -333,7 +328,7 @@ const POS = () => {
               Carrinho Ativo
             </h2>
             {cart.length > 0 && (
-              <button onClick={() => { setCart([]); setDiscount(''); }} className="text-xs font-bold text-zinc-500 hover:text-red-400 transition-colors">
+              <button onClick={resetCart} className="text-xs font-bold text-zinc-500 hover:text-red-400 transition-colors">
                 Limpar
               </button>
             )}
@@ -372,7 +367,7 @@ const POS = () => {
             )}
           </div>
 
-          {/* RESUMO DO CARRINHO COM DESCONTO */}
+          {/* RESUMO DO CARRINHO */}
           <div className="p-6 bg-zinc-950 border-t border-zinc-800 shrink-0 rounded-b-3xl">
             <div className="space-y-4 mb-6">
               <div className="flex items-center justify-between text-sm text-zinc-400">
@@ -387,6 +382,16 @@ const POS = () => {
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value)}
                   className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-zinc-100 font-bold"
+                />
+              </div>
+              <div className="flex items-center justify-between text-sm text-zinc-400">
+                <span className="flex items-center gap-1 font-medium"><Truck size={14} className="text-blue-500" /> Frete / Taxa (R$)</span>
+                <input 
+                  type="text"
+                  placeholder="0,00"
+                  value={freight}
+                  onChange={(e) => setFreight(e.target.value)}
+                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-zinc-100 font-bold"
                 />
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-zinc-800/50">
@@ -417,10 +422,11 @@ const POS = () => {
             <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor a Cobrar</p>
               <p className="text-4xl font-black text-orange-500">{currencyFormatter.format(totalAmount)}</p>
-              {discountValue > 0 && (
-                <p className="text-xs text-zinc-500 mt-2 font-bold bg-zinc-900 inline-block px-3 py-1 rounded-lg">
-                  Desconto aplicado: {currencyFormatter.format(discountValue)}
-                </p>
+              {(discountValue > 0 || freightValue > 0) && (
+                <div className="flex justify-center gap-2 mt-3">
+                  {discountValue > 0 && <span className="text-[10px] text-zinc-400 font-bold bg-zinc-900 px-2 py-1 rounded-md border border-zinc-800">- {currencyFormatter.format(discountValue)} (Desc)</span>}
+                  {freightValue > 0 && <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">+ {currencyFormatter.format(freightValue)} (Frete)</span>}
+                </div>
               )}
             </div>
 
@@ -492,7 +498,6 @@ const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE CADASTRO DE NOVO CLIENTE */}
       <AddCustomerModal 
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
