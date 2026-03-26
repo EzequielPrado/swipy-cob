@@ -10,8 +10,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    // Usamos a chave de serviço (Service Role) para ignorar o RLS de usuários não logados,
-    // garantindo que o cliente possa ver APENAS o orçamento com o ID específico da URL.
+    // Usamos a chave de serviço (Service Role) para ignorar o RLS de usuários não logados
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -23,14 +22,30 @@ serve(async (req) => {
     if (!quoteId) throw new Error("ID do orçamento não informado")
 
     if (req.method === 'GET') {
+      // 1. Busca Orçamento e Cliente
       const { data: quote, error: quoteError } = await supabaseAdmin
         .from('quotes')
-        .select('*, customers(name, email, phone, tax_id), profiles:user_id(company, full_name, logo_url, primary_color)')
+        .select('*, customers(name, email, phone, tax_id)')
         .eq('id', quoteId)
         .single()
 
-      if (quoteError || !quote) throw new Error("Orçamento não encontrado ou expirado")
+      if (quoteError) {
+        console.error("[public-quote] Erro ao buscar orçamento:", quoteError.message);
+        throw new Error("Erro ao consultar o banco de dados.");
+      }
+      
+      if (!quote) throw new Error("Orçamento não encontrado ou expirado");
 
+      // 2. Busca o Perfil do Lojista separadamente (resolve o problema de Join)
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('company, full_name, logo_url, primary_color')
+        .eq('id', quote.user_id)
+        .single()
+
+      quote.profiles = profile;
+
+      // 3. Busca os Itens do Orçamento
       const { data: items } = await supabaseAdmin
         .from('quote_items')
         .select('*, products(name, description, sku)')
