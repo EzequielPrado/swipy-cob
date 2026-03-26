@@ -10,6 +10,11 @@ import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 import OverviewDashboard from "./pages/OverviewDashboard";
 import ComingSoon from "./pages/ComingSoon";
 
+// Vendas / Orçamentos
+import Quotes from "./pages/sales/Quotes";
+import QuoteBuilder from "./pages/sales/QuoteBuilder";
+import QuotePublicView from "./pages/QuotePublicView";
+
 // Estoque
 import Products from "./pages/inventory/Products";
 import Movements from "./pages/inventory/Movements";
@@ -65,21 +70,27 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
             
+            {/* PÚBLICAS */}
             <Route path="/pagar/:id" element={<Checkout />} />
             <Route path="/meu-painel" element={<ClientPortal />} />
+            <Route path="/orcamento/:id" element={<QuotePublicView />} />
             
             {/* VISÃO GERAL */}
             <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
             
+            {/* VENDAS */}
+            <Route path="/vendas/orcamentos" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
+            <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
+            <Route path="/vendas/dashboard" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/vendas/lista" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            <Route path="/vendas/pdv" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+
             {/* ESTOQUE E PRODUTOS */}
             <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
             <Route path="/estoque/movimentacoes" element={<ProtectedRoute><Movements /></ProtectedRoute>} />
             
-            {/* MÓDULOS EM BREVE */}
-            <Route path="/vendas/*" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
+            {/* RH */}
             <Route path="/rh/metas" element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} />
-
-            {/* GENTE E GESTÃO (RH) */}
             <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
             <Route path="/rh/folha" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
 
