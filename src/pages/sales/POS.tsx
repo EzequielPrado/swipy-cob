@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, 
-  CheckCircle2, Loader2, PackageOpen, ArrowRight, User
+  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -20,6 +20,7 @@ const POS = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -32,6 +33,7 @@ const POS = () => {
   const [processing, setProcessing] = useState(false);
   const [checkoutData, setCheckoutData] = useState({
     customerId: '',
+    sellerId: 'none',
     method: 'pix'
   });
 
@@ -42,13 +44,15 @@ const POS = () => {
       if (!user) return;
       setLoading(true);
       
-      const [prodRes, custRes] = await Promise.all([
+      const [prodRes, custRes, empRes] = await Promise.all([
         supabase.from('products').select('*').eq('user_id', user.id).order('name'),
-        supabase.from('customers').select('id, name').eq('user_id', user.id).order('name')
+        supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
+        supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
       ]);
 
       if (prodRes.data) setProducts(prodRes.data);
       if (custRes.data) setCustomers(custRes.data);
+      if (empRes.data) setEmployees(empRes.data);
       
       setLoading(false);
     };
@@ -120,6 +124,7 @@ const POS = () => {
       const { data: quote, error: quoteError } = await supabase.from('quotes').insert({
         user_id: user?.id,
         customer_id: checkoutData.customerId,
+        seller_id: checkoutData.sellerId === 'none' ? null : checkoutData.sellerId,
         total_amount: totalAmount,
         status: 'completed', // <-- Status de PDV
         expires_at: new Date().toISOString()
@@ -201,6 +206,7 @@ const POS = () => {
         showSuccess("Venda finalizada com sucesso!");
         setIsCheckoutOpen(false);
         setCart([]);
+        
         // Atualiza a listagem de produtos para refletir o estoque
         const { data } = await supabase.from('products').select('*').eq('user_id', user?.id).order('name');
         if (data) setProducts(data);
@@ -364,6 +370,17 @@ const POS = () => {
                 <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Selecione o cliente..." /></SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                   {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><Contact size={14} className="text-blue-500" /> Vendedor (Opcional)</Label>
+              <Select value={checkoutData.sellerId} onValueChange={v => setCheckoutData({...checkoutData, sellerId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Selecione quem realizou a venda..." /></SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  <SelectItem value="none">Nenhum (Venda Direta)</SelectItem>
+                  {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

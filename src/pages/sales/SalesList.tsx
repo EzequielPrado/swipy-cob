@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
-  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText
+  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -36,11 +36,13 @@ const SalesList = () => {
     if (!user) return;
     setLoading(true);
     
+    // Agora busca o nome do Vendedor também (employees)
     const { data, error } = await supabase
       .from('quotes')
       .select(`
         *, 
         customers(name, email, phone),
+        employees(full_name),
         quote_items(
           id, quantity, unit_price, total_price,
           products(name, sku)
@@ -64,7 +66,8 @@ const SalesList = () => {
   const filteredSales = useMemo(() => {
     return sales.filter(s => 
       s.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.id.toLowerCase().includes(searchTerm.toLowerCase())
+      s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.employees?.full_name && s.employees.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [sales, searchTerm]);
 
@@ -117,7 +120,6 @@ const SalesList = () => {
     }
   };
 
-  // Função específica para emitir fatura e avançar o status
   const handleInvoiceAndAdvance = async () => {
     if (!selectedSale) return;
     setUpdatingStatus(true);
@@ -242,7 +244,7 @@ const SalesList = () => {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por cliente ou ID do pedido..." 
+            placeholder="Buscar por cliente, pedido ou vendedor..." 
             className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
           />
         </div>
@@ -264,7 +266,7 @@ const SalesList = () => {
                 <tr>
                   <th className="px-8 py-5">Cód. Pedido</th>
                   <th className="px-8 py-5">Cliente</th>
-                  <th className="px-8 py-5">Canal</th>
+                  <th className="px-8 py-5">Canal / Vendedor</th>
                   <th className="px-8 py-5">Valor</th>
                   <th className="px-8 py-5">Status</th>
                   <th className="px-8 py-5 text-right">Ações</th>
@@ -284,12 +286,15 @@ const SalesList = () => {
                         <p className="text-xs text-zinc-500">{sale.customers?.email}</p>
                       </td>
                       <td className="px-8 py-5">
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight border",
-                          sale.status === 'completed' ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : "bg-zinc-800 text-zinc-300 border-zinc-700"
-                        )}>
-                          <Store size={10} /> {sale.status === 'completed' ? 'PDV' : 'Orçamento'}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-300 border border-zinc-700">
+                            <Store size={10} /> {sale.status === 'completed' ? 'PDV' : 'Orçamento'}
+                          </span>
+                          <span className="text-[9px] text-zinc-400 flex items-center gap-1">
+                            <Contact size={10} className="text-blue-500" />
+                            {sale.employees?.full_name || 'Venda Direta'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-8 py-5 text-sm font-bold text-orange-400">
                         {currencyFormatter.format(sale.total_amount)}
@@ -435,9 +440,12 @@ const SalesList = () => {
                 <div className="p-6 space-y-6 mt-4">
                   <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center shadow-inner">
                     <div>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Cliente</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Cliente / Vendedor</p>
                       <p className="text-base font-bold text-zinc-100">{selectedSale.customers?.name}</p>
-                      <p className="text-xs text-zinc-400 mt-1">{selectedSale.customers?.phone || 'Sem telefone'}</p>
+                      <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
+                        <Contact size={12} className="text-blue-500" />
+                        Vend: {selectedSale.employees?.full_name || 'Não Informado (Venda Direta)'}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Valor Total</p>
