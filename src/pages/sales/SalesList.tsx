@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
-  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight
+  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -106,11 +106,58 @@ const SalesList = () => {
 
       showSuccess(`Pedido avançado para: ${FULFILLMENT_STAGES[currentIndex + 1].label}`);
       
-      // Atualiza o estado local para não precisar recarregar toda a página
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
       
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // Função específica para emitir fatura e avançar o status
+  const handleInvoiceAndAdvance = async () => {
+    if (!selectedSale) return;
+    setUpdatingStatus(true);
+
+    try {
+      // 1. Emitir a Fatura via Edge Function
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          chargeId: selectedSale.id, // Usa o ID do pedido como correlation
+          customerId: selectedSale.customer_id,
+          amount: selectedSale.total_amount,
+          description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}`
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Erro ao emitir fatura.");
+
+      // 2. Atualizar o status para Faturado
+      const nextStage = 'invoiced';
+      const { error } = await supabase
+        .from('quotes')
+        .update({ status: nextStage })
+        .eq('id', selectedSale.id);
+
+      if (error) throw error;
+
+      showSuccess("Fatura emitida e enviada via WhatsApp!");
+      
+      // 3. Atualizar a tela
+      const updatedSale = { ...selectedSale, status: nextStage };
+      setSelectedSale(updatedSale);
+      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
+
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -302,16 +349,27 @@ const SalesList = () => {
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Fluxo de Atendimento</h4>
                       
-                      {/* Botão de Avançar Etapa */}
+                      {/* Botões de Ação do Pipeline */}
                       {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && (
-                        <button 
-                          onClick={advanceStatus}
-                          disabled={updatingStatus}
-                          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                        >
-                          {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : "Avançar Etapa"} 
-                          <ChevronRight size={14} />
-                        </button>
+                        selectedSale.status === 'picking' ? (
+                          <button 
+                            onClick={handleInvoiceAndAdvance}
+                            disabled={updatingStatus}
+                            className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg shadow-blue-500/20"
+                          >
+                            {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} 
+                            Emitir Fatura
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={advanceStatus}
+                            disabled={updatingStatus}
+                            className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                          >
+                            {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : "Avançar Etapa"} 
+                            <ChevronRight size={14} />
+                          </button>
+                        )
                       )}
                     </div>
                     
