@@ -5,12 +5,21 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
-  Store, Eye, Package, Receipt, ArrowUpRight, Globe
+  Store, Eye, Package, Receipt, ArrowUpRight, Globe,
+  CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const FULFILLMENT_STAGES = [
+  { id: 'approved', label: 'Aprovado', icon: CheckCircle2 },
+  { id: 'production', label: 'Produção', icon: Wrench },
+  { id: 'picking', label: 'Separação', icon: PackageSearch },
+  { id: 'invoiced', label: 'Faturado', icon: Receipt },
+  { id: 'shipped', label: 'Despachado', icon: Truck },
+];
 
 const SalesList = () => {
   const { user } = useAuth();
@@ -21,13 +30,12 @@ const SalesList = () => {
   // Modal de Detalhes
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const fetchSales = async () => {
     if (!user) return;
     setLoading(true);
     
-    // Na nossa modelagem, 'quotes' (orçamentos) atuam como Pedidos de Venda
-    // quando o status é 'approved' (Venda Fechada) ou 'draft' (Em negociação)
     const { data, error } = await supabase
       .from('quotes')
       .select(`
@@ -60,9 +68,8 @@ const SalesList = () => {
     );
   }, [sales, searchTerm]);
 
-  // Métricas
   const metrics = useMemo(() => {
-    const approvedSales = sales.filter(s => s.status === 'approved');
+    const approvedSales = sales.filter(s => s.status !== 'draft');
     const totalVolume = approvedSales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
     const avgTicket = approvedSales.length > 0 ? totalVolume / approvedSales.length : 0;
 
@@ -81,6 +88,45 @@ const SalesList = () => {
     setIsDetailsOpen(true);
   };
 
+  const advanceStatus = async () => {
+    if (!selectedSale) return;
+    const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
+    if (currentIndex === -1 || currentIndex >= FULFILLMENT_STAGES.length - 1) return;
+
+    const nextStage = FULFILLMENT_STAGES[currentIndex + 1].id;
+    setUpdatingStatus(true);
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .update({ status: nextStage })
+        .eq('id', selectedSale.id);
+
+      if (error) throw error;
+
+      showSuccess(`Pedido avançado para: ${FULFILLMENT_STAGES[currentIndex + 1].label}`);
+      
+      // Atualiza o estado local para não precisar recarregar toda a página
+      const updatedSale = { ...selectedSale, status: nextStage };
+      setSelectedSale(updatedSale);
+      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
+      
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const getStatusDisplay = (status: string) => {
+    if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
+    const stage = FULFILLMENT_STAGES.find(s => s.id === status);
+    if (!stage) return { label: status, color: 'bg-zinc-800 text-zinc-400 border-zinc-700' };
+    
+    if (status === 'shipped') return { label: 'Despachado', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+    return { label: stage.label, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+  };
+
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
@@ -90,7 +136,7 @@ const SalesList = () => {
               <ShoppingBag className="text-orange-500" size={32} />
               Gestão de Vendas
             </h2>
-            <p className="text-zinc-400 mt-1">Centralize pedidos do ERP, PDV e futuros E-commerces.</p>
+            <p className="text-zinc-400 mt-1">Acompanhe seus pedidos e movimente-os pelo fluxo de atendimento.</p>
           </div>
           <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-400">
              <Globe size={18} />
@@ -108,13 +154,13 @@ const SalesList = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-3xl font-black text-zinc-100">{currencyFormatter.format(metrics.totalVolume)}</p>
             )}
-            <p className="text-[10px] text-emerald-500 mt-2 font-bold">Apenas pedidos aprovados</p>
+            <p className="text-[10px] text-emerald-500 mt-2 font-bold">Pedidos aprovados/fechados</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><Store size={100} /></div>
             <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Store size={16} className="text-orange-500" /> Pedidos Fechados
+              <Store size={16} className="text-orange-500" /> Total de Pedidos
             </h3>
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-3xl font-black text-zinc-100">{metrics.totalOrders}</p>
@@ -129,7 +175,7 @@ const SalesList = () => {
             {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
               <p className="text-3xl font-black text-blue-400">{currencyFormatter.format(metrics.avgTicket)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Por venda aprovada</p>
+            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Por venda fechada</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
@@ -179,113 +225,175 @@ const SalesList = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
-                {filteredSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-8 py-5">
-                      <p className="text-xs font-bold text-zinc-300 font-mono uppercase">#{sale.id.split('-')[0]}</p>
-                      <p className="text-[10px] text-zinc-500 mt-1">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-100">{sale.customers?.name || 'Cliente não identificado'}</p>
-                      <p className="text-xs text-zinc-500">{sale.customers?.email}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      {/* Placeholder de Integrações. Por enquanto todos são ERP/PDV */}
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-300 border border-zinc-700">
-                        <Store size={10} /> ERP / Balcão
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-sm font-bold text-orange-400">
-                      {currencyFormatter.format(sale.total_amount)}
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                        sale.status === 'approved' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                        "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                      )}>
-                        {sale.status === 'approved' ? 'Fechado' : 'Em Aberto'}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <button 
-                        onClick={() => openDetails(sale)}
-                        className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
-                        title="Ver Itens do Pedido"
-                      >
-                        <Eye size={18}/>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredSales.map((sale) => {
+                  const statusInfo = getStatusDisplay(sale.status);
+                  return (
+                    <tr key={sale.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="px-8 py-5">
+                        <p className="text-xs font-bold text-zinc-300 font-mono uppercase">#{sale.id.split('-')[0]}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-zinc-100">{sale.customers?.name || 'Cliente não identificado'}</p>
+                        <p className="text-xs text-zinc-500">{sale.customers?.email}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-300 border border-zinc-700">
+                          <Store size={10} /> ERP / Balcão
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-sm font-bold text-orange-400">
+                        {currencyFormatter.format(sale.total_amount)}
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
+                          statusInfo.color
+                        )}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <button 
+                          onClick={() => openDetails(sale)}
+                          className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
+                          title="Detalhes do Pedido"
+                        >
+                          <Eye size={18}/>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
       </div>
 
-      {/* MODAL DE DETALHES DO PEDIDO */}
+      {/* MODAL DE DETALHES E FLUXO DO PEDIDO */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[600px] p-0 overflow-hidden">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[700px] p-0 flex flex-col max-h-[90vh]">
           {selectedSale && (
             <>
-              <DialogHeader className="p-6 border-b border-zinc-800 bg-zinc-950/50">
+              <DialogHeader className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0">
                 <DialogTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <ShoppingBag className="text-orange-500" size={24} />
                     <div>
                       <h3 className="text-xl">Pedido <span className="font-mono uppercase text-orange-500">#{selectedSale.id.split('-')[0]}</span></h3>
-                      <p className="text-xs text-zinc-400 font-normal">Realizado em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
+                      <p className="text-xs text-zinc-400 font-normal">Feito em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
                     </div>
                   </div>
                   <span className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-                    selectedSale.status === 'approved' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                    getStatusDisplay(selectedSale.status).color
                   )}>
-                    {selectedSale.status === 'approved' ? 'Venda Fechada' : 'Orçamento'}
+                    {getStatusDisplay(selectedSale.status).label}
                   </span>
                 </DialogTitle>
               </DialogHeader>
-              
-              <div className="p-6 space-y-6">
-                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 flex justify-between items-center">
-                  <div>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Cliente</p>
-                    <p className="text-sm font-bold text-zinc-100">{selectedSale.customers?.name}</p>
-                    <p className="text-xs text-zinc-400">{selectedSale.customers?.phone || 'Sem telefone'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Valor Total</p>
-                    <p className="text-2xl font-black text-orange-500">{currencyFormatter.format(selectedSale.total_amount)}</p>
-                  </div>
-                </div>
 
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Package size={16} className="text-zinc-500" /> Itens do Pedido ({selectedSale.quote_items?.length || 0})
-                  </h4>
-                  
-                  <div className="max-h-[300px] overflow-y-auto custom-scrollbar space-y-3 pr-2">
-                    {selectedSale.quote_items && selectedSale.quote_items.length > 0 ? (
-                      selectedSale.quote_items.map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between p-3 bg-zinc-950 border border-zinc-800 rounded-xl">
-                          <div>
-                            <p className="text-sm font-bold text-zinc-200">{item.products?.name || 'Produto Excluído'}</p>
-                            <p className="text-[10px] text-zinc-500 font-mono mt-0.5">SKU: {item.products?.sku || 'N/A'}</p>
-                          </div>
-                          <div className="text-right flex items-center gap-4">
-                            <div className="text-zinc-500 text-xs">
-                              {item.quantity}x <span className="font-mono">{currencyFormatter.format(item.unit_price)}</span>
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                
+                {/* PIPELINE DE ATENDIMENTO (Só exibe se for aprovado/fechado) */}
+                {selectedSale.status !== 'draft' && (
+                  <div className="p-6 border-b border-zinc-800 bg-zinc-950/20">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Fluxo de Atendimento</h4>
+                      
+                      {/* Botão de Avançar Etapa */}
+                      {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && (
+                        <button 
+                          onClick={advanceStatus}
+                          disabled={updatingStatus}
+                          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                        >
+                          {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : "Avançar Etapa"} 
+                          <ChevronRight size={14} />
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="relative flex justify-between items-center px-4 mt-8 mb-4">
+                      {/* Linha de Fundo */}
+                      <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 bg-zinc-800 -z-10 -translate-y-1/2"></div>
+                      
+                      {/* Linha de Progresso */}
+                      {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) > 0 && (
+                        <div 
+                          className="absolute left-[10%] top-1/2 h-0.5 bg-orange-500 -z-10 -translate-y-1/2 transition-all duration-500"
+                          style={{ width: `${(FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) / (FULFILLMENT_STAGES.length - 1)) * 80}%` }}
+                        ></div>
+                      )}
+
+                      {/* Etapas */}
+                      {FULFILLMENT_STAGES.map((stage, index) => {
+                        const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
+                        const isCompleted = index <= currentIndex;
+                        const isCurrent = index === currentIndex;
+
+                        return (
+                          <div key={stage.id} className="flex flex-col items-center gap-2 z-10 relative">
+                            <div className={cn(
+                              "w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300",
+                              isCompleted ? "bg-orange-500 border-zinc-900 text-zinc-950 shadow-lg shadow-orange-500/20" : "bg-zinc-800 border-zinc-900 text-zinc-500"
+                            )}>
+                              <stage.icon size={16} className={isCurrent ? "animate-pulse" : ""} />
                             </div>
-                            <p className="text-sm font-bold text-zinc-100 w-24">
-                              {currencyFormatter.format(item.total_price)}
-                            </p>
+                            <span className={cn(
+                              "absolute -bottom-6 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap",
+                              isCompleted ? "text-orange-400" : "text-zinc-600"
+                            )}>
+                              {stage.label}
+                            </span>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-zinc-500 text-center py-4">Nenhum item encontrado.</p>
-                    )}
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-6 space-y-6 mt-4">
+                  <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center shadow-inner">
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Cliente</p>
+                      <p className="text-base font-bold text-zinc-100">{selectedSale.customers?.name}</p>
+                      <p className="text-xs text-zinc-400 mt-1">{selectedSale.customers?.phone || 'Sem telefone'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Valor Total</p>
+                      <p className="text-3xl font-black text-orange-500">{currencyFormatter.format(selectedSale.total_amount)}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <Package size={16} className="text-zinc-500" /> Itens do Pedido ({selectedSale.quote_items?.length || 0})
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      {selectedSale.quote_items && selectedSale.quote_items.length > 0 ? (
+                        selectedSale.quote_items.map((item: any) => (
+                          <div key={item.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
+                            <div>
+                              <p className="text-sm font-bold text-zinc-200">{item.products?.name || 'Produto Excluído'}</p>
+                              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">SKU: {item.products?.sku || 'N/A'}</p>
+                            </div>
+                            <div className="text-right flex items-center gap-4">
+                              <div className="text-zinc-500 text-xs">
+                                {item.quantity}x <span className="font-mono">{currencyFormatter.format(item.unit_price)}</span>
+                              </div>
+                              <p className="text-sm font-bold text-zinc-100 w-24">
+                                {currencyFormatter.format(item.total_price)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-zinc-500 text-center py-4">Nenhum item encontrado.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
