@@ -24,7 +24,7 @@ const QuotePublicView = () => {
         if (!res.ok) throw new Error(data.error || "Erro ao carregar orçamento.");
         
         setQuote(data.quote);
-        setItems(data.items);
+        setItems(data.items || []);
       } catch (err: any) {
         showError(err.message);
       } finally {
@@ -110,18 +110,18 @@ const QuotePublicView = () => {
     doc.setTextColor(33, 33, 33);
     doc.text("CLIENTE:", 110, 50);
     doc.setFontSize(10);
-    doc.text(customer?.name || "", 110, 56);
-    doc.text(`CPF/CNPJ: ${customer?.tax_id || ""}`, 110, 62);
-    doc.text(`Email: ${customer?.email || ""}`, 110, 68);
+    doc.text(customer?.name || "Cliente", 110, 56);
+    doc.text(`CPF/CNPJ: ${customer?.tax_id || "-"}`, 110, 62);
+    doc.text(`Email: ${customer?.email || "-"}`, 110, 68);
 
     // Tabela de Produtos
     const tableColumn = ["Item", "Descrição", "Qtd", "V. Unit", "Total"];
     const tableRows = items.map(item => [
-      item.products?.name,
+      item.products?.name || 'Item',
       item.products?.description || '-',
-      item.quantity,
-      currencyFormatter.format(item.unit_price),
-      currencyFormatter.format(item.total_price)
+      item.quantity || 0,
+      currencyFormatter.format(item.unit_price || 0),
+      currencyFormatter.format(item.total_price || 0)
     ]);
 
     autoTable(doc, {
@@ -138,7 +138,7 @@ const QuotePublicView = () => {
     const finalY = (doc as any).lastAutoTable.finalY || 100;
     doc.setFontSize(14);
     doc.setTextColor(33, 33, 33);
-    doc.text(`VALOR TOTAL: ${currencyFormatter.format(quote.total_amount)}`, 14, finalY + 15);
+    doc.text(`VALOR TOTAL: ${currencyFormatter.format(quote.total_amount || 0)}`, 14, finalY + 15);
 
     doc.save(`Orcamento_${quote.id.split('-')[0]}.pdf`);
   };
@@ -192,11 +192,11 @@ const QuotePublicView = () => {
             <div className="flex flex-col md:flex-row justify-between gap-8 mb-12">
               <div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Para</p>
-                <h3 className="text-xl font-bold text-zinc-100">{quote.customers.name}</h3>
+                <h3 className="text-xl font-bold text-zinc-100">{quote.customers?.name || "Cliente Excluído"}</h3>
                 <div className="text-sm text-zinc-400 mt-2 space-y-1">
-                  <p className="flex items-center gap-2"><Mail size={14}/> {quote.customers.email}</p>
-                  <p className="flex items-center gap-2"><Phone size={14}/> {quote.customers.phone || 'N/A'}</p>
-                  <p className="flex items-center gap-2"><FileText size={14}/> {quote.customers.tax_id}</p>
+                  <p className="flex items-center gap-2"><Mail size={14}/> {quote.customers?.email || "-"}</p>
+                  <p className="flex items-center gap-2"><Phone size={14}/> {quote.customers?.phone || 'N/A'}</p>
+                  <p className="flex items-center gap-2"><FileText size={14}/> {quote.customers?.tax_id || "-"}</p>
                 </div>
               </div>
               <div className="md:text-right">
@@ -226,7 +226,7 @@ const QuotePublicView = () => {
                   {items.map((item) => (
                     <tr key={item.id} className="bg-zinc-900/50">
                       <td className="px-6 py-4">
-                        <p className="font-bold text-zinc-200">{item.products?.name}</p>
+                        <p className="font-bold text-zinc-200">{item.products?.name || "Produto"}</p>
                         <p className="text-xs text-zinc-500 mt-1">{item.products?.description || '-'}</p>
                       </td>
                       <td className="px-6 py-4 text-center text-zinc-400 font-mono">{item.quantity}</td>
@@ -258,7 +258,7 @@ const QuotePublicView = () => {
                 </p>
                 <button 
                   onClick={handleApprove}
-                  disabled={approving}
+                  disabled={approving || !quote.customer_id}
                   className="w-full md:w-auto mx-auto px-12 py-5 rounded-2xl font-bold text-zinc-950 flex items-center justify-center gap-3 transition-all hover:scale-105 shadow-xl disabled:opacity-50 disabled:hover:scale-100"
                   style={{ backgroundColor: primaryColor }}
                 >
