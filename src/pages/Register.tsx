@@ -42,15 +42,15 @@ const Register = () => {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <div className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center font-bold text-zinc-950 shadow-lg shadow-orange-500/20 text-xl">S</div>
-            <span className="text-2xl font-bold tracking-tight">Swipy <span className="text-orange-500">Cob</span></span>
+          <div className="inline-flex items-center gap-3 mb-6">
+            <img src="/logo-swipy.png" alt="Swipy Logo" className="w-12 h-12 object-contain drop-shadow-xl" />
+            <span className="text-4xl font-bold tracking-tighter">Swipy</span>
           </div>
           <h2 className="text-3xl font-bold tracking-tight">Crie sua conta</h2>
-          <p className="text-zinc-400 mt-2 text-sm">Comece a gerenciar suas assinaturas e cobranças hoje.</p>
+          <p className="text-zinc-400 mt-2 text-sm">Comece a gerenciar sua empresa hoje.</p>
         </div>
 
-        <form onSubmit={handleRegister} className="bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-2xl space-y-6">
+        <form onSubmit={handleRegister} className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-2xl space-y-6">
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -118,7 +118,7 @@ const Register = () => {
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-orange-500 text-zinc-950 font-bold py-3.5 rounded-xl hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 group disabled:opacity-70"
+            className="w-full bg-orange-500 text-zinc-950 font-black py-4 rounded-2xl hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/10 flex items-center justify-center gap-2 group disabled:opacity-70"
           >
             {loading ? <Loader2 className="animate-spin" size={20} /> : (
               <>
@@ -133,6 +133,10 @@ const Register = () => {
           Já tem uma conta?{' '}
           <Link to="/login" className="text-orange-500 font-bold hover:underline">Faça login</Link>
         </p>
+
+        <div className="pt-8 text-center opacity-30">
+           <p className="text-[10px] font-bold uppercase tracking-[0.3em]">Swipy Fintech LTDA</p>
+        </div>
       </div>
     </div>
   );
