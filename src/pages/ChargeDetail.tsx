@@ -18,19 +18,27 @@ import {
   Loader2,
   QrCode,
   FileText,
-  Send
+  Send,
+  Landmark
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const ChargeDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [charge, setCharge] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
 
   const fetchChargeDetails = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
@@ -57,6 +65,10 @@ const ChargeDetail = () => {
         .order('created_at', { ascending: false });
       
       setLogs(logData || []);
+
+      const { data: accData } = await supabase.from('bank_accounts').select('id, name').eq('user_id', data.user_id);
+      if (accData) setAccounts(accData);
+
     } catch (err: any) {
       console.error("Erro ao carregar detalhes:", err);
     } finally {
@@ -103,11 +115,24 @@ const ChargeDetail = () => {
   };
 
   const handleMarkAsPaid = async () => {
+    if (!selectedAccountId) return showError("Selecione a conta de destino.");
+    
     setActionLoading('paid');
     try {
+      // 1. Atualizar Saldo da Conta
+      const { data: account } = await supabase.from('bank_accounts').select('balance').eq('id', selectedAccountId).single();
+      if (account) {
+        const newBalance = Number(account.balance || 0) + Number(charge.amount || 0);
+        await supabase.from('bank_accounts').update({ balance: newBalance }).eq('id', selectedAccountId);
+      }
+
+      // 2. Marcar Cobrança como Paga
       const { error } = await supabase
         .from('charges')
-        .update({ status: 'pago' })
+        .update({ 
+          status: 'pago', 
+          bank_account_id: selectedAccountId 
+        })
         .eq('id', id);
 
       if (error) throw error;
@@ -116,10 +141,11 @@ const ChargeDetail = () => {
         charge_id: id,
         type: 'payment',
         status: 'success',
-        message: 'A fatura foi marcada como PAGA manualmente pelo lojista.'
+        message: 'A fatura foi recebida e marcada como PAGA pelo lojista.'
       });
 
-      showSuccess("Cobrança marcada como paga!");
+      showSuccess("Recebimento registrado e saldo atualizado!");
+      setIsPayModalOpen(false);
       await fetchChargeDetails(true);
     } catch (err: any) {
       showError(err.message);
@@ -127,6 +153,8 @@ const ChargeDetail = () => {
       setActionLoading(null);
     }
   };
+
+  const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   if (loading) return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div></AppLayout>;
 
@@ -165,7 +193,7 @@ const ChargeDetail = () => {
                 <div>
                   <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-1">Valor da Cobrança</p>
                   <h3 className="text-4xl font-bold text-zinc-100">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
+                    {currencyFormatter.format(charge.amount)}
                   </h3>
                   <div className="mt-6 space-y-2">
                     <p className="text-sm text-zinc-400 flex items-center gap-2">
@@ -222,15 +250,60 @@ const ChargeDetail = () => {
                 </div>
               </div>
               <div className="mt-6 pt-6 border-t border-zinc-800">
-                 <button onClick={handleMarkAsPaid} disabled={charge.status === 'pago' || !!actionLoading} className={cn("w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2", charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700")}>
-                    {actionLoading === 'paid' ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                    {charge.status === 'pago' ? "Pago" : "Baixar Manual"}
+                 <button 
+                  onClick={() => setIsPayModalOpen(true)} 
+                  disabled={charge.status === 'pago' || !!actionLoading} 
+                  className={cn("w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2", charge.status === 'pago' ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700")}
+                 >
+                    <CheckCircle2 size={16} />
+                    {charge.status === 'pago' ? "Fatura Paga" : "Confirmar Recebimento"}
                   </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <Dialog open={isPayModalOpen} onOpenChange={setIsPayModalOpen}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px] rounded-[2rem] shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                <CheckCircle2 size={20} />
+              </div>
+              Baixar Recebimento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor Recebido</p>
+              <p className="text-3xl font-black text-emerald-400">{currencyFormatter.format(charge?.amount)}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-zinc-400">Conta de Destino</Label>
+              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                  <SelectValue placeholder="Para qual conta o dinheiro foi?" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <button 
+                onClick={handleMarkAsPaid}
+                disabled={actionLoading === 'paid' || !selectedAccountId}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95 disabled:opacity-50"
+              >
+                {actionLoading === 'paid' ? <Loader2 className="animate-spin" size={20} /> : "CONFIRMAR BAIXA"}
+              </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

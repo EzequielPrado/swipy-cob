@@ -184,22 +184,23 @@ const Expenses = () => {
       // 1. Buscar saldo atual da conta
       const { data: accountData, error: accErr } = await supabase
         .from('bank_accounts')
-        .select('balance, type')
+        .select('balance')
         .eq('id', payData.accountId)
         .single();
 
       if (accErr) throw new Error("Erro ao consultar saldo da conta.");
 
-      // 2. Calcular novo saldo (apenas se não for conta Swipy automática que é via API)
-      if (accountData.type !== 'swipy') {
-        const newBalance = Number(accountData.balance) - Number(selectedExpense.amount);
-        const { error: balanceErr } = await supabase
-          .from('bank_accounts')
-          .update({ balance: newBalance })
-          .eq('id', payData.accountId);
-        
-        if (balanceErr) throw balanceErr;
-      }
+      // 2. Calcular novo saldo (Sempre subtrair para despesas locais)
+      const currentBalance = Number(accountData.balance || 0);
+      const expenseAmount = Number(selectedExpense.amount || 0);
+      const newBalance = currentBalance - expenseAmount;
+
+      const { error: balanceErr } = await supabase
+        .from('bank_accounts')
+        .update({ balance: newBalance })
+        .eq('id', payData.accountId);
+      
+      if (balanceErr) throw balanceErr;
 
       // 3. Marcar despesa como paga
       const { error } = await supabase.from('expenses').update({
@@ -228,12 +229,12 @@ const Expenses = () => {
       if (exp.status === 'pago' && exp.bank_account_id) {
         const { data: account } = await supabase
           .from('bank_accounts')
-          .select('balance, type')
+          .select('balance')
           .eq('id', exp.bank_account_id)
           .single();
           
-        if (account && account.type !== 'swipy') {
-          const restoredBalance = Number(account.balance) + Number(exp.amount);
+        if (account) {
+          const restoredBalance = Number(account.balance || 0) + Number(exp.amount || 0);
           await supabase.from('bank_accounts').update({ balance: restoredBalance }).eq('id', exp.bank_account_id);
         }
       }
