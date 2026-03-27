@@ -58,6 +58,7 @@ import NotFound from "./pages/NotFound";
 import UserManagement from "./pages/admin/UserManagement";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import GlobalAutomation from "./pages/admin/GlobalAutomation";
+import PlanManagement from "./pages/admin/PlanManagement";
 
 const queryClient = new QueryClient();
 
@@ -132,6 +133,7 @@ const App = () => (
             <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/usuarios" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
             <Route path="/admin/automacao" element={<ProtectedRoute><GlobalAutomation /></ProtectedRoute>} />
+            <Route path="/admin/planos" element={<ProtectedRoute><PlanManagement /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

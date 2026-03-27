@@ -19,7 +19,8 @@ import {
   ChevronRight,
   Wallet,
   Factory,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Zap
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -114,6 +115,7 @@ const menuStructure = [
 const adminItems = [
   { icon: BarChart3, label: 'Visão Global', path: '/admin/dashboard' },
   { icon: UserCog, label: 'Gerenciar Usuários', path: '/admin/usuarios' },
+  { icon: Zap, label: 'Gestão de Planos', path: '/admin/planos' },
   { icon: MessagesSquare, label: 'Régua Global', path: '/admin/automacao' },
 ];
 
