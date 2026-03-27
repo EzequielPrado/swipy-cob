@@ -60,7 +60,7 @@ const Expenses = () => {
       options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
       d.setMonth(d.getMonth() + 1);
     }
-    return options;
+    return options.reverse();
   }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -181,6 +181,27 @@ const Expenses = () => {
     
     setSaving(true);
     try {
+      // 1. Buscar saldo atual da conta
+      const { data: accountData, error: accErr } = await supabase
+        .from('bank_accounts')
+        .select('balance, type')
+        .eq('id', payData.accountId)
+        .single();
+
+      if (accErr) throw new Error("Erro ao consultar saldo da conta.");
+
+      // 2. Calcular novo saldo (apenas se não for conta Swipy automática que é via API)
+      if (accountData.type !== 'swipy') {
+        const newBalance = Number(accountData.balance) - Number(selectedExpense.amount);
+        const { error: balanceErr } = await supabase
+          .from('bank_accounts')
+          .update({ balance: newBalance })
+          .eq('id', payData.accountId);
+        
+        if (balanceErr) throw balanceErr;
+      }
+
+      // 3. Marcar despesa como paga
       const { error } = await supabase.from('expenses').update({
         status: 'pago',
         bank_account_id: payData.accountId,
@@ -188,7 +209,8 @@ const Expenses = () => {
       }).eq('id', selectedExpense.id);
 
       if (error) throw error;
-      showSuccess("Despesa marcada como paga!");
+
+      showSuccess("Pagamento realizado e saldo atualizado!");
       setIsPayOpen(false);
       fetchData();
     } catch (err: any) {
@@ -198,12 +220,28 @@ const Expenses = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (exp: any) => {
     if (!confirm("Excluir esta despesa?")) return;
+    
     try {
-      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      // Se a despesa já estava paga, estornar o valor para a conta antes de deletar
+      if (exp.status === 'pago' && exp.bank_account_id) {
+        const { data: account } = await supabase
+          .from('bank_accounts')
+          .select('balance, type')
+          .eq('id', exp.bank_account_id)
+          .single();
+          
+        if (account && account.type !== 'swipy') {
+          const restoredBalance = Number(account.balance) + Number(exp.amount);
+          await supabase.from('bank_accounts').update({ balance: restoredBalance }).eq('id', exp.bank_account_id);
+        }
+      }
+
+      const { error } = await supabase.from('expenses').delete().eq('id', exp.id);
       if (error) throw error;
-      showSuccess("Despesa excluída.");
+      
+      showSuccess("Despesa removida.");
       fetchData();
     } catch (err: any) {
       showError(err.message);
@@ -405,7 +443,7 @@ const Expenses = () => {
                           <Edit2 size={16}/>
                         </button>
                         <button 
-                          onClick={() => handleDelete(exp.id)}
+                          onClick={() => handleDelete(exp)}
                           className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
                           title="Excluir"
                         >
