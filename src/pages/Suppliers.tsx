@@ -7,10 +7,12 @@ import { Search, Plus, Loader2, Building2, Trash2, Mail, Phone, Tag, ExternalLin
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
+import { useNavigate } from 'react-router-dom';
 import AddSupplierModal from '@/components/suppliers/AddSupplierModal';
 
 const Suppliers = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,7 +44,8 @@ const Suppliers = () => {
     );
   }, [suppliers, searchTerm]);
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
     if (!confirm(`Excluir fornecedor "${name}"?`)) return;
     setDeletingId(id);
     try {
@@ -66,7 +69,7 @@ const Suppliers = () => {
               <Building2 className="text-orange-500" size={32} />
               Fornecedores
             </h2>
-            <p className="text-zinc-400 mt-1">Gerencie seus parceiros comerciais e cadeia de suprimentos.</p>
+            <p className="text-zinc-400 mt-1">Gerencie seus parceiros comerciais. Clique em um fornecedor para ver o histórico financeiro.</p>
           </div>
           <button 
             onClick={() => setIsAddModalOpen(true)}
@@ -118,14 +121,21 @@ const Suppliers = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/50">
                 {filteredSuppliers.map((s) => (
-                  <tr key={s.id} className="hover:bg-zinc-800/30 transition-colors group">
+                  <tr 
+                    key={s.id} 
+                    onClick={() => navigate(`/fornecedores/${s.id}`)}
+                    className="hover:bg-zinc-800/30 transition-colors group cursor-pointer"
+                  >
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-orange-500 font-black">
                           {s.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-zinc-100">{s.name}</p>
+                          <p className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                            {s.name}
+                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-orange-500" />
+                          </p>
                           <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{s.tax_id || 'Documento não informado'}</p>
                         </div>
                       </div>
@@ -142,9 +152,9 @@ const Suppliers = () => {
                       </div>
                     </td>
                     <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => handleDelete(s.id, s.name)}
+                          onClick={(e) => handleDelete(e, s.id, s.name)}
                           disabled={deletingId === s.id}
                           className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
                           title="Excluir"

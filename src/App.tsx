@@ -43,6 +43,7 @@ import Payroll from "./pages/hr/Payroll";
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/CustomerDetail";
 import Suppliers from "./pages/Suppliers";
+import SupplierDetail from "./pages/SupplierDetail";
 import Settings from "./pages/Settings";
 
 // Auth e Públicos
@@ -121,6 +122,7 @@ const App = () => (
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/clientes/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
             <Route path="/fornecedores" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+            <Route path="/fornecedores/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ADMIN */}
