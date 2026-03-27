@@ -34,6 +34,7 @@ import BankAccounts from "./pages/financial/BankAccounts";
 import Expenses from "./pages/financial/Expenses";
 import SwipyAccount from "./pages/financial/SwipyAccount";
 import Fiscal from "./pages/financial/Fiscal";
+import DRE from "./pages/financial/DRE";
 
 // RH / Gente e Gestão
 import Employees from "./pages/hr/Employees";
@@ -115,6 +116,7 @@ const App = () => (
             <Route path="/financeiro/bancos" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
             <Route path="/financeiro/pagar" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
             <Route path="/financeiro/fiscal" element={<ProtectedRoute><Fiscal /></ProtectedRoute>} />
+            <Route path="/financeiro/dre" element={<ProtectedRoute><DRE /></ProtectedRoute>} />
             
             <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
             

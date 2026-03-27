@@ -19,7 +19,7 @@ import {
   ChevronRight,
   Wallet,
   Factory,
-  Truck
+  FileSpreadsheet
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -80,6 +80,7 @@ const menuStructure = [
       { label: 'Assinaturas', path: '/financeiro/assinaturas' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
       { label: 'Contas Bancárias', path: '/financeiro/bancos' },
+      { label: 'DRE Contábil', path: '/financeiro/dre' },
       { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
     ]
   },
