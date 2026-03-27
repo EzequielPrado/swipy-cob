@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Landmark, User, DollarSign, Calendar, FileText } from 'lucide-react';
+import { Loader2, Landmark, User, DollarSign, Calendar, FileText, Plus } from 'lucide-react';
+import AddCustomerModal from '@/components/customers/AddCustomerModal';
 
 interface AddManualReceivableModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     customerId: '',
@@ -46,6 +48,22 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
     if (accRes.data) setAccounts(accRes.data);
   };
 
+  const handleCustomerAdded = async () => {
+    // Re-busca a lista e tenta selecionar o último cadastrado
+    const { data } = await supabase
+      .from('customers')
+      .select('id, name')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setCustomers(data.sort((a, b) => a.name.localeCompare(b.name)));
+      if (data.length > 0) {
+        setFormData(prev => ({ ...prev, customerId: data[0].id }));
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerId) return showError("Selecione um cliente");
@@ -63,7 +81,7 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
         description: formData.description,
         due_date: formData.dueDate,
         status: 'pendente',
-        method: 'manual' // Identificador de que não é Woovi
+        method: 'manual'
       });
 
       if (error) throw error;
@@ -80,81 +98,104 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
-        <DialogHeader>
-          <DialogTitle className="text-xl flex items-center gap-2">
-            <DollarSign className="text-emerald-500" size={20} />
-            Lançar Recebimento Manual
-          </DialogTitle>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-5 py-4">
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2"><User size={14} className="text-zinc-500" /> Cliente / Pagador</Label>
-            <Select value={formData.customerId} onValueChange={v => setFormData({...formData, customerId: v})}>
-              <SelectTrigger className="bg-zinc-950 border-zinc-800 h-11"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2"><FileText size={14} className="text-zinc-500" /> Descrição / Referência</Label>
-            <Input 
-              placeholder="Ex: Venda de Balcão, Acordo extra..."
-              className="bg-zinc-950 border-zinc-800 h-11"
-              value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px] rounded-[2rem] shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                <DollarSign size={20} />
+              </div>
+              Lançar Recebimento Manual
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmit} className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label>Valor (R$)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-zinc-400"><User size={14} className="text-orange-500" /> Cliente / Pagador</Label>
+                <button 
+                  type="button"
+                  onClick={() => setIsAddCustomerModalOpen(true)}
+                  className="text-[10px] font-black text-orange-500 uppercase tracking-widest hover:text-orange-400 transition-colors flex items-center gap-1 bg-orange-500/5 px-2 py-1 rounded-md border border-orange-500/10"
+                >
+                  <Plus size={10} /> Novo Cliente
+                </button>
+              </div>
+              <Select value={formData.customerId} onValueChange={v => setFormData({...formData, customerId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-orange-500/20">
+                  <SelectValue placeholder="Selecione o pagador..." />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-zinc-400"><FileText size={14} className="text-orange-500" /> Descrição / Referência</Label>
               <Input 
-                required
-                placeholder="0,00"
-                className="bg-zinc-950 border-zinc-800 h-11"
-                value={formData.amount}
-                onChange={e => setFormData({...formData, amount: e.target.value})}
+                placeholder="Ex: Venda por fora, Acordo, Dinheiro em mãos..."
+                className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-orange-500/20"
+                value={formData.description}
+                onChange={e => setFormData({...formData, description: e.target.value})}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Vencimento</Label>
-              <Input 
-                type="date"
-                required
-                className="bg-zinc-950 border-zinc-800 h-11"
-                value={formData.dueDate}
-                onChange={e => setFormData({...formData, dueDate: e.target.value})}
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-zinc-400">Valor Estimado (R$)</Label>
+                <Input 
+                  required
+                  placeholder="0,00"
+                  className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-bold text-emerald-400"
+                  value={formData.amount}
+                  onChange={e => setFormData({...formData, amount: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-zinc-400">Data Prevista</Label>
+                <Input 
+                  type="date"
+                  required
+                  className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300"
+                  value={formData.dueDate}
+                  onChange={e => setFormData({...formData, dueDate: e.target.value})}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2"><Landmark size={14} className="text-zinc-500" /> Conta de Destino (Opcional)</Label>
-            <Select value={formData.accountId} onValueChange={v => setFormData({...formData, accountId: v})}>
-              <SelectTrigger className="bg-zinc-950 border-zinc-800 h-11"><SelectValue placeholder="Onde o dinheiro vai cair?" /></SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-zinc-400"><Landmark size={14} className="text-orange-500" /> Conta Bancária de Destino</Label>
+              <Select value={formData.accountId} onValueChange={v => setFormData({...formData, accountId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                  <SelectValue placeholder="Onde o dinheiro vai entrar?" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <DialogFooter className="pt-4 border-t border-zinc-800">
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-emerald-500 text-zinc-950 font-bold py-3 rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : "Registrar Recebível"}
-            </button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <DialogFooter className="pt-4 border-t border-zinc-800/50">
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="animate-spin" size={20} /> : "REGISTRAR RECEBÍVEL"}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AddCustomerModal 
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        onSuccess={handleCustomerAdded}
+      />
+    </>
   );
 };
 
