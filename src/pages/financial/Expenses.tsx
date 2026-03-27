@@ -16,7 +16,8 @@ import {
   Paperclip,
   Eye,
   UploadCloud,
-  CalendarDays
+  CalendarDays,
+  DollarSign
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -78,7 +79,6 @@ const Expenses = () => {
     if (!user) return;
     setLoading(true);
     
-    // Filtro de data robusto (YYYY-MM-DD)
     const [year, month] = selectedMonth.split('-');
     const startDate = `${year}-${month}-01`;
     const lastDay = new Date(Number(year), Number(month), 0).getDate();
@@ -158,13 +158,6 @@ const Expenses = () => {
       }
 
       setIsModalOpen(false);
-      
-      // Se a data da nova despesa for de outro mês, avisa o usuário
-      const expenseMonth = formData.dueDate.substring(0, 7);
-      if (expenseMonth !== selectedMonth) {
-        showSuccess(`Nota: A despesa foi salva em ${formData.dueDate.split('-').reverse().join('/')}. Altere o filtro de mês para visualizá-la.`);
-      }
-      
       fetchData();
     } catch (err: any) {
       showError(err.message);
@@ -421,40 +414,42 @@ const Expenses = () => {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px] rounded-[2rem] shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ArrowUpRight className="text-red-500" size={20} />
+            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
+              <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center text-red-500">
+                <ArrowUpRight size={20} />
+              </div>
               {editingId ? "Editar Despesa" : "Nova Despesa"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <form onSubmit={handleSubmit} className="space-y-6 pt-4">
             <div className="space-y-2">
-              <Label>Descrição da Despesa</Label>
-              <Input required placeholder="Ex: Conta de Luz, Fornecedor X" className="bg-zinc-950 border-zinc-800" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <Label className="text-zinc-400">Descrição da Despesa</Label>
+              <Input required placeholder="Ex: Conta de Luz, Fornecedor X" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-red-500/20" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Valor (R$)</Label>
-                <Input required placeholder="0,00" className="bg-zinc-950 border-zinc-800" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                <Label className="text-zinc-400">Valor (R$)</Label>
+                <Input required placeholder="0,00" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-bold text-red-400" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Vencimento</Label>
-                <Input required type="date" className="bg-zinc-950 border-zinc-800" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
+                <Label className="text-zinc-400">Vencimento</Label>
+                <Input required type="date" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Categoria</Label>
+              <Label className="text-zinc-400">Categoria</Label>
               <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                   {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter className="pt-4">
-              <button type="submit" disabled={saving} className="w-full bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="animate-spin" size={18} /> : "Salvar"}
+            <DialogFooter className="pt-4 border-t border-zinc-800/50">
+              <button type="submit" disabled={saving} className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-500/10 active:scale-95 disabled:opacity-50">
+                {saving ? <Loader2 className="animate-spin" size={20} /> : "SALVAR DESPESA"}
               </button>
             </DialogFooter>
           </form>
@@ -462,37 +457,45 @@ const Expenses = () => {
       </Dialog>
 
       <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px]">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px] rounded-[2rem] shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-emerald-400">
-              <CheckCircle2 size={20} /> Baixar Pagamento
+            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
+              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                <CheckCircle2 size={20} />
+              </div>
+              Baixar Pagamento
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handlePaySubmit} className="space-y-4 pt-4">
-            <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 mb-4">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Valor a Pagar</p>
-              <p className="text-xl font-bold text-zinc-100">{selectedExpense && currencyFormatter.format(selectedExpense.amount)}</p>
+          <form onSubmit={handlePaySubmit} className="space-y-6 pt-4">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor a Pagar</p>
+              <p className="text-3xl font-black text-zinc-100">{selectedExpense && currencyFormatter.format(selectedExpense.amount)}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-zinc-400">Data do Pagamento</Label>
+              <Input required type="date" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300" value={payData.paymentDate} onChange={e => setPayData({...payData, paymentDate: e.target.value})} />
             </div>
             <div className="space-y-2">
-              <Label>Data do Pagamento</Label>
-              <Input required type="date" className="bg-zinc-950 border-zinc-800" value={payData.paymentDate} onChange={e => setPayData({...payData, paymentDate: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <Label>Conta de Origem (De onde o dinheiro saiu?)</Label>
+              <Label className="text-zinc-400">Conta de Origem</Label>
               {accounts.length === 0 ? (
-                <p className="text-xs text-red-400 italic">Você precisa cadastrar uma Conta Bancária primeiro.</p>
+                <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl text-xs text-red-400 italic">
+                  Você precisa cadastrar uma Conta Bancária primeiro.
+                </div>
               ) : (
                 <Select value={payData.accountId} onValueChange={v => setPayData({...payData, accountId: v})}>
-                  <SelectTrigger className="bg-zinc-950 border-zinc-800"><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                    <SelectValue placeholder="De onde o dinheiro sairá?" />
+                  </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                     {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               )}
             </div>
-            <DialogFooter className="pt-4">
-              <button type="submit" disabled={saving || accounts.length === 0} className="w-full bg-emerald-500 text-zinc-950 font-bold py-3 rounded-xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="animate-spin" size={18} /> : "Confirmar Pagamento"}
+            <DialogFooter className="pt-4 border-t border-zinc-800/50">
+              <button type="submit" disabled={saving || accounts.length === 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95 disabled:opacity-50">
+                {saving ? <Loader2 className="animate-spin" size={20} /> : "CONFIRMAR PAGAMENTO"}
               </button>
             </DialogFooter>
           </form>
