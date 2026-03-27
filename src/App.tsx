@@ -42,6 +42,7 @@ import Payroll from "./pages/hr/Payroll";
 // Cadastros e Configurações
 import Customers from "./pages/Customers";
 import CustomerDetail from "./pages/CustomerDetail";
+import Suppliers from "./pages/Suppliers";
 import Settings from "./pages/Settings";
 
 // Auth e Públicos
@@ -119,6 +120,7 @@ const App = () => (
             {/* CADASTROS E CONFIG */}
             <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
             <Route path="/clientes/:id" element={<ProtectedRoute><CustomerDetail /></ProtectedRoute>} />
+            <Route path="/fornecedores" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             {/* ADMIN */}

@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronRight,
   Wallet,
-  Factory
+  Factory,
+  Truck
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -98,6 +99,7 @@ const menuStructure = [
     roles: ['Admin', 'Vendas', 'Financeiro', 'RH'],
     submenus: [
       { label: 'Clientes', path: '/clientes' },
+      { label: 'Fornecedores', path: '/fornecedores' },
     ]
   },
   {
