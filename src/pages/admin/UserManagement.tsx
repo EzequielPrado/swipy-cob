@@ -12,76 +12,94 @@ import {
   Play, 
   Key, 
   Loader2, 
-  Eye,
-  ShieldCheck,
+  Receipt,
   Building2,
-  Receipt
+  Package,
+  Save
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const UserManagement = () => {
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modais
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
-  const [newToken, setNewToken] = useState('');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // Estado do formulário de edição
+  const [editData, setEditData] = useState({
+    woovi_api_key: '',
+    plan_id: 'none'
+  });
   const [updating, setUpdating] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('updated_at', { ascending: false });
+    // Busca usuários e planos em paralelo
+    const [profilesRes, plansRes] = await Promise.all([
+      supabase.from('profiles').select('*, system_plans(name)').order('updated_at', { ascending: false }),
+      supabase.from('system_plans').select('id, name').eq('is_active', true)
+    ]);
 
-    if (!error && data) {
-      setUsers(data);
-    } else if (error) {
-      showError("Erro ao carregar usuários. Verifique o SQL de RLS.");
-    }
+    if (profilesRes.data) setUsers(profilesRes.data);
+    if (plansRes.data) setPlans(plansRes.data);
+    
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchData();
   }, []);
 
   const handleStatusChange = async (userId: string, newStatus: string) => {
-    // Feedback visual imediato na lista antes do fetch
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, status: newStatus } : u));
-    
-    const { error } = await supabase
-      .from('profiles')
-      .update({ status: newStatus })
-      .eq('id', userId);
-
+    const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
     if (error) {
       showError("Falha na atualização: " + error.message);
-      fetchUsers(); // Reverte o estado se der erro
+      fetchData();
     } else {
       showSuccess(`Conta ${newStatus === 'active' ? 'aprovada' : 'suspensa'} com sucesso!`);
     }
   };
 
-  const handleUpdateToken = async () => {
-    setUpdating(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ woovi_api_key: newToken })
-      .eq('id', selectedUser.id);
+  const handleOpenEdit = (user: any) => {
+    setSelectedUser(user);
+    setEditData({
+      woovi_api_key: user.woovi_api_key || '',
+      plan_id: user.plan_id || 'none'
+    });
+    setIsEditModalOpen(true);
+  };
 
-    if (error) showError(error.message);
-    else {
-      showSuccess("Token Woovi atualizado!");
-      setIsTokenModalOpen(false);
-      fetchUsers();
+  const handleSaveUser = async () => {
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          woovi_api_key: editData.woovi_api_key,
+          plan_id: editData.plan_id === 'none' ? null : editData.plan_id
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      showSuccess("Configurações do usuário atualizadas!");
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setUpdating(false);
     }
-    setUpdating(false);
   };
 
   return (
@@ -90,9 +108,9 @@ const UserManagement = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h2>
-            <p className="text-zinc-400 mt-1">Aprove contas, configure tokens e monitore atividades.</p>
+            <p className="text-zinc-400 mt-1">Aprove contas, vincule planos e configure chaves de integração.</p>
           </div>
-          <button onClick={fetchUsers} className="p-2 text-zinc-500 hover:text-zinc-100 transition-colors">
+          <button onClick={fetchData} className="p-2 text-zinc-500 hover:text-zinc-100 transition-colors">
             <Loader2 className={cn(loading && "animate-spin")} size={20} />
           </button>
         </div>
@@ -108,7 +126,7 @@ const UserManagement = () => {
                 <tr>
                   <th className="px-6 py-5">Empresa / Usuário</th>
                   <th className="px-6 py-5">Status</th>
-                  <th className="px-6 py-5">Configuração</th>
+                  <th className="px-6 py-5">Plano Atual</th>
                   <th className="px-6 py-5 text-right">Ações</th>
                 </tr>
               </thead>
@@ -137,29 +155,19 @@ const UserManagement = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1">
-                        {u.woovi_api_key ? (
-                          <div className="flex items-center gap-2 text-emerald-400 text-xs">
-                            <CheckCircle2 size={12} /> Token OK
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-zinc-600 text-xs">
-                            <XCircle size={12} /> Sem Token
-                          </div>
-                        )}
-                        {u.is_admin && <span className="text-[9px] text-orange-500 font-bold tracking-widest uppercase">Admin System</span>}
-                      </div>
+                       <div className="flex items-center gap-2">
+                          <Package size={14} className={u.plan_id ? "text-orange-500" : "text-zinc-600"} />
+                          <span className={cn("text-xs font-bold", u.plan_id ? "text-zinc-200" : "text-zinc-600 italic")}>
+                            {u.system_plans?.name || 'Sem Plano'}
+                          </span>
+                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button 
-                          onClick={() => {
-                            setSelectedUser(u);
-                            setNewToken(u.woovi_api_key || '');
-                            setIsTokenModalOpen(true);
-                          }}
+                          onClick={() => handleOpenEdit(u)}
                           className="p-2 text-zinc-500 hover:text-orange-400 transition-colors" 
-                          title="Token Woovi"
+                          title="Configurações e Plano"
                         >
                           <Key size={16} />
                         </button>
@@ -209,37 +217,52 @@ const UserManagement = () => {
         </div>
       </div>
 
-      <Dialog open={isTokenModalOpen} onOpenChange={setIsTokenModalOpen}>
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
           <DialogHeader>
-            <DialogTitle>Configuração Woovi</DialogTitle>
+            <DialogTitle>Configurações da Empresa</DialogTitle>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-lg">
-              <p className="text-[10px] text-orange-500 font-bold uppercase mb-1">Cliente</p>
-              <p className="text-sm font-semibold">{selectedUser?.company || selectedUser?.full_name}</p>
+          
+          <div className="py-4 space-y-6">
+            <div className="p-4 bg-orange-500/5 border border-orange-500/10 rounded-xl">
+              <p className="text-[10px] text-orange-500 font-bold uppercase mb-1">Empresa selecionada</p>
+              <p className="text-base font-bold text-zinc-100">{selectedUser?.company || selectedUser?.full_name}</p>
             </div>
-            <div className="space-y-2">
-              <Label>Woovi API Key (AppID)</Label>
-              <Input 
-                value={newToken} 
-                onChange={(e) => setNewToken(e.target.value)} 
-                className="bg-zinc-950 border-zinc-800 h-12"
-                placeholder="ak_live_..."
-              />
-              <p className="text-[10px] text-zinc-500 leading-relaxed italic">
-                Insira a chave obtida no painel da Woovi para que o usuário possa gerar cobranças.
-              </p>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Package size={14} className="text-orange-500" /> Plano de Assinatura</Label>
+                <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
+                  <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                    <SelectValue placeholder="Selecione um plano..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                    <SelectItem value="none">Nenhum (Acesso Gratuito)</SelectItem>
+                    {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2"><Key size={14} className="text-orange-500" /> Woovi API Key (AppID)</Label>
+                <Input 
+                  value={editData.woovi_api_key} 
+                  onChange={(e) => setEditData({...editData, woovi_api_key: e.target.value})} 
+                  className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"
+                  placeholder="ak_live_..."
+                />
+              </div>
             </div>
           </div>
+
           <DialogFooter>
             <button 
               disabled={updating}
-              onClick={handleUpdateToken}
-              className="w-full bg-orange-500 text-zinc-950 font-bold py-3 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2"
+              onClick={handleSaveUser}
+              className="w-full bg-orange-500 text-zinc-950 font-bold py-4 rounded-2xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
             >
-              {updating && <Loader2 className="animate-spin" size={16} />}
-              Salvar Configurações
+              {updating ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+              SALVAR ALTERAÇÕES
             </button>
           </DialogFooter>
         </DialogContent>
