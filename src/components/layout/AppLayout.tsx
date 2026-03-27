@@ -20,8 +20,7 @@ import {
   Wallet,
   Factory,
   FileSpreadsheet,
-  ShieldCheck,
-  Loader2
+  ShieldCheck
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
