@@ -33,9 +33,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
+    // Busca o perfil e faz o join com a tabela de planos
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('*, system_plans(*)')
       .eq('id', userId)
       .single();
     
