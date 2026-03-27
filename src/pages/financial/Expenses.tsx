@@ -44,7 +44,6 @@ const Expenses = () => {
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   
-  // Filtro de Mês
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -63,16 +62,14 @@ const Expenses = () => {
     return options;
   }, []);
 
-  // Modal de Adicionar/Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
-    description: '', amount: '', category: CATEGORIES[0], dueDate: ''
+    description: '', amount: '', category: CATEGORIES[0], dueDate: new Date().toISOString().split('T')[0]
   });
 
-  // Modal de Pagar
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [payData, setPayData] = useState({ accountId: '', paymentDate: new Date().toISOString().split('T')[0] });
@@ -81,10 +78,11 @@ const Expenses = () => {
     if (!user) return;
     setLoading(true);
     
-    // Filtro de data
+    // Filtro de data robusto (YYYY-MM-DD)
     const [year, month] = selectedMonth.split('-');
-    const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
-    const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
+    const startDate = `${year}-${month}-01`;
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const endDate = `${year}-${month}-${lastDay}`;
 
     const { data: expData, error: expError } = await supabase
       .from('expenses')
@@ -94,7 +92,9 @@ const Expenses = () => {
       .lte('due_date', endDate)
       .order('due_date', { ascending: true });
 
-    if (!expError && expData) {
+    if (expError) {
+      showError("Erro ao carregar despesas: " + expError.message);
+    } else if (expData) {
       const today = new Date().toISOString().split('T')[0];
       const updatedExpenses = expData.map(exp => ({
         ...exp,
@@ -115,7 +115,12 @@ const Expenses = () => {
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormData({ description: '', amount: '', category: CATEGORIES[0], dueDate: '' });
+    setFormData({ 
+      description: '', 
+      amount: '', 
+      category: CATEGORIES[0], 
+      dueDate: new Date().toISOString().split('T')[0] 
+    });
     setIsModalOpen(true);
   };
 
@@ -153,6 +158,13 @@ const Expenses = () => {
       }
 
       setIsModalOpen(false);
+      
+      // Se a data da nova despesa for de outro mês, avisa o usuário
+      const expenseMonth = formData.dueDate.substring(0, 7);
+      if (expenseMonth !== selectedMonth) {
+        showSuccess(`Nota: A despesa foi salva em ${formData.dueDate.split('-').reverse().join('/')}. Altere o filtro de mês para visualizá-la.`);
+      }
+      
       fetchData();
     } catch (err: any) {
       showError(err.message);
@@ -197,7 +209,7 @@ const Expenses = () => {
   };
 
   const triggerFileUpload = (id: string) => {
-    setSelectedExpense({ id }); // Guarda o ID para saber qual linha está enviando
+    setSelectedExpense({ id }); 
     fileInputRef.current?.click();
   };
 
@@ -232,7 +244,7 @@ const Expenses = () => {
       fetchData();
     } catch (err: any) {
       console.error(err);
-      showError("Erro ao anexar comprovante. Certifique-se de ter rodado o SQL no Supabase para criar o bucket e a coluna.");
+      showError("Erro ao anexar comprovante.");
     } finally {
       setUploadingId(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -257,7 +269,7 @@ const Expenses = () => {
                 <CalendarDays size={16} />
               </div>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400">
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400 h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
@@ -277,7 +289,6 @@ const Expenses = () => {
           </div>
         </div>
 
-        {/* Input escondido para upload de arquivo */}
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -299,7 +310,8 @@ const Expenses = () => {
           ) : expenses.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
-              <p>Nenhuma conta registrada neste mês. Tudo em dia!</p>
+              <p>Nenhuma conta registrada neste mês.</p>
+              <p className="text-xs mt-2 italic">Verifique o filtro de mês no topo da página.</p>
             </div>
           ) : (
             <table className="w-full text-left">
@@ -325,7 +337,7 @@ const Expenses = () => {
                       <div className="flex items-center gap-2 text-sm text-zinc-300">
                         <Calendar size={14} className={exp.status === 'atrasado' ? "text-red-500" : "text-zinc-500"} />
                         <span className={exp.status === 'atrasado' ? "text-red-400 font-bold" : ""}>
-                          {new Date(exp.due_date).toLocaleDateString('pt-BR')}
+                          {new Date(exp.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </span>
                       </div>
                     </td>
@@ -351,8 +363,6 @@ const Expenses = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        
-                        {/* Controle do Comprovante (Apenas se já foi pago) */}
                         {exp.status === 'pago' && (
                           exp.receipt_url ? (
                             <a 
@@ -410,7 +420,6 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Modal Adicionar/Editar */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
           <DialogHeader>
@@ -452,7 +461,6 @@ const Expenses = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Pagamento */}
       <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px]">
           <DialogHeader>
