@@ -19,8 +19,7 @@ import {
   ChevronRight,
   Wallet,
   Factory,
-  FileSpreadsheet,
-  ShieldCheck
+  FileSpreadsheet
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -123,32 +122,29 @@ const ALL_MENU_ITEMS = [
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, isAdmin } = useAuth();
+  const { user, signOut, systemRole, isAdmin, profile } = useAuth();
   
   const [fullProfile, setFullProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
   const [openMenus, setOpenMenus] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
-      setProfileLoading(true);
       supabase.from('profiles').select('*, plans(*)').eq('id', user.id).single()
-        .then(({ data }) => {
-          setFullProfile(data);
-          setProfileLoading(false);
-        });
+        .then(({ data }) => setFullProfile(data));
     }
   }, [user]);
 
   // Lógica de Permissão Modular
   const activeModules = useMemo(() => {
-    if (isAdmin) return ALL_MENU_ITEMS.map(i => i.module); // Admin vê tudo
+    if (isAdmin) return ALL_MENU_ITEMS.map(i => i.module);
     if (!fullProfile) return [];
     
+    // Prioridade 1: Módulos customizados salvos no perfil
     if (fullProfile.custom_modules && Array.isArray(fullProfile.custom_modules)) {
       return fullProfile.custom_modules;
     }
     
+    // Prioridade 2: Módulos padrão do plano
     return fullProfile.plans?.modules || [];
   }, [fullProfile, isAdmin]);
 
@@ -175,16 +171,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-6">
           <div className="space-y-6">
             <nav className="space-y-1">
-              {isAdmin && (
-                <div className="mb-6">
-                  <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest px-3 mb-2">Painel de Controle Swipy</p>
-                  <Link to="/admin" className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group", location.pathname.startsWith('/admin') ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800")}>
-                    <ShieldCheck size={18} className={cn(location.pathname.startsWith('/admin') ? "text-orange-400" : "text-zinc-500")} />
-                    Governança Global
-                  </Link>
-                </div>
-              )}
-
               <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-3">Menu Corporativo</p>
               
               {visibleMenus.map((item) => {
@@ -229,13 +215,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 );
               })}
 
-              <div className="pt-4 mt-4 border-t border-zinc-800/50">
-                <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Plataforma Fintech</p>
-                <Link to="/conta-swipy" className={cn("flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border", location.pathname === "/conta-swipy" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5" : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800")}>
-                  <Wallet size={18} className="text-emerald-500" />
-                  <span className="font-bold">Swipy Conta</span>
-                </Link>
-              </div>
+              {activeModules.includes('swipy_account') && (
+                <div className="pt-4 mt-4 border-t border-zinc-800/50">
+                  <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Plataforma Fintech</p>
+                  <Link to="/conta-swipy" className={cn("flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border", location.pathname === "/conta-swipy" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5" : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800")}>
+                    <Wallet size={18} className="text-emerald-500" />
+                    <span className="font-bold">Swipy Conta</span>
+                  </Link>
+                </div>
+              )}
             </nav>
           </div>
         </div>
@@ -251,22 +239,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-900/30 shrink-0">
           <div className="flex items-center gap-4">
-            {profileLoading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="animate-spin text-orange-500" size={14} />
-                <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Sincronizando Sessão...</span>
-              </div>
-            ) : (
-              <h1 className="text-sm font-medium text-zinc-400">
-                Empresa: <span className="text-zinc-100 font-semibold">{fullProfile?.company || 'Swipy HQ'}</span>
-                <span className={cn(
-                  "ml-3 text-[9px] border px-2 py-0.5 rounded-full font-bold uppercase tracking-widest",
-                  isAdmin ? "bg-orange-500 border-orange-400 text-zinc-950" : "bg-orange-500/10 border-orange-500/20 text-orange-400"
-                )}>
-                  {isAdmin ? 'ADMINISTRADOR GLOBAL' : (fullProfile?.plans?.name || 'Assinante')}
-                </span>
-              </h1>
-            )}
+            <h1 className="text-sm font-medium text-zinc-400">
+              Empresa: <span className="text-zinc-100 font-semibold">{fullProfile?.company || '...'}</span>
+              <span className="ml-3 text-[9px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                {fullProfile?.plans?.name || 'Carregando...'}
+              </span>
+            </h1>
           </div>
         </header>
 
