@@ -88,8 +88,6 @@ const Expenses = () => {
     const lastDay = new Date(Number(year), Number(month), 0).getDate();
     const endDate = `${year}-${month}-${lastDay}`;
 
-    // Busca despesas com join em bank_accounts e fornecedores (se a coluna existir)
-    // Nota: Usamos query simples para evitar erro se a coluna supplier_id ainda não estiver no banco
     const { data: expData, error: expError } = await supabase
       .from('expenses')
       .select('*, bank_accounts(name)')
@@ -155,16 +153,8 @@ const Expenses = () => {
         amount: isNaN(amountNum) ? 0 : amountNum,
         category: formData.category,
         due_date: formData.dueDate,
-        // supplier_id: formData.supplierId === 'none' ? null : formData.supplierId
+        supplier_id: formData.supplierId === 'none' ? null : formData.supplierId
       };
-
-      // Adicionamos o fornecedor na descrição se selecionado, para garantir visualização imediata
-      if (formData.supplierId !== 'none') {
-        const suppName = suppliers.find(s => s.id === formData.supplierId)?.name;
-        if (suppName && !payload.description.includes(suppName)) {
-            payload.description = `${suppName} - ${payload.description}`;
-        }
-      }
 
       if (editingId) {
         const { error } = await supabase.from('expenses').update(payload).eq('id', editingId);
