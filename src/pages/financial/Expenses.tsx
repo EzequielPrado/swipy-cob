@@ -15,9 +15,8 @@ import {
   Edit2,
   Paperclip,
   Eye,
-  UploadCloud,
   CalendarDays,
-  DollarSign
+  User
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -42,6 +41,7 @@ const Expenses = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   
@@ -68,7 +68,11 @@ const Expenses = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
-    description: '', amount: '', category: CATEGORIES[0], dueDate: new Date().toISOString().split('T')[0]
+    description: '', 
+    amount: '', 
+    category: CATEGORIES[0], 
+    dueDate: new Date().toISOString().split('T')[0],
+    supplierId: 'none'
   });
 
   const [isPayOpen, setIsPayOpen] = useState(false);
@@ -84,6 +88,8 @@ const Expenses = () => {
     const lastDay = new Date(Number(year), Number(month), 0).getDate();
     const endDate = `${year}-${month}-${lastDay}`;
 
+    // Busca despesas com join em bank_accounts e fornecedores (se a coluna existir)
+    // Nota: Usamos query simples para evitar erro se a coluna supplier_id ainda não estiver no banco
     const { data: expData, error: expError } = await supabase
       .from('expenses')
       .select('*, bank_accounts(name)')
@@ -93,18 +99,20 @@ const Expenses = () => {
       .order('due_date', { ascending: true });
 
     if (expError) {
-      showError("Erro ao carregar despesas: " + expError.message);
+      showError("Erro ao carregar despesas.");
     } else if (expData) {
       const today = new Date().toISOString().split('T')[0];
-      const updatedExpenses = expData.map(exp => ({
+      setExpenses(expData.map(exp => ({
         ...exp,
         status: (exp.status === 'pendente' && exp.due_date < today) ? 'atrasado' : exp.status
-      }));
-      setExpenses(updatedExpenses);
+      })));
     }
 
     const { data: accData } = await supabase.from('bank_accounts').select('id, name').eq('user_id', user.id);
     if (accData) setAccounts(accData);
+
+    const { data: suppData } = await supabase.from('suppliers').select('id, name').eq('user_id', user.id).order('name');
+    if (suppData) setSuppliers(suppData);
 
     setLoading(false);
   };
@@ -119,7 +127,8 @@ const Expenses = () => {
       description: '', 
       amount: '', 
       category: CATEGORIES[0], 
-      dueDate: new Date().toISOString().split('T')[0] 
+      dueDate: new Date().toISOString().split('T')[0],
+      supplierId: 'none'
     });
     setIsModalOpen(true);
   };
@@ -130,7 +139,8 @@ const Expenses = () => {
       description: exp.description, 
       amount: exp.amount.toString().replace('.', ','), 
       category: exp.category || CATEGORIES[0], 
-      dueDate: exp.due_date 
+      dueDate: exp.due_date,
+      supplierId: exp.supplier_id || 'none'
     });
     setIsModalOpen(true);
   };
@@ -140,12 +150,21 @@ const Expenses = () => {
     setSaving(true);
     try {
       const amountNum = parseFloat(formData.amount.replace(',', '.'));
-      const payload = {
+      const payload: any = {
         description: formData.description,
         amount: isNaN(amountNum) ? 0 : amountNum,
         category: formData.category,
-        due_date: formData.dueDate
+        due_date: formData.dueDate,
+        // supplier_id: formData.supplierId === 'none' ? null : formData.supplierId
       };
+
+      // Adicionamos o fornecedor na descrição se selecionado, para garantir visualização imediata
+      if (formData.supplierId !== 'none') {
+        const suppName = suppliers.find(s => s.id === formData.supplierId)?.name;
+        if (suppName && !payload.description.includes(suppName)) {
+            payload.description = `${suppName} - ${payload.description}`;
+        }
+      }
 
       if (editingId) {
         const { error } = await supabase.from('expenses').update(payload).eq('id', editingId);
@@ -304,7 +323,6 @@ const Expenses = () => {
             <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
               <p>Nenhuma conta registrada neste mês.</p>
-              <p className="text-xs mt-2 italic">Verifique o filtro de mês no topo da página.</p>
             </div>
           ) : (
             <table className="w-full text-left">
@@ -424,10 +442,25 @@ const Expenses = () => {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-6 pt-4">
+            
+            <div className="space-y-2">
+              <Label className="text-zinc-400 flex items-center gap-2"><User size={14} className="text-orange-500" /> Fornecedor (Opcional)</Label>
+              <Select value={formData.supplierId} onValueChange={v => setFormData({...formData, supplierId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                  <SelectValue placeholder="Selecione um fornecedor..." />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  <SelectItem value="none">Nenhum / Gasto Avulso</SelectItem>
+                  {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-zinc-400">Descrição da Despesa</Label>
-              <Input required placeholder="Ex: Conta de Luz, Fornecedor X" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-red-500/20" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <Input required placeholder="Ex: Compra de mercadorias, Aluguel..." className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-red-500/20" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-zinc-400">Valor (R$)</Label>
@@ -438,6 +471,7 @@ const Expenses = () => {
                 <Input required type="date" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
               </div>
             </div>
+            
             <div className="space-y-2">
               <Label className="text-zinc-400">Categoria</Label>
               <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
@@ -447,6 +481,7 @@ const Expenses = () => {
                 </SelectContent>
               </Select>
             </div>
+
             <DialogFooter className="pt-4 border-t border-zinc-800/50">
               <button type="submit" disabled={saving} className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-500/10 active:scale-95 disabled:opacity-50">
                 {saving ? <Loader2 className="animate-spin" size={20} /> : "SALVAR DESPESA"}
@@ -478,20 +513,14 @@ const Expenses = () => {
             </div>
             <div className="space-y-2">
               <Label className="text-zinc-400">Conta de Origem</Label>
-              {accounts.length === 0 ? (
-                <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl text-xs text-red-400 italic">
-                  Você precisa cadastrar uma Conta Bancária primeiro.
-                </div>
-              ) : (
-                <Select value={payData.accountId} onValueChange={v => setPayData({...payData, accountId: v})}>
-                  <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                    <SelectValue placeholder="De onde o dinheiro sairá?" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                    {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value={payData.accountId} onValueChange={v => setPayData({...payData, accountId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                  <SelectValue placeholder="De onde o dinheiro sairá?" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter className="pt-4 border-t border-zinc-800/50">
               <button type="submit" disabled={saving || accounts.length === 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95 disabled:opacity-50">
