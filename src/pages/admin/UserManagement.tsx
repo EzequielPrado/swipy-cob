@@ -12,7 +12,8 @@ import {
   ShieldCheck, 
   Settings2,
   Users,
-  ArrowRight
+  ArrowRight,
+  Save // Adicionado o import que faltava
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -41,7 +42,6 @@ const UserManagement = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    // Busca perfis trazendo também o nome da empresa mãe (merchant) se houver
     const { data: profiles } = await supabase
       .from('profiles')
       .select(`
@@ -191,7 +191,6 @@ const UserManagement = () => {
         </div>
       </div>
 
-      {/* Modal de Edição (Mantido similar ao anterior com as melhorias de hierarquia) */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px] p-0 rounded-[2rem] overflow-hidden">
            <DialogHeader className="p-8 border-b border-zinc-800 bg-zinc-950/30">
