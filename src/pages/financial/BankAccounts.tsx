@@ -51,14 +51,6 @@ const BankAccounts = () => {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const data = await response.json();
-      
-      console.log("[Contas] Retorno API Carteira:", data);
-
-      if (data.error) {
-        showError(`Erro na Woovi: ${data.message}`);
-        return;
-      }
-      
       if (data.balance) {
         setSwipyBalance({
           available: data.balance.available / 100,
@@ -66,173 +58,83 @@ const BankAccounts = () => {
           total: data.balance.total / 100
         });
       }
-    } catch (err) {
-      console.error("Erro ao buscar saldo Swipy:", err);
-    } finally {
-      setLoadingSwipy(false);
-    }
+    } catch (err) { console.error(err); } finally { setLoadingSwipy(false); }
   };
 
   useEffect(() => {
-    if (user) {
-      fetchAccounts();
-      fetchSwipyBalance();
-    }
+    if (user) { fetchAccounts(); fetchSwipyBalance(); }
   }, [user]);
-
-  const openAddModal = () => {
-    setEditingId(null);
-    setFormData({ name: '', type: 'corrente', balance: '0' });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (acc: any) => {
-    setEditingId(acc.id);
-    setFormData({ 
-      name: acc.name, 
-      type: acc.type, 
-      balance: acc.balance.toString().replace('.', ',') 
-    });
-    setIsModalOpen(true);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
     try {
-      const isSwipy = formData.type === 'swipy';
-      const balanceNum = isSwipy ? 0 : parseFloat(formData.balance.replace(',', '.'));
+      const balanceNum = formData.type === 'swipy' ? 0 : parseFloat(formData.balance.replace(',', '.'));
+      const payload = { user_id: user?.id, name: formData.name, type: formData.type, balance: isNaN(balanceNum) ? 0 : balanceNum };
       
-      if (editingId) {
-        const { error } = await supabase.from('bank_accounts').update({
-          name: formData.name,
-          type: formData.type,
-          balance: isNaN(balanceNum) ? 0 : balanceNum
-        }).eq('id', editingId);
-        if (error) throw error;
-        showSuccess("Conta atualizada!");
-      } else {
-        const { error } = await supabase.from('bank_accounts').insert({
-          user_id: user?.id,
-          name: formData.name,
-          type: formData.type,
-          balance: isNaN(balanceNum) ? 0 : balanceNum
-        });
-        if (error) throw error;
-        showSuccess("Conta bancária adicionada!");
-      }
+      const { error } = editingId 
+        ? await supabase.from('bank_accounts').update(payload).eq('id', editingId)
+        : await supabase.from('bank_accounts').insert(payload);
 
+      if (error) throw error;
+      showSuccess(editingId ? "Conta atualizada!" : "Conta adicionada!");
       setIsModalOpen(false);
       fetchAccounts();
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deseja excluir a conta "${name}"? Despesas atreladas a ela perderão a referência de pagamento.`)) return;
-    
-    try {
-      const { error } = await supabase.from('bank_accounts').delete().eq('id', id);
-      if (error) throw error;
-      showSuccess("Conta excluída.");
-      fetchAccounts();
-    } catch (err: any) {
-      showError(err.message);
-    }
+    if (!confirm(`Excluir conta "${name}"?`)) return;
+    const { error } = await supabase.from('bank_accounts').delete().eq('id', id);
+    if (!error) { showSuccess("Conta excluída."); fetchAccounts(); }
   };
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8 pb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Contas Bancárias</h2>
-            <p className="text-zinc-400 mt-1">Gerencie suas contas e carteiras para conciliação de despesas.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Contas Bancárias</h2>
+            <p className="text-apple-muted mt-1 font-medium">Gestão de saldos para conciliação financeira.</p>
           </div>
           <button 
-            onClick={openAddModal}
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
+            onClick={() => { setEditingId(null); setFormData({ name: '', type: 'corrente', balance: '0' }); setIsModalOpen(true); }}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-2 shadow-sm"
           >
             <Plus size={18} /> Nova Conta
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-            <div className="col-span-full flex justify-center py-12">
-              <Loader2 className="animate-spin text-orange-500" size={32} />
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="col-span-full bg-zinc-900 border border-zinc-800 rounded-3xl p-12 text-center text-zinc-500">
-              <Landmark size={48} className="mx-auto mb-4 opacity-20" />
-              <p>Nenhuma conta cadastrada ainda.</p>
-              <p className="text-xs mt-2">Adicione seu banco principal ou a Swipy Conta.</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {loading ? <div className="col-span-full flex justify-center py-12"><Loader2 className="animate-spin text-orange-500" size={32} /></div> : accounts.length === 0 ? (
+            <div className="col-span-full bg-apple-white border border-apple-border rounded-[2rem] p-12 text-center text-apple-muted opacity-60 font-medium">Nenhuma conta cadastrada.</div>
           ) : (
             accounts.map((acc) => {
-              const isSwipy = acc.type === 'swipy' || acc.type === 'digital';
+              const isSwipy = acc.type === 'swipy';
               const displayBalance = isSwipy ? (swipyBalance?.total ?? 0) : acc.balance;
-
               return (
-                <div key={acc.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between group relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                    {isSwipy ? <Wallet size={80} /> : <Building size={80} />}
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-start mb-4">
-                      <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border",
-                        isSwipy ? "bg-orange-500/10 text-orange-400 border-orange-500/20" : "bg-zinc-800 text-zinc-400 border-zinc-700"
-                      )}>
-                        {isSwipy ? <div className="font-bold text-lg">S</div> : <Landmark size={20} />}
+                <div key={acc.id} className="bg-apple-white border border-apple-border rounded-[2rem] p-8 shadow-sm flex flex-col justify-between group relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">{isSwipy ? <Wallet size={120} /> : <Building size={120} />}</div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center border transition-all", isSwipy ? "bg-orange-50 text-orange-600 border-orange-100" : "bg-apple-offWhite text-apple-muted border-apple-border")}>
+                        {isSwipy ? <Wallet size={24} /> : <Landmark size={24} />}
                       </div>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity relative z-10">
-                        <button onClick={() => openEditModal(acc)} className="p-1 text-zinc-500 hover:text-orange-400 transition-colors">
-                          <Edit2 size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(acc.id, acc.name)} className="p-1 text-zinc-500 hover:text-red-400 transition-colors">
-                          <Trash2 size={16} />
-                        </button>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => { setEditingId(acc.id); setFormData({ name: acc.name, type: acc.type, balance: acc.balance.toString().replace('.', ',') }); setIsModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDelete(acc.id, acc.name)} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16} /></button>
                       </div>
                     </div>
-                    <h3 className="text-xl font-bold text-zinc-100 relative z-10">{acc.name}</h3>
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1 relative z-10">
-                      {isSwipy ? 'Carteira Inteligente' : acc.type === 'poupanca' ? 'Conta Poupança' : 'Conta Corrente'}
-                    </p>
+                    <h3 className="text-xl font-bold text-apple-black">{acc.name}</h3>
+                    <p className="text-[10px] text-apple-muted font-black uppercase tracking-widest mt-1">{isSwipy ? 'Carteira Swipy' : acc.type}</p>
                   </div>
-                  
-                  <div className="mt-8 pt-6 border-t border-zinc-800/50 relative z-10">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Saldo Total</p>
-                      {isSwipy && (
-                        <div className="flex items-center gap-1 text-[9px] font-bold uppercase text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                          {loadingSwipy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />} 
-                          Integrado API
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-2xl font-bold text-zinc-300">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(displayBalance)}
-                    </p>
-
-                    {isSwipy && swipyBalance !== null && (
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-800/50">
-                        <div>
-                          <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-0.5">Disponível</p>
-                          <p className="text-xs font-bold text-emerald-400">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.available)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-0.5">Bloqueado</p>
-                          <p className="text-xs font-bold text-zinc-400">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.blocked)}
-                          </p>
-                        </div>
+                  <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
+                    <p className="text-[10px] text-apple-muted font-bold uppercase tracking-widest mb-1">Saldo Consolidado</p>
+                    <p className="text-2xl font-black text-apple-dark">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(displayBalance)}</p>
+                    {isSwipy && swipyBalance && (
+                      <div className="flex gap-4 mt-3">
+                        <div className="bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100"><p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">Disponível</p><p className="text-xs font-bold text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.available)}</p></div>
+                        <div className="bg-apple-offWhite px-2 py-1 rounded-lg border border-apple-border"><p className="text-[8px] font-black text-apple-muted uppercase tracking-tighter">Bloqueado</p><p className="text-xs font-bold text-apple-muted">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(swipyBalance.blocked)}</p></div>
                       </div>
                     )}
                   </div>
@@ -244,65 +146,26 @@ const BankAccounts = () => {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Landmark className="text-orange-500" size={20} />
-              {editingId ? "Editar Conta" : "Adicionar Conta"}
-            </DialogTitle>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="flex items-center gap-2 font-bold text-xl"><Landmark className="text-orange-500" /> {editingId ? "Editar Conta" : "Nova Conta"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-            <div className="space-y-2">
-              <Label>Nome da Conta ou Banco</Label>
-              <Input 
-                required
-                placeholder="Ex: Itaú, Swipy Conta Principal..."
-                className="bg-zinc-950 border-zinc-800 h-11"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Conta</Label>
-              <Select value={formData.type} onValueChange={(v) => setFormData({...formData, type: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  <SelectItem value="corrente">Conta Corrente</SelectItem>
-                  <SelectItem value="poupanca">Conta Poupança</SelectItem>
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <div className="space-y-2"><Label className="text-xs font-bold uppercase text-apple-muted">Nome da Instituição</Label><Input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
+            <div className="space-y-2"><Label className="text-xs font-bold uppercase text-apple-muted">Tipo de Conta</Label>
+              <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
+                <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                  <SelectItem value="corrente">Corrente</SelectItem>
+                  <SelectItem value="poupanca">Poupança</SelectItem>
                   <SelectItem value="swipy">Swipy Conta (Automática)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            
             {formData.type !== 'swipy' && (
-              <div className="space-y-2">
-                <Label>Saldo (R$)</Label>
-                <Input 
-                  placeholder="0,00"
-                  className="bg-zinc-950 border-zinc-800 h-11"
-                  value={formData.balance}
-                  onChange={(e) => setFormData({...formData, balance: e.target.value})}
-                />
-              </div>
+              <div className="space-y-2"><Label className="text-xs font-bold uppercase text-apple-muted">Saldo Atual (R$)</Label><Input value={formData.balance} onChange={e => setFormData({...formData, balance: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" /></div>
             )}
-
-            {formData.type === 'swipy' && (
-              <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl text-xs text-orange-400 leading-relaxed italic">
-                O saldo desta conta é sincronizado em tempo real com as suas cobranças recebidas pelo sistema.
-              </div>
-            )}
-
-            <DialogFooter>
-              <button 
-                type="submit" 
-                disabled={saving}
-                className="w-full bg-orange-500 text-zinc-950 font-bold py-3.5 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2"
-              >
-                {saving ? <Loader2 className="animate-spin" size={18} /> : "Salvar"}
-              </button>
-            </DialogFooter>
+            <DialogFooter><button type="submit" disabled={saving} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 disabled:opacity-50">{saving ? <Loader2 className="animate-spin" /> : "SALVAR CONFIGURAÇÃO"}</button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

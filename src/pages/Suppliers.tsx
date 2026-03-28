@@ -17,165 +17,45 @@ const Suppliers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchSuppliers = async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('suppliers')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('name', { ascending: true });
-
-    if (!error && data) setSuppliers(data);
+    const { data } = await supabase.from('suppliers').select('*').eq('user_id', user.id).order('name', { ascending: true });
+    if (data) setSuppliers(data);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, [user]);
+  useEffect(() => { fetchSuppliers(); }, [user]);
 
-  const filteredSuppliers = useMemo(() => {
-    return suppliers.filter(s => 
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.tax_id && s.tax_id.includes(searchTerm)) ||
-      (s.category && s.category.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [suppliers, searchTerm]);
-
-  const handleDelete = async (e: React.MouseEvent, id: string, name: string) => {
-    e.stopPropagation();
-    if (!confirm(`Excluir fornecedor "${name}"?`)) return;
-    setDeletingId(id);
-    try {
-      const { error } = await supabase.from('suppliers').delete().eq('id', id);
-      if (error) throw error;
-      showSuccess("Fornecedor removido.");
-      fetchSuppliers();
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const filtered = suppliers.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <Building2 className="text-orange-500" size={32} />
-              Fornecedores
-            </h2>
-            <p className="text-zinc-400 mt-1">Gerencie seus parceiros comerciais. Clique em um fornecedor para ver o histórico financeiro.</p>
-          </div>
-          <button 
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
-          >
-            <Plus size={20} /> Novo Fornecedor
-          </button>
+          <div><h2 className="text-3xl font-bold tracking-tight text-apple-black flex items-center gap-3"><Building2 className="text-orange-500" size={32} /> Fornecedores</h2><p className="text-apple-muted mt-1 font-medium">Gestão de compras e parceiros de suprimentos.</p></div>
+          <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm"><Plus size={18} /> Novo Parceiro</button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Total de Parceiros</p>
-            <p className="text-3xl font-black text-zinc-100">{suppliers.length}</p>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-2">Categorias Ativas</p>
-            <p className="text-3xl font-black text-zinc-100">{new Set(suppliers.map(s => s.category).filter(Boolean)).size}</p>
-          </div>
-        </div>
+        <div className="relative max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar fornecedor..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" /></div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-          <input 
-            type="text" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por nome, categoria ou CNPJ..." 
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
-          />
-        </div>
-
-        <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden min-h-[400px] shadow-2xl">
-          {loading ? (
-            <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
-          ) : filteredSuppliers.length === 0 ? (
-            <div className="text-center py-20 text-zinc-600">
-              <Building2 size={48} className="mx-auto mb-4 opacity-20" />
-              <p>Nenhum fornecedor encontrado.</p>
-            </div>
-          ) : (
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
+          {loading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={32} /></div> : (
             <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
-                <tr>
-                  <th className="px-8 py-5">Fornecedor</th>
-                  <th className="px-8 py-5">Categoria</th>
-                  <th className="px-8 py-5">Contato</th>
-                  <th className="px-8 py-5 text-right">Ações</th>
-                </tr>
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                <tr><th className="px-8 py-5">Fornecedor</th><th className="px-8 py-5">Categoria</th><th className="px-8 py-5">Contato</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
-                {filteredSuppliers.map((s) => (
-                  <tr 
-                    key={s.id} 
-                    onClick={() => navigate(`/fornecedores/${s.id}`)}
-                    className="hover:bg-zinc-800/30 transition-colors group cursor-pointer"
-                  >
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-orange-500 font-black">
-                          {s.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-                            {s.name}
-                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-orange-500" />
-                          </p>
-                          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{s.tax_id || 'Documento não informado'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5">
-                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-400 border border-zinc-700">
-                         <Tag size={10} /> {s.category || 'Geral'}
-                       </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="space-y-1">
-                        <p className="text-xs text-zinc-300 flex items-center gap-2"><Mail size={12} className="text-zinc-500" /> {s.email || '---'}</p>
-                        <p className="text-xs text-zinc-300 flex items-center gap-2"><Phone size={12} className="text-zinc-500" /> {s.phone || '---'}</p>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={(e) => handleDelete(e, s.id, s.name)}
-                          disabled={deletingId === s.id}
-                          className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
-                          title="Excluir"
-                        >
-                          {deletingId === s.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+              <tbody className="divide-y divide-apple-border">
+                {filtered.map((s) => (
+                  <tr key={s.id} onClick={() => navigate(`/fornecedores/${s.id}`)} className="hover:bg-apple-light transition-colors cursor-pointer group"><td className="px-8 py-5"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-orange-500 font-black">{s.name.charAt(0).toUpperCase()}</div><div><p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors flex items-center gap-2">{s.name} <ExternalLink size={12} className="opacity-0 group-hover:opacity-100" /></p><p className="text-[10px] text-apple-muted font-bold font-mono">{s.tax_id}</p></div></div></td><td className="px-8 py-5"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-apple-offWhite border border-apple-border text-apple-dark"><Tag size={10} /> {s.category || 'Geral'}</span></td><td className="px-8 py-5"><p className="text-xs text-apple-dark font-medium">{s.email || '---'}</p></td><td className="px-8 py-5 text-right"><button onClick={(e) => { e.stopPropagation(); if (confirm('Remover?')) supabase.from('suppliers').delete().eq('id', s.id).then(() => fetchSuppliers()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button></td></tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
       </div>
-
-      <AddSupplierModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onSuccess={fetchSuppliers} 
-      />
+      <AddSupplierModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={fetchSuppliers} />
     </AppLayout>
   );
 };
