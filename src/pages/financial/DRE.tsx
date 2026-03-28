@@ -85,7 +85,8 @@ const DRE = () => {
         .lte('created_at', endDate);
 
       const totalCPV = quoteItems?.reduce((acc, curr) => {
-        const cost = Number(curr.products?.cost_price || 0);
+        // Corrigido: fazendo cast para 'any' para evitar erro TS2339 de tipagem automática do Supabase
+        const cost = Number((curr.products as any)?.cost_price || 0);
         return acc + (curr.quantity * cost);
       }, 0) || 0;
 
