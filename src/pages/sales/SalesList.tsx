@@ -29,7 +29,6 @@ const SalesList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Controle de Mês/Ano
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -38,7 +37,7 @@ const SalesList = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
-    d.setMonth(d.getMonth() - 6); // Volta 6 meses
+    d.setMonth(d.getMonth() - 6); 
     for(let i=0; i<12; i++) {
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -48,7 +47,6 @@ const SalesList = () => {
     return options;
   }, []);
   
-  // Modal de Detalhes
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -57,7 +55,6 @@ const SalesList = () => {
     if (!user) return;
     setLoading(true);
     
-    // Definir range do mês selecionado
     const [year, month] = selectedMonth.split('-');
     const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
     const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
@@ -80,8 +77,6 @@ const SalesList = () => {
 
     if (!error && data) {
       setSales(data);
-    } else if (error) {
-      showError(error.message);
     }
     setLoading(false);
   };
@@ -127,19 +122,12 @@ const SalesList = () => {
     setUpdatingStatus(true);
 
     try {
-      const { error } = await supabase
-        .from('quotes')
-        .update({ status: nextStage })
-        .eq('id', selectedSale.id);
-
+      const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       if (error) throw error;
-
       showSuccess(`Pedido avançado para: ${FULFILLMENT_STAGES[currentIndex + 1].label}`);
-      
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-      
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -150,40 +138,21 @@ const SalesList = () => {
   const handleInvoiceAndAdvance = async () => {
     if (!selectedSale) return;
     setUpdatingStatus(true);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          chargeId: selectedSale.id,
-          customerId: selectedSale.customer_id,
-          amount: selectedSale.total_amount,
-          description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}`
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ chargeId: selectedSale.id, customerId: selectedSale.customer_id, amount: selectedSale.total_amount, description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}` })
       });
-
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro ao emitir fatura.");
-
+      if (!response.ok) throw new Error(result.error);
       const nextStage = 'invoiced';
-      const { error } = await supabase
-        .from('quotes')
-        .update({ status: nextStage })
-        .eq('id', selectedSale.id);
-
-      if (error) throw error;
-
+      await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       showSuccess("Fatura emitida e enviada via WhatsApp!");
-      
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -192,14 +161,11 @@ const SalesList = () => {
   };
 
   const getStatusDisplay = (status: string) => {
-    if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
-    if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
-    
+    if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-orange-50 text-orange-600 border-orange-100' };
+    if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
     const stage = FULFILLMENT_STAGES.find(s => s.id === status);
-    if (!stage) return { label: status, color: 'bg-zinc-800 text-zinc-400 border-zinc-700' };
-    
-    if (status === 'shipped') return { label: 'Despachado', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
-    return { label: stage.label, color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' };
+    if (!stage) return { label: status, color: 'bg-apple-light text-apple-muted border-apple-border' };
+    return { label: stage.label, color: 'bg-blue-50 text-blue-600 border-blue-100' };
   };
 
   return (
@@ -207,324 +173,152 @@ const SalesList = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <ShoppingBag className="text-orange-500" size={32} />
-              Gestão de Vendas
-            </h2>
-            <p className="text-zinc-400 mt-1">Acompanhe seus pedidos e movimente-os pelo fluxo de atendimento.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Gestão de Vendas</h2>
+            <p className="text-apple-muted mt-1 font-medium">Acompanhe seus pedidos e movimente-os pelo fluxo de atendimento.</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
-              <div className="pl-3 text-zinc-500">
-                <CalendarDays size={16} />
-              </div>
+            <div className="flex items-center bg-apple-white border border-apple-border rounded-lg overflow-hidden pr-2 shadow-sm">
+              <div className="pl-3 text-apple-muted"><CalendarDays size={16} /></div>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400 h-[42px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  {monthOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-500"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                  {monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value} className="focus:bg-apple-light">{opt.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-400 h-[42px]">
-               <Globe size={18} />
-               <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Integrações em Breve</span>
-            </div>
           </div>
         </div>
 
-        {/* TOP CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><ArrowUpRight size={100} /></div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <TrendingUp size={16} className="text-emerald-500" /> Volume de Vendas
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-3xl font-black text-zinc-100">{currencyFormatter.format(metrics.totalVolume)}</p>
-            )}
-            <p className="text-[10px] text-emerald-500 mt-2 font-bold">Pedidos aprovados/fechados no mês</p>
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-emerald-500" /> Volume Faturado</h3>
+            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.totalVolume)}</p>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><Store size={100} /></div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Store size={16} className="text-orange-500" /> Total de Pedidos
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-3xl font-black text-zinc-100">{metrics.totalOrders}</p>
-            )}
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Neste período</p>
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Store size={16} className="text-orange-500" /> Pedidos Totais</h3>
+            <p className="text-3xl font-black text-apple-black">{metrics.totalOrders}</p>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Receipt size={16} className="text-blue-500" /> Ticket Médio
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-3xl font-black text-blue-400">{currencyFormatter.format(metrics.avgTicket)}</p>
-            )}
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Por venda fechada no mês</p>
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Receipt size={16} className="text-blue-500" /> Ticket Médio</h3>
+            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.avgTicket)}</p>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Calendar size={16} className="text-yellow-500" /> Em Negociação
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-3xl font-black text-zinc-100">{metrics.pendingQuotes}</p>
-            )}
-            <p className="text-[10px] text-zinc-500 mt-2 font-bold uppercase tracking-widest">Orçamentos pendentes</p>
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Calendar size={16} className="text-orange-400" /> Negociações</h3>
+            <p className="text-3xl font-black text-apple-black">{metrics.pendingQuotes}</p>
           </div>
         </div>
 
-        {/* FILTROS E BUSCA */}
         <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-          <input 
-            type="text" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por cliente, pedido ou vendedor..." 
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
-          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar pedido ou cliente..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
         </div>
 
-        {/* LISTAGEM DE PEDIDOS */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="animate-spin text-orange-500" size={32} />
-            </div>
-          ) : filteredSales.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
-              <ShoppingBag size={48} className="mb-4 opacity-20" />
-              <p>Nenhum pedido encontrado neste período.</p>
-            </div>
+            <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
           ) : (
             <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
                 <tr>
-                  <th className="px-8 py-5">Cód. Pedido</th>
+                  <th className="px-8 py-5">Ref. Pedido</th>
                   <th className="px-8 py-5">Cliente</th>
-                  <th className="px-8 py-5">Canal / Vendedor</th>
                   <th className="px-8 py-5">Valor</th>
                   <th className="px-8 py-5">Status</th>
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
-                {filteredSales.map((sale) => {
-                  const statusInfo = getStatusDisplay(sale.status);
-                  return (
-                    <tr key={sale.id} className="hover:bg-zinc-800/30 transition-colors">
-                      <td className="px-8 py-5">
-                        <p className="text-xs font-bold text-zinc-300 font-mono uppercase">#{sale.id.split('-')[0]}</p>
-                        <p className="text-[10px] text-zinc-500 mt-1">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-zinc-100">{sale.customers?.name || 'Cliente não identificado'}</p>
-                        <p className="text-xs text-zinc-500">{sale.customers?.email}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight bg-zinc-800 text-zinc-300 border border-zinc-700">
-                            <Store size={10} /> {sale.status === 'completed' ? 'PDV' : 'Orçamento'}
-                          </span>
-                          <span className="text-[9px] text-zinc-400 flex items-center gap-1">
-                            <Contact size={10} className="text-blue-500" />
-                            {sale.employees?.full_name || 'Venda Direta'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-5 text-sm font-bold text-orange-400">
-                        {currencyFormatter.format(sale.total_amount)}
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                          statusInfo.color
-                        )}>
-                          {statusInfo.label}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <button 
-                          onClick={() => openDetails(sale)}
-                          className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
-                          title="Detalhes do Pedido"
-                        >
-                          <Eye size={18}/>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-apple-border">
+                {filteredSales.map((sale) => (
+                  <tr key={sale.id} className="hover:bg-apple-light transition-colors group">
+                    <td className="px-8 py-5">
+                      <p className="text-xs font-bold text-apple-black font-mono uppercase">#{sale.id.split('-')[0]}</p>
+                      <p className="text-[10px] text-apple-muted mt-1 font-bold">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
+                    </td>
+                    <td className="px-8 py-5">
+                      <p className="text-sm font-bold text-apple-black">{sale.customers?.name || 'Venda PDV'}</p>
+                      <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1 mt-0.5"><Contact size={10} className="text-blue-500" /> {sale.employees?.full_name || 'Venda Direta'}</p>
+                    </td>
+                    <td className="px-8 py-5 text-sm font-black text-orange-600">{currencyFormatter.format(sale.total_amount)}</td>
+                    <td className="px-8 py-5">
+                      <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border", getStatusDisplay(sale.status).color)}>
+                        {getStatusDisplay(sale.status).label}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <button onClick={() => openDetails(sale)} className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors"><Eye size={18}/></button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
         </div>
       </div>
 
-      {/* MODAL DE DETALHES E FLUXO DO PEDIDO */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[700px] p-0 flex flex-col max-h-[90vh]">
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[700px] p-0 rounded-[2.5rem] overflow-hidden shadow-2xl">
           {selectedSale && (
             <>
-              <DialogHeader className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0">
-                <DialogTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ShoppingBag className="text-orange-500" size={24} />
-                    <div>
-                      <h3 className="text-xl">Pedido <span className="font-mono uppercase text-orange-500">#{selectedSale.id.split('-')[0]}</span></h3>
-                      <p className="text-xs text-zinc-400 font-normal">Feito em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
-                    </div>
+              <div className="p-8 border-b border-apple-border bg-apple-offWhite shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 border border-orange-100 shadow-sm"><ShoppingBag size={20} /></div>
+                  <div>
+                    <h3 className="text-xl font-bold">Pedido <span className="font-mono uppercase text-orange-500">#{selectedSale.id.split('-')[0]}</span></h3>
+                    <p className="text-xs text-apple-muted font-bold">Feito em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
                   </div>
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-                    getStatusDisplay(selectedSale.status).color
-                  )}>
-                    {getStatusDisplay(selectedSale.status).label}
-                  </span>
-                </DialogTitle>
-              </DialogHeader>
+                </div>
+                <span className={cn("px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border", getStatusDisplay(selectedSale.status).color)}>{getStatusDisplay(selectedSale.status).label}</span>
+              </div>
 
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                
-                {/* PIPELINE DE ATENDIMENTO (Só exibe se for aprovado/fechado e não for PDV direto) */}
+              <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 {selectedSale.status !== 'draft' && selectedSale.status !== 'completed' && (
-                  <div className="p-6 border-b border-zinc-800 bg-zinc-950/20">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Fluxo de Atendimento</h4>
-                      
-                      {/* Botões de Ação do Pipeline */}
-                      {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && (
-                        selectedSale.status === 'picking' ? (
-                          <button 
-                            onClick={handleInvoiceAndAdvance}
-                            disabled={updatingStatus}
-                            className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-lg shadow-blue-500/20"
-                          >
-                            {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} 
-                            Emitir Fatura
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={advanceStatus}
-                            disabled={updatingStatus}
-                            className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
-                          >
-                            {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : "Avançar Etapa"} 
-                            <ChevronRight size={14} />
-                          </button>
-                        )
-                      )}
-                    </div>
-                    
-                    <div className="relative flex justify-between items-center px-4 mt-8 mb-4">
-                      <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 bg-zinc-800 -z-10 -translate-y-1/2"></div>
-                      
-                      {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) > 0 && (
-                        <div 
-                          className="absolute left-[10%] top-1/2 h-0.5 bg-orange-500 -z-10 -translate-y-1/2 transition-all duration-500"
-                          style={{ width: `${(FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) / (FULFILLMENT_STAGES.length - 1)) * 80}%` }}
-                        ></div>
-                      )}
-
+                  <div className="p-6 rounded-[1.5rem] border border-apple-border bg-apple-offWhite shadow-inner">
+                    <div className="flex items-center justify-between mb-8"><h4 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Fluxo de Atendimento</h4></div>
+                    <div className="relative flex justify-between items-center px-4">
+                      <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 bg-apple-border -z-10 -translate-y-1/2"></div>
                       {FULFILLMENT_STAGES.map((stage, index) => {
                         const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
                         const isCompleted = index <= currentIndex;
-                        const isCurrent = index === currentIndex;
-
                         return (
                           <div key={stage.id} className="flex flex-col items-center gap-2 z-10 relative">
-                            <div className={cn(
-                              "w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-300",
-                              isCompleted ? "bg-orange-500 border-zinc-900 text-zinc-950 shadow-lg shadow-orange-500/20" : "bg-zinc-800 border-zinc-900 text-zinc-500"
-                            )}>
-                              <stage.icon size={16} className={isCurrent ? "animate-pulse" : ""} />
+                            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all", isCompleted ? "bg-orange-500 border-orange-600 text-white shadow-sm" : "bg-apple-white border-apple-border text-apple-muted")}>
+                              <stage.icon size={16} />
                             </div>
-                            <span className={cn(
-                              "absolute -bottom-6 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap",
-                              isCompleted ? "text-orange-400" : "text-zinc-600"
-                            )}>
-                              {stage.label}
-                            </span>
+                            <span className={cn("absolute -bottom-6 text-[8px] font-black uppercase tracking-wider", isCompleted ? "text-orange-600" : "text-apple-muted")}>{stage.label}</span>
                           </div>
                         );
                       })}
                     </div>
+                    <div className="mt-14 flex justify-center">
+                       {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && (
+                         <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : advanceStatus} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
+                           {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : (selectedSale.status === 'picking' ? "Emitir Fatura Oficial" : "Avançar Próxima Etapa")}
+                         </button>
+                       )}
+                    </div>
                   </div>
                 )}
 
-                {/* VENDA PDV (FRENTE DE CAIXA) - Bypass Pipeline */}
-                {selectedSale.status === 'completed' && (
-                  <div className="p-6 border-b border-zinc-800 bg-purple-500/5 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 text-purple-500">
-                      <CheckCircle2 size={24} />
-                      <div>
-                        <h4 className="font-bold">Venda de Balcão (Frente de Caixa)</h4>
-                        <p className="text-xs text-purple-500/80">Esta venda foi realizada no PDV e entregue no ato ao cliente.</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={handleInvoiceAndAdvance}
-                      disabled={updatingStatus}
-                      className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 whitespace-nowrap"
-                    >
-                      {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} 
-                      Emitir Fatura
-                    </button>
-                  </div>
-                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="p-6 bg-apple-offWhite border border-apple-border rounded-3xl">
+                      <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Cliente / Pagador</p>
+                      <p className="text-base font-bold text-apple-black">{selectedSale.customers?.name}</p>
+                      <p className="text-xs text-apple-muted font-bold mt-1">{selectedSale.customers?.email}</p>
+                   </div>
+                   <div className="p-6 bg-orange-50 border border-orange-100 rounded-3xl text-right">
+                      <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-3">Valor Total</p>
+                      <p className="text-3xl font-black text-orange-600">{currencyFormatter.format(selectedSale.total_amount)}</p>
+                   </div>
+                </div>
 
-                <div className="p-6 space-y-6 mt-4">
-                  <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-5 flex justify-between items-center shadow-inner">
-                    <div>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Cliente / Vendedor</p>
-                      <p className="text-base font-bold text-zinc-100">{selectedSale.customers?.name}</p>
-                      <p className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
-                        <Contact size={12} className="text-blue-500" />
-                        Vend: {selectedSale.employees?.full_name || 'Não Informado (Venda Direta)'}
-                      </p>
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest flex items-center gap-2"><Package size={14} /> Itens do Pedido</h4>
+                  {selectedSale.quote_items?.map((item: any) => (
+                    <div key={item.id} className="p-4 bg-apple-white border border-apple-border rounded-2xl flex items-center justify-between shadow-sm">
+                      <div><p className="text-sm font-bold text-apple-black">{item.products?.name || 'Item Excluído'}</p><p className="text-[10px] text-apple-muted font-mono font-bold">SKU: {item.products?.sku || 'N/A'}</p></div>
+                      <div className="text-right"><p className="text-sm font-black text-apple-black">{currencyFormatter.format(item.total_price)}</p><p className="text-[10px] text-apple-muted font-bold">{item.quantity}x {currencyFormatter.format(item.unit_price)}</p></div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Valor Total</p>
-                      <p className="text-3xl font-black text-orange-500">{currencyFormatter.format(selectedSale.total_amount)}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <Package size={16} className="text-zinc-500" /> Itens do Pedido ({selectedSale.quote_items?.length || 0})
-                    </h4>
-                    
-                    <div className="space-y-3">
-                      {selectedSale.quote_items && selectedSale.quote_items.length > 0 ? (
-                        selectedSale.quote_items.map((item: any) => (
-                          <div key={item.id} className="flex items-center justify-between p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
-                            <div>
-                              <p className="text-sm font-bold text-zinc-200">{item.products?.name || 'Produto Excluído'}</p>
-                              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">SKU: {item.products?.sku || 'N/A'}</p>
-                            </div>
-                            <div className="text-right flex items-center gap-4">
-                              <div className="text-zinc-500 text-xs">
-                                {item.quantity}x <span className="font-mono">{currencyFormatter.format(item.unit_price)}</span>
-                              </div>
-                              <p className="text-sm font-bold text-zinc-100 w-24">
-                                {currencyFormatter.format(item.total_price)}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-zinc-500 text-center py-4">Nenhum item encontrado.</p>
-                      )}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </>

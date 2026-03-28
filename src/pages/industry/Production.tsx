@@ -23,27 +23,16 @@ const Production = () => {
   const fetchOrders = async () => {
     if (!user) return;
     setLoading(true);
-    
-    const { data, error } = await supabase
-      .from('production_orders')
-      .select('*, products(name, sku, stock_quantity), quotes(id, customers(name))')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setOrders(data);
-    }
+    const { data, error } = await supabase.from('production_orders').select('*, products(name, sku, stock_quantity), quotes(id, customers(name))').eq('user_id', user.id).order('created_at', { ascending: false });
+    if (!error && data) setOrders(data);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchOrders();
-  }, [user]);
+  useEffect(() => { fetchOrders(); }, [user]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const matchSearch = o.products?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (o.products?.sku && o.products.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchSearch = o.products?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || (o.products?.sku && o.products.sku.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchStatus = statusFilter === 'all' || o.status === statusFilter;
       return matchSearch && matchStatus;
     });
@@ -51,65 +40,17 @@ const Production = () => {
 
   const handleUpdateStatus = async (id: string, newStatus: string, productId: string, quantity: number) => {
     try {
-      const { error } = await supabase
-        .from('production_orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      // Se concluir, dá entrada automática no estoque do produto
+      await supabase.from('production_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
       if (newStatus === 'completed') {
         const { data: p } = await supabase.from('products').select('stock_quantity').eq('id', productId).single();
         if (p) {
           await supabase.from('products').update({ stock_quantity: p.stock_quantity + quantity }).eq('id', productId);
-          await supabase.from('inventory_movements').insert({
-            user_id: user?.id,
-            product_id: productId,
-            type: 'in',
-            quantity: quantity,
-            notes: `Produção Concluída - Ordem #${id.split('-')[0].toUpperCase()}`
-          });
-          showSuccess("Estoque atualizado com sucesso!");
+          await supabase.from('inventory_movements').insert({ user_id: user?.id, product_id: productId, type: 'in', quantity: quantity, notes: `Produção Concluída - Ordem #${id.split('-')[0].toUpperCase()}` });
         }
       }
-
-      showSuccess(`Ordem de produção ${newStatus === 'completed' ? 'finalizada' : 'iniciada'}.`);
+      showSuccess(`Ordem ${newStatus === 'completed' ? 'finalizada' : 'iniciada'}.`);
       fetchOrders();
-    } catch (err: any) {
-      showError(err.message);
-    }
-  };
-
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.setTextColor(249, 115, 22);
-    doc.text("RELATÓRIO DE PRODUÇÃO", 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
-
-    const tableColumn = ["Data", "Produto", "Qtd", "Cliente / Origem", "Status"];
-    const tableRows = filteredOrders.map(o => [
-      new Date(o.created_at).toLocaleDateString('pt-BR'),
-      o.products?.name || 'Item Excluído',
-      o.quantity,
-      o.quotes?.customers?.name || 'Venda Avulsa',
-      o.status.toUpperCase()
-    ]);
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 35,
-      theme: 'striped',
-      headStyles: { fillColor: [249, 115, 22] }
-    });
-
-    doc.save(`relatorio-producao-${new Date().toISOString().split('T')[0]}.pdf`);
-    showSuccess("Relatório baixado!");
+    } catch (err: any) { showError(err.message); }
   };
 
   return (
@@ -117,152 +58,61 @@ const Production = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <Factory className="text-orange-500" size={32} />
-              Linha de Produção
-            </h2>
-            <p className="text-zinc-400 mt-1">Gerencie a fabricação de produtos vendidos e acompanhe o fluxo industrial.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black flex items-center gap-3"><Factory className="text-orange-500" size={32} /> Linha de Produção</h2>
+            <p className="text-apple-muted mt-1 font-medium">Gerencie a fabricação e o fluxo industrial.</p>
           </div>
-          <button 
-            onClick={handleExportPDF}
-            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-4 py-2 rounded-xl border border-zinc-700 transition-all flex items-center gap-2 text-sm font-bold"
-          >
-            <FileText size={18} /> Relatório de Produção
-          </button>
         </div>
 
-        {/* METRICS */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl border-l-yellow-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-              <AlertTriangle size={14} className="text-yellow-500" /> Aguardando
-            </p>
-            <p className="text-3xl font-black text-zinc-100">{orders.filter(o => o.status === 'pending').length}</p>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl border-l-blue-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-              <Play size={14} className="text-blue-500" /> Em Fabricação
-            </p>
-            <p className="text-3xl font-black text-zinc-100">{orders.filter(o => o.status === 'in_progress').length}</p>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl border-l-emerald-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-              <CheckCircle2 size={14} className="text-emerald-500" /> Concluídos (Mês)
-            </p>
-            <p className="text-3xl font-black text-zinc-100">{orders.filter(o => o.status === 'completed').length}</p>
-          </div>
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Total de Itens</p>
-            <p className="text-3xl font-black text-zinc-100">
-              {orders.reduce((acc, curr) => acc + curr.quantity, 0)}
-            </p>
-          </div>
+          {[
+            { label: 'Aguardando', icon: AlertTriangle, color: 'text-orange-500', bg: 'border-l-orange-500', filter: 'pending' },
+            { label: 'Em Produção', icon: Play, color: 'text-blue-500', bg: 'border-l-blue-500', filter: 'in_progress' },
+            { label: 'Concluídos', icon: CheckCircle2, color: 'text-emerald-500', bg: 'border-l-emerald-500', filter: 'completed' },
+            { label: 'Total Itens', icon: Package, color: 'text-apple-muted', bg: 'border-l-apple-border', filter: 'all' }
+          ].map(stat => (
+            <div key={stat.label} className={cn("bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm border-l-4", stat.bg)}>
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2"><stat.icon size={14} className={stat.color} /> {stat.label}</p>
+              <p className="text-3xl font-black text-apple-black">{stat.filter === 'all' ? orders.reduce((acc, c) => acc + c.quantity, 0) : orders.filter(o => o.status === stat.filter).length}</p>
+            </div>
+          ))}
         </div>
 
-        {/* FILTROS */}
-        <div className="flex flex-col md:flex-row gap-4 items-center bg-zinc-900/50 p-2 rounded-3xl border border-zinc-800/50">
+        <div className="flex flex-col md:flex-row gap-4 items-center bg-apple-white p-2 rounded-[2rem] border border-apple-border shadow-sm">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input 
-              type="text" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por produto ou código..." 
-              className="w-full bg-zinc-900 border-none rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-0 outline-none transition-all"
-            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar produto ou código..." className="w-full bg-transparent border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-0 outline-none text-apple-black" />
           </div>
-          <div className="flex gap-2 pr-2 overflow-x-auto w-full md:w-auto">
+          <div className="flex gap-1 pr-1 overflow-x-auto">
             {['all', 'pending', 'in_progress', 'completed'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                  statusFilter === st ? "bg-orange-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                )}
-              >
-                {st === 'all' ? 'Ver Todos' : st === 'pending' ? 'Aguardando' : st === 'in_progress' ? 'Produzindo' : 'Finalizados'}
+              <button key={st} onClick={() => setStatusFilter(st)} className={cn("px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all", statusFilter === st ? "bg-orange-500 text-white" : "bg-apple-offWhite text-apple-muted hover:bg-apple-light")}>
+                {st === 'all' ? 'Todos' : st === 'pending' ? 'Aguardando' : st === 'in_progress' ? 'Produzindo' : 'Finalizados'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* LISTAGEM DE ORDENS */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-2xl">
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-20 text-zinc-600">
-              <Factory size={48} className="mx-auto mb-4 opacity-20" />
-              <p>Nenhuma ordem de produção para os filtros aplicados.</p>
-            </div>
+            <div className="text-center py-20 text-apple-muted font-bold italic"><p>Nenhuma ordem de produção ativa.</p></div>
           ) : (
             <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
-                <tr>
-                  <th className="px-8 py-5">Ordem / Data</th>
-                  <th className="px-8 py-5">Produto</th>
-                  <th className="px-8 py-5">Quantidade</th>
-                  <th className="px-8 py-5">Cliente / Venda</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Ações</th>
-                </tr>
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                <tr><th className="px-8 py-5">Ordem</th><th className="px-8 py-5">Produto</th><th className="px-8 py-5">Qtd</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-apple-border">
                 {filteredOrders.map((o) => (
-                  <tr key={o.id} className={cn("hover:bg-zinc-800/30 transition-colors", o.status === 'completed' && "opacity-50")}>
+                  <tr key={o.id} className={cn("hover:bg-apple-light transition-colors group", o.status === 'completed' && "opacity-60")}>
+                    <td className="px-8 py-5 font-mono text-xs font-black uppercase">#{o.id.split('-')[0]}</td>
+                    <td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{o.products?.name}</p><p className="text-[10px] text-apple-muted font-bold">SKU: {o.products?.sku}</p></td>
+                    <td className="px-8 py-5"><span className="text-base font-black text-orange-600">{o.quantity} <span className="text-[10px] text-apple-muted uppercase">un.</span></span></td>
                     <td className="px-8 py-5">
-                      <p className="text-xs font-bold text-zinc-300 font-mono uppercase">#{o.id.split('-')[0]}</p>
-                      <p className="text-[10px] text-zinc-500 mt-1">{new Date(o.created_at).toLocaleDateString('pt-BR')}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-100">{o.products?.name}</p>
-                      <p className="text-[10px] text-zinc-500 font-mono">SKU: {o.products?.sku}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                       <span className="text-base font-black text-orange-400">{o.quantity} <span className="text-[10px] font-bold text-zinc-500 uppercase">unid.</span></span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-2">
-                        <User size={12} className="text-blue-500" />
-                        <p className="text-xs text-zinc-300 font-medium">{o.quotes?.customers?.name || 'Venda Direta'}</p>
-                      </div>
-                      {o.notes && <p className="text-[9px] text-zinc-600 mt-1 italic max-w-xs truncate">{o.notes}</p>}
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border",
-                        o.status === 'pending' ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" :
-                        o.status === 'in_progress' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                        "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      )}>
-                        <div className={cn("w-1.5 h-1.5 rounded-full", 
-                          o.status === 'pending' ? "bg-yellow-400" : o.status === 'in_progress' ? "bg-blue-400" : "bg-emerald-400"
-                        )} />
-                        {o.status === 'pending' ? 'Aguardando' : o.status === 'in_progress' ? 'Produzindo' : 'Finalizado'}
-                      </span>
+                      <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", o.status === 'pending' ? "bg-orange-50 text-orange-600 border-orange-100" : o.status === 'in_progress' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100")}>{o.status === 'pending' ? 'Aguardando' : o.status === 'in_progress' ? 'Produzindo' : 'Finalizado'}</span>
                     </td>
                     <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {o.status === 'pending' && (
-                          <button 
-                            onClick={() => handleUpdateStatus(o.id, 'in_progress', o.product_id, o.quantity)}
-                            className="bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-zinc-950 p-2 rounded-lg transition-all"
-                            title="Iniciar Produção"
-                          >
-                            <Play size={16} fill="currentColor" />
-                          </button>
-                        )}
-                        {o.status === 'in_progress' && (
-                          <button 
-                            onClick={() => handleUpdateStatus(o.id, 'completed', o.product_id, o.quantity)}
-                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-zinc-950 p-2 rounded-lg transition-all"
-                            title="Finalizar e Entrar no Estoque"
-                          >
-                            <CheckCircle2 size={16} />
-                          </button>
-                        )}
-                      </div>
+                       {o.status === 'pending' && <button onClick={() => handleUpdateStatus(o.id, 'in_progress', o.product_id, o.quantity)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"><Play size={16} fill="currentColor" /></button>}
+                       {o.status === 'in_progress' && <button onClick={() => handleUpdateStatus(o.id, 'completed', o.product_id, o.quantity)} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"><CheckCircle2 size={16} /></button>}
                     </td>
                   </tr>
                 ))}

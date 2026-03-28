@@ -190,7 +190,6 @@ const Expenses = () => {
 
       if (accErr) throw new Error("Erro ao consultar saldo da conta.");
 
-      // 2. Calcular novo saldo (Sempre subtrair para despesas locais)
       const currentBalance = Number(accountData.balance || 0);
       const expenseAmount = Number(selectedExpense.amount || 0);
       const newBalance = currentBalance - expenseAmount;
@@ -225,7 +224,6 @@ const Expenses = () => {
     if (!confirm("Excluir esta despesa?")) return;
     
     try {
-      // Se a despesa já estava paga, estornar o valor para a conta antes de deletar
       if (exp.status === 'pago' && exp.bank_account_id) {
         const { data: account } = await supabase
           .from('bank_accounts')
@@ -300,20 +298,20 @@ const Expenses = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Contas a Pagar</h2>
-            <p className="text-zinc-400 mt-1">Controle suas despesas, fornecedores e obrigações.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Contas a Pagar</h2>
+            <p className="text-apple-muted mt-1 font-medium">Controle suas despesas, fornecedores e obrigações.</p>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
-              <div className="pl-3 text-zinc-500">
+            <div className="flex items-center bg-apple-white border border-apple-border rounded-lg overflow-hidden pr-2 shadow-sm">
+              <div className="pl-3 text-apple-muted">
                 <CalendarDays size={16} />
               </div>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400 h-10">
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-500">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                   {monthOptions.map(opt => (
                     <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                   ))}
@@ -323,7 +321,7 @@ const Expenses = () => {
 
             <button 
               onClick={openAddModal}
-              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-red-500/20"
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-2 shadow-sm"
             >
               <Plus size={18} /> Nova Despesa
             </button>
@@ -338,24 +336,24 @@ const Expenses = () => {
           accept="image/*,.pdf" 
         />
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl w-full max-w-sm border-l-red-500/50">
-          <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-2 flex items-center gap-2">
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] p-6 shadow-sm w-full max-w-sm border-l-red-500 border-l-4">
+          <p className="text-[10px] text-apple-muted uppercase font-bold tracking-widest mb-2 flex items-center gap-2">
             <ArrowUpRight size={14} className="text-red-500" /> Total Pendente ({monthOptions.find(o => o.value === selectedMonth)?.label})
           </p>
-          <p className="text-3xl font-bold text-zinc-100">{currencyFormatter.format(totalPendente)}</p>
+          <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalPendente)}</p>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
             <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
           ) : expenses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
+            <div className="flex flex-col items-center justify-center h-64 text-apple-muted">
               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
               <p>Nenhuma conta registrada neste mês.</p>
             </div>
           ) : (
             <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-5">Descrição / Categoria</th>
                   <th className="px-8 py-5">Vencimento</th>
@@ -364,38 +362,38 @@ const Expenses = () => {
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-apple-border">
                 {expenses.map((exp) => (
-                  <tr key={exp.id} className={cn("hover:bg-zinc-800/30 transition-colors", exp.status === 'pago' && "opacity-60 hover:opacity-100")}>
+                  <tr key={exp.id} className={cn("hover:bg-apple-light transition-colors", exp.status === 'pago' && "opacity-60 hover:opacity-100")}>
                     <td className="px-8 py-5">
-                      <p className={cn("text-sm font-bold", exp.status === 'pago' ? "text-zinc-400 line-through" : "text-zinc-100")}>{exp.description}</p>
-                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-zinc-500 uppercase tracking-widest">
+                      <p className={cn("text-sm font-bold", exp.status === 'pago' ? "text-apple-muted line-through" : "text-apple-black")}>{exp.description}</p>
+                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-apple-muted uppercase tracking-widest font-bold">
                         <Tag size={10} /> {exp.category}
                       </span>
                     </td>
                     <td className="px-8 py-5">
-                      <div className="flex items-center gap-2 text-sm text-zinc-300">
-                        <Calendar size={14} className={exp.status === 'atrasado' ? "text-red-500" : "text-zinc-500"} />
-                        <span className={exp.status === 'atrasado' ? "text-red-400 font-bold" : ""}>
+                      <div className="flex items-center gap-2 text-sm text-apple-dark font-medium">
+                        <Calendar size={14} className={exp.status === 'atrasado' ? "text-red-500" : "text-apple-muted"} />
+                        <span className={exp.status === 'atrasado' ? "text-red-500 font-bold" : ""}>
                           {new Date(exp.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
                         </span>
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-sm font-bold text-zinc-100">
+                    <td className="px-8 py-5 text-sm font-black text-apple-black">
                       {currencyFormatter.format(exp.amount)}
                     </td>
                     <td className="px-8 py-5">
                       <div className="flex flex-col items-start gap-1.5">
                         <span className={cn(
                           "px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border",
-                          exp.status === 'pago' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                          exp.status === 'atrasado' ? "bg-red-500/10 text-red-400 border-red-500/20" : 
-                          "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                          exp.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                          exp.status === 'atrasado' ? "bg-red-50 text-red-600 border-red-100" : 
+                          "bg-orange-50 text-orange-600 border-orange-100"
                         )}>
                           {exp.status}
                         </span>
                         {exp.status === 'pago' && (
-                          <span className="text-[9px] text-zinc-500 flex items-center gap-1">
+                          <span className="text-[9px] text-apple-muted font-bold flex items-center gap-1">
                             <Building size={10} /> {exp.bank_accounts?.name || 'Conta Removida'}
                           </span>
                         )}
@@ -409,20 +407,20 @@ const Expenses = () => {
                               href={exp.receipt_url} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors flex items-center gap-1"
+                              className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors flex items-center gap-1"
                               title="Ver Comprovante"
                             >
-                              <Eye size={16} /> <span className="text-[10px] font-bold">Ver</span>
+                              <Eye size={16} /> <span className="text-[10px] font-black uppercase">Ver</span>
                             </a>
                           ) : (
                             <button 
                               onClick={() => triggerFileUpload(exp.id)}
                               disabled={uploadingId === exp.id}
-                              className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                              className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-colors flex items-center gap-1 disabled:opacity-50"
                               title="Anexar Comprovante"
                             >
                               {uploadingId === exp.id ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
-                              <span className="text-[10px] font-bold">Anexar</span>
+                              <span className="text-[10px] font-black uppercase">Anexar</span>
                             </button>
                           )
                         )}
@@ -430,7 +428,7 @@ const Expenses = () => {
                         {exp.status !== 'pago' && (
                           <button 
                             onClick={() => { setSelectedExpense(exp); setIsPayOpen(true); }}
-                            className="p-2 text-zinc-500 hover:text-emerald-400 transition-colors"
+                            className="p-2.5 text-apple-muted hover:text-emerald-500 transition-colors"
                             title="Pagar"
                           >
                             <CheckCircle2 size={18}/>
@@ -438,14 +436,14 @@ const Expenses = () => {
                         )}
                         <button 
                           onClick={() => openEditModal(exp)}
-                          className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
+                          className="p-2.5 text-apple-muted hover:text-blue-500 transition-colors"
                           title="Editar"
                         >
                           <Edit2 size={16}/>
                         </button>
                         <button 
                           onClick={() => handleDelete(exp)}
-                          className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
+                          className="p-2.5 text-apple-muted hover:text-red-500 transition-colors"
                           title="Excluir"
                         >
                           <Trash2 size={16}/>
@@ -461,99 +459,58 @@ const Expenses = () => {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px] rounded-[2rem] shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
-              <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center text-red-500">
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl flex items-center gap-3 font-bold">
+              <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-red-500 border border-red-100">
                 <ArrowUpRight size={20} />
               </div>
               {editingId ? "Editar Despesa" : "Nova Despesa"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-6 pt-4">
-            
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
             <div className="space-y-2">
-              <Label className="text-zinc-400 flex items-center gap-2"><User size={14} className="text-orange-500" /> Fornecedor (Opcional)</Label>
+              <Label className="text-apple-muted font-bold text-xs uppercase flex items-center gap-2"><User size={14} className="text-orange-500" /> Fornecedor (Opcional)</Label>
               <Select value={formData.supplierId} onValueChange={v => setFormData({...formData, supplierId: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl focus:ring-red-500/20 shadow-sm">
                   <SelectValue placeholder="Selecione um fornecedor..." />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  <SelectItem value="none">Nenhum / Gasto Avulso</SelectItem>
-                  {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                  <SelectItem value="none" className="focus:bg-apple-light">Nenhum / Gasto Avulso</SelectItem>
+                  {suppliers.map(s => <SelectItem key={s.id} value={s.id} className="focus:bg-apple-light">{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-zinc-400">Descrição da Despesa</Label>
-              <Input required placeholder="Ex: Compra de mercadorias, Aluguel..." className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-red-500/20" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <Label className="text-apple-muted font-bold text-xs uppercase">Descrição da Despesa</Label>
+              <Input required placeholder="Ex: Compra de mercadorias, Aluguel..." className="bg-apple-offWhite border-apple-border h-12 rounded-xl focus:ring-red-500/20 shadow-sm" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-zinc-400">Valor (R$)</Label>
-                <Input required placeholder="0,00" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-bold text-red-400" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                <Label className="text-apple-muted font-bold text-xs uppercase">Valor (R$)</Label>
+                <Input required placeholder="0,00" className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-red-500 shadow-sm" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label className="text-zinc-400">Vencimento</Label>
-                <Input required type="date" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
+                <Label className="text-apple-muted font-bold text-xs uppercase">Vencimento</Label>
+                <Input required type="date" className="bg-apple-offWhite border-apple-border h-12 rounded-xl text-apple-black font-semibold shadow-sm" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label className="text-zinc-400">Categoria</Label>
+              <Label className="text-apple-muted font-bold text-xs uppercase">Categoria</Label>
               <Select value={formData.category} onValueChange={v => setFormData({...formData, category: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl shadow-sm"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                  {CATEGORIES.map(c => <SelectItem key={c} value={c} className="focus:bg-apple-light">{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            <DialogFooter className="pt-4 border-t border-zinc-800/50">
-              <button type="submit" disabled={saving} className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-500/10 active:scale-95 disabled:opacity-50">
+            <DialogFooter className="pt-4">
+              <button type="submit" disabled={saving} className="w-full bg-red-500 hover:bg-red-600 text-white font-black py-4 rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50">
                 {saving ? <Loader2 className="animate-spin" size={20} /> : "SALVAR DESPESA"}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[400px] rounded-[2rem] shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl flex items-center gap-3 font-bold tracking-tight">
-              <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
-                <CheckCircle2 size={20} />
-              </div>
-              Baixar Pagamento
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handlePaySubmit} className="space-y-6 pt-4">
-            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor a Pagar</p>
-              <p className="text-3xl font-black text-zinc-100">{selectedExpense && currencyFormatter.format(selectedExpense.amount)}</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-zinc-400">Data do Pagamento</Label>
-              <Input required type="date" className="bg-zinc-950 border-zinc-800 h-12 rounded-xl text-zinc-300" value={payData.paymentDate} onChange={e => setPayData({...payData, paymentDate: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-zinc-400">Conta de Origem</Label>
-              <Select value={payData.accountId} onValueChange={v => setPayData({...payData, accountId: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                  <SelectValue placeholder="De onde o dinheiro sairá?" />
-                </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                  {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter className="pt-4 border-t border-zinc-800/50">
-              <button type="submit" disabled={saving || accounts.length === 0} className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95 disabled:opacity-50">
-                {saving ? <Loader2 className="animate-spin" size={20} /> : "CONFIRMAR PAGAMENTO"}
               </button>
             </DialogFooter>
           </form>
