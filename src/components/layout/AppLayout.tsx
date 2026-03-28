@@ -18,7 +18,22 @@ const menuStructure = [
   { title: 'Vendas', moduleId: 'vendas', icon: ShoppingCart, roles: ['Admin', 'Vendas', 'Contador'], submenus: [{ label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, { label: 'Gestão de Vendas', path: '/vendas/lista' }, { label: 'Orçamentos', path: '/vendas/orcamentos' }, { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }] },
   { title: 'Indústria', moduleId: 'industria', icon: Factory, roles: ['Admin', 'Estoque'], submenus: [{ label: 'Controle de Produção', path: '/industria/producao' }] },
   { title: 'Estoque', moduleId: 'estoque', icon: Package, roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], submenus: [{ label: 'Produtos', path: '/estoque/produtos' }, { label: 'Movimentações', path: '/estoque/movimentacoes' }] },
-  { title: 'Financeiro', moduleId: 'financeiro', icon: Landmark, roles: ['Admin', 'Financeiro', 'Contador'], submenus: [{ label: 'Agenda Financeira', path: '/financeiro/calendario' }, { label: 'Raio-X de Performance', path: '/financeiro/performance' }, { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' }, { label: 'Contas a Receber', path: '/financeiro/cobrancas' }, { label: 'Assinaturas', path: '/financeiro/assinaturas' }, { label: 'Contas a Pagar', path: '/financeiro/pagar' }, { label: 'Contas Bancárias', path: '/financeiro/bancos' }, { label: 'DRE Contábil', path: '/financeiro/dre' }, { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' }] },
+  { 
+    title: 'Financeiro', 
+    moduleId: 'financeiro', 
+    icon: Landmark, 
+    roles: ['Admin', 'Financeiro', 'Contador'], 
+    submenus: [
+      { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
+      { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
+      { label: 'Assinaturas', path: '/financeiro/assinaturas' },
+      { label: 'Contas a Pagar', path: '/financeiro/pagar' },
+      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
+      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
+      { label: 'Agenda Financeira', path: '/financeiro/calendario' },
+      { label: 'Raio-X de Performance', path: '/financeiro/performance' }
+    ] 
+  },
   { title: 'Gente e Gestão', moduleId: 'rh', icon: Users, roles: ['Admin', 'RH', 'Contador'], submenus: [{ label: 'Colaboradores', path: '/rh/colaboradores' }, { label: 'Folha Gerencial', path: '/rh/folha' }] },
   { title: 'Cadastros', icon: Contact, roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], submenus: [{ label: 'Clientes', path: '/clientes' }, { label: 'Fornecedores', path: '/fornecedores' }] },
   { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] },
