@@ -24,6 +24,7 @@ import QuotePublicView from "./pages/QuotePublicView";
 import POS from "./pages/sales/POS";
 import SalesList from "./pages/sales/SalesList";
 import SalesDashboard from "./pages/sales/SalesDashboard";
+import ServiceOrders from "./pages/sales/ServiceOrders";
 
 // Estoque
 import Products from "./pages/inventory/Products";
@@ -101,6 +102,7 @@ const App = () => (
               <Route path="/vendas/orcamentos" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
               <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
               <Route path="/vendas/orcamentos/:id/editar" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
+              <Route path="/vendas/ordens-servico" element={<ProtectedRoute><ServiceOrders /></ProtectedRoute>} />
               <Route path="/vendas/dashboard" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
               <Route path="/vendas/lista" element={<ProtectedRoute><SalesList /></ProtectedRoute>} />
               <Route path="/vendas/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
