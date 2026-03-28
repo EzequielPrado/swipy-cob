@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
-import { Search, Loader2, Building2, ShieldCheck, Settings2, GraduationCap } from 'lucide-react';
+import { Search, Loader2, Building2, ShieldCheck, Settings2, GraduationCap, UserPlus, Mail, User } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,11 +18,21 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Modais
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  
   const [updating, setUpdating] = useState(false);
   const [editData, setEditData] = useState({ 
     company: '', full_name: '', status: '', system_role: '', woovi_api_key: '', plan_id: 'none', accountant_id: 'none' 
+  });
+
+  const [createData, setCreateData] = useState({
+    email: '',
+    full_name: '',
+    company: '',
+    system_role: 'Admin' // Admin (Lojista) ou Contador
   });
 
   const fetchData = async () => {
@@ -60,11 +70,12 @@ const UserManagement = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSaveEdit = async () => {
     setUpdating(true);
     try {
       await supabase.from('profiles').update({ 
         status: editData.status, 
+        system_role: editData.system_role,
         woovi_api_key: editData.woovi_api_key, 
         plan_id: editData.plan_id === 'none' ? null : editData.plan_id, 
         accountant_id: editData.accountant_id === 'none' ? null : editData.accountant_id, 
@@ -81,6 +92,39 @@ const UserManagement = () => {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdating(true);
+    try {
+      // Usamos a função de convite existente, mas adaptada
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/invite-employee`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          email: createData.email,
+          fullName: createData.full_name,
+          systemRole: createData.system_role,
+          companyName: createData.company
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      showSuccess(`${createData.system_role} cadastrado! Senha temp: ${result.tempPassword}`);
+      setIsCreateModalOpen(false);
+      setCreateData({ email: '', full_name: '', company: '', system_role: 'Admin' });
+      fetchData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const filtered = users.filter(u => (u.company?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
 
   return (
@@ -93,12 +137,18 @@ const UserManagement = () => {
             </h2>
             <p className="text-apple-muted mt-1 font-medium">Controle de acessos, planos e hierarquia de contadores.</p>
           </div>
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2"
+          >
+            <UserPlus size={18} /> CADASTRAR PARCEIRO
+          </button>
         </div>
 
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-            <Input placeholder="Pesquisar lojista..." className="bg-apple-white border-apple-border pl-11 h-12 rounded-2xl shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <Input placeholder="Pesquisar lojista ou contador..." className="bg-apple-white border-apple-border pl-11 h-12 rounded-2xl shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
         </div>
 
@@ -107,8 +157,8 @@ const UserManagement = () => {
             <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
               <tr>
                 <th className="px-8 py-6">Entidade / Responsável</th>
-                <th className="px-8 py-6">Status / Plano</th>
-                <th className="px-8 py-6">Contador Vinculado</th>
+                <th className="px-8 py-6">Perfil / Plano</th>
+                <th className="px-8 py-6">Vínculo Contábil</th>
                 <th className="px-8 py-6 text-right">Ações</th>
               </tr>
             </thead>
@@ -128,17 +178,19 @@ const UserManagement = () => {
                   </td>
                   <td className="px-8 py-5">
                     <div className="flex flex-col items-start gap-2">
-                      <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", u.status === 'active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100")}>
-                        {u.status}
+                      <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", u.system_role === 'Contador' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100")}>
+                        {u.system_role}
                       </span>
-                      <span className="text-[10px] text-apple-dark font-bold uppercase">
-                        Plano: {u.system_plans?.name || 'Nenhum'}
-                      </span>
+                      {u.system_role !== 'Contador' && (
+                        <span className="text-[10px] text-apple-muted font-bold uppercase">
+                          Plano: {u.system_plans?.name || 'Gratuito'}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-8 py-5">
                     <p className="text-[10px] font-bold text-apple-muted uppercase">
-                      {u.accountant_id ? accountants.find(a => a.id === u.accountant_id)?.company || accountants.find(a => a.id === u.accountant_id)?.full_name : 'Sem vínculo'}
+                      {u.accountant_id ? accountants.find(a => a.id === u.accountant_id)?.company || accountants.find(a => a.id === u.accountant_id)?.full_name : 'N/A'}
                     </p>
                   </td>
                   <td className="px-8 py-5 text-right">
@@ -153,6 +205,7 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* MODAL DE EDIÇÃO */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
            <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
@@ -163,39 +216,55 @@ const UserManagement = () => {
            </DialogHeader>
            
            <div className="p-8 space-y-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-black text-apple-muted">Status do Cadastro</Label>
-                 <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
-                    <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-apple-white border-apple-border">
-                      <SelectItem value="active">Ativo</SelectItem>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="suspended">Suspenso</SelectItem>
-                    </SelectContent>
-                 </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted">Perfil do Sistema</Label>
+                   <Select value={editData.system_role} onValueChange={v => setEditData({...editData, system_role: v})}>
+                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-apple-white border-apple-border">
+                        <SelectItem value="Admin">Lojista (Merchant)</SelectItem>
+                        <SelectItem value="Contador">Contador Parceiro</SelectItem>
+                      </SelectContent>
+                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted">Status</Label>
+                   <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
+                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-apple-white border-apple-border">
+                        <SelectItem value="active">Ativo</SelectItem>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                        <SelectItem value="suspended">Suspenso</SelectItem>
+                      </SelectContent>
+                   </Select>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-black text-apple-muted">Plano de Assinatura</Label>
-                <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
-                  <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione um plano" /></SelectTrigger>
-                  <SelectContent className="bg-apple-white border-apple-border">
-                    <SelectItem value="none">Nenhum / Gratuito</SelectItem>
-                    {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {editData.system_role !== 'Contador' && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-black text-apple-muted">Plano de Assinatura</Label>
+                    <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
+                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione um plano" /></SelectTrigger>
+                      <SelectContent className="bg-apple-white border-apple-border">
+                        <SelectItem value="none">Nenhum / Gratuito</SelectItem>
+                        {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-black text-apple-muted">Contador Vinculado (Auditoria)</Label>
-                <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
-                  <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione o contador..." /></SelectTrigger>
-                  <SelectContent className="bg-apple-white border-apple-border">
-                    <SelectItem value="none">Sem Contador Vinculado</SelectItem>
-                    {accountants.map(a => <SelectItem key={a.id} value={a.id}>{a.company || a.full_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-black text-apple-muted">Contador Vinculado</Label>
+                    <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
+                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione o contador..." /></SelectTrigger>
+                      <SelectContent className="bg-apple-white border-apple-border">
+                        <SelectItem value="none">Sem Contador Vinculado</SelectItem>
+                        {accountants.map(a => <SelectItem key={a.id} value={a.id}>{a.company || a.full_name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2 pt-4 border-t border-apple-border">
                 <Label className="text-[10px] uppercase font-black text-apple-muted">Token Woovi (AppID)</Label>
@@ -203,11 +272,58 @@ const UserManagement = () => {
               </div>
               
               <DialogFooter className="pt-4">
-                <button disabled={updating} onClick={handleSave} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all shadow-xl active:scale-95">
-                  {updating ? <Loader2 className="animate-spin mx-auto" /> : "ATUALIZAR PERFIL"}
+                <button disabled={updating} onClick={handleSaveEdit} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all shadow-xl active:scale-95">
+                  {updating ? <Loader2 className="animate-spin mx-auto" /> : "ATUALIZAR CONFIGURAÇÕES"}
                 </button>
               </DialogFooter>
            </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE CRIAÇÃO */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl font-black flex items-center gap-3">
+              <UserPlus className="text-orange-500" /> Novo Usuário Master
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateUser} className="p-8 space-y-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Perfil de Acesso</Label>
+              <Select value={createData.system_role} onValueChange={v => setCreateData({...createData, system_role: v})}>
+                <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">
+                  <SelectItem value="Admin">Lojista (Novo Cliente SaaS)</SelectItem>
+                  <SelectItem value="Contador">Contador Parceiro (Auditor)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">E-mail</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-apple-muted" size={16} />
+                <Input required type="email" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} className="bg-apple-offWhite pl-10 h-12 rounded-xl" placeholder="email@exemplo.com" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Nome do Responsável</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-apple-muted" size={16} />
+                <Input required value={createData.full_name} onChange={e => setCreateData({...createData, full_name: e.target.value})} className="bg-apple-offWhite pl-10 h-12 rounded-xl" placeholder="Nome Completo" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Empresa / Escritório</Label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-apple-muted" size={16} />
+                <Input required value={createData.company} onChange={e => setCreateData({...createData, company: e.target.value})} className="bg-apple-offWhite pl-10 h-12 rounded-xl" placeholder="Nome da Empresa" />
+              </div>
+            </div>
+            <button type="submit" disabled={updating} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95">
+              {updating ? <Loader2 className="animate-spin mx-auto" /> : "CONCLUIR CADASTRO"}
+            </button>
+          </form>
         </DialogContent>
       </Dialog>
     </AppLayout>
