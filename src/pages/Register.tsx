@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   CheckCircle2,
   Zap,
-  Users
+  Users,
+  AlertTriangle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -44,17 +45,27 @@ const Register = () => {
 
   useEffect(() => {
     const fetchPlans = async () => {
-      const { data } = await supabase
-        .from('system_plans' as any)
-        .select('*')
-        .eq('is_active', true)
-        .order('price', { ascending: true });
-      
-      if (data) {
-        setPlans(data);
-        if (data.length > 0) setFormData(prev => ({ ...prev, planId: data[0].id }));
+      setPlansLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('system_plans')
+          .select('*')
+          .eq('is_active', true)
+          .order('price', { ascending: true });
+        
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setPlans(data);
+          setFormData(prev => ({ ...prev, planId: data[0].id }));
+        } else {
+          console.warn("Nenhum plano ativo encontrado no banco.");
+        }
+      } catch (err: any) {
+        console.error("Erro ao buscar planos:", err.message);
+      } finally {
+        setPlansLoading(false);
       }
-      setPlansLoading(false);
     };
     fetchPlans();
   }, []);
@@ -145,7 +156,6 @@ const Register = () => {
         <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
           <form onSubmit={handleRegister} className="p-8 space-y-6">
             
-            {/* ETAPA 1: RESPONSÁVEL */}
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
@@ -170,7 +180,6 @@ const Register = () => {
               </div>
             )}
 
-            {/* ETAPA 2: EMPRESA */}
             {step === 2 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
@@ -197,7 +206,6 @@ const Register = () => {
               </div>
             )}
 
-            {/* ETAPA 3: SEGURANÇA */}
             {step === 3 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
@@ -214,7 +222,6 @@ const Register = () => {
               </div>
             )}
 
-            {/* ETAPA 4: PLANOS */}
             {step === 4 && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
@@ -222,7 +229,15 @@ const Register = () => {
                 </p>
                 
                 {plansLoading ? (
-                  <div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Loader2 className="animate-spin text-orange-500" size={32} />
+                    <p className="text-xs text-zinc-500">Carregando planos...</p>
+                  </div>
+                ) : plans.length === 0 ? (
+                  <div className="bg-orange-500/5 border border-orange-500/20 p-8 rounded-3xl text-center space-y-4">
+                     <AlertTriangle className="mx-auto text-orange-500" size={32} />
+                     <p className="text-sm text-zinc-300">Nenhum plano disponível no momento. Entre em contato com o suporte ou tente novamente mais tarde.</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {plans.map((plan) => (
@@ -258,9 +273,6 @@ const Register = () => {
                     ))}
                   </div>
                 )}
-                <p className="text-[10px] text-zinc-500 text-center leading-relaxed italic">
-                  Você poderá fazer upgrade ou cancelar a qualquer momento após o acesso.
-                </p>
               </div>
             )}
 
@@ -287,7 +299,7 @@ const Register = () => {
               ) : (
                 <button 
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || plans.length === 0}
                   className="flex-[2] bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : "Finalizar e Acessar"}
