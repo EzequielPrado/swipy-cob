@@ -28,9 +28,10 @@ const AccountantDashboard = () => {
       if (!user) return;
       setLoading(true);
       try {
+        // Agora fazemos join com system_plans para ter os módulos que a empresa tem direito
         const { data: profiles, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('*, system_plans(*)')
           .eq('accountant_id', user.id);
 
         if (error) throw error;
@@ -60,7 +61,7 @@ const AccountantDashboard = () => {
 
   const handleAccessClient = (merchant: any) => {
     setActiveMerchant(merchant);
-    navigate('/'); // Vai para a home, agora visualizando os dados do cliente
+    navigate('/'); 
   };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -80,63 +81,63 @@ const AccountantDashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-orange-500/20 transition-all">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Empresas Gerenciadas</p>
-              <h3 className="text-4xl font-black text-zinc-100">{merchants.length}</h3>
+           <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-orange-500/20 transition-all">
+              <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4">Empresas Gerenciadas</p>
+              <h3 className="text-4xl font-black text-apple-black">{merchants.length}</h3>
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Building2 size={100} /></div>
            </div>
-           <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-emerald-500/20 transition-all">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Volume Agregado (TPV)</p>
+           <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-emerald-500/20 transition-all">
+              <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4">Volume Agregado (TPV)</p>
               <h3 className="text-4xl font-black text-emerald-500">{currency.format(totalPortfolioTpv)}</h3>
               <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={100} /></div>
            </div>
            <div className="bg-orange-500/5 border border-orange-500/10 p-8 rounded-[2.5rem] shadow-xl">
               <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-4">Status da Parceria</p>
-              <h3 className="text-xl font-black text-zinc-100">Contador Credenciado</h3>
-              <p className="text-xs text-zinc-500 mt-2">Você tem permissão para acessar e auditar os dados financeiros de seus clientes vinculados.</p>
+              <h3 className="text-xl font-black text-apple-black">Contador Credenciado</h3>
+              <p className="text-xs text-apple-muted mt-2">Você tem permissão para acessar e auditar os dados financeiros de seus clientes vinculados.</p>
            </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-          <div className="p-8 border-b border-zinc-800 bg-zinc-950/20 flex justify-between items-center">
-             <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <div className="p-8 border-b border-apple-border bg-apple-offWhite flex justify-between items-center">
+             <h3 className="text-lg font-bold text-apple-black flex items-center gap-2">
                <Building2 size={20} className="text-orange-500" /> Carteira de Clientes
              </h3>
-             <span className="text-[10px] font-black text-zinc-500 uppercase bg-zinc-950 px-3 py-1 rounded-full border border-zinc-800">Sincronizado</span>
+             <span className="text-[10px] font-black text-apple-muted uppercase bg-apple-white px-3 py-1 rounded-full border border-apple-border">Sincronizado</span>
           </div>
           
           {merchants.length === 0 ? (
-            <div className="p-20 text-center text-zinc-500 italic">Nenhum cliente vinculado ao seu registro de contador.</div>
+            <div className="p-20 text-center text-apple-muted italic">Nenhum cliente vinculado ao seu registro de contador.</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-800/30">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-apple-border">
               {merchants.map((m) => (
-                <div key={m.id} className="bg-zinc-900 p-8 flex flex-col justify-between hover:bg-zinc-950 transition-all group">
+                <div key={m.id} className="bg-apple-white p-8 flex flex-col justify-between hover:bg-apple-offWhite transition-all group">
                   <div className="flex justify-between items-start mb-8">
                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-center text-orange-500 shadow-inner group-hover:border-orange-500/30 transition-colors">
+                        <div className="w-12 h-12 rounded-2xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-orange-500 shadow-inner group-hover:border-orange-500/30 transition-colors">
                            <Building2 size={24} />
                         </div>
                         <div>
-                           <h4 className="text-lg font-black text-zinc-100">{m.company || 'Pessoa Física'}</h4>
-                           <p className="text-xs text-zinc-500 font-medium">{m.full_name}</p>
+                           <h4 className="text-lg font-black text-apple-black">{m.company || 'Pessoa Física'}</h4>
+                           <p className="text-xs text-apple-muted font-medium">{m.full_name}</p>
                         </div>
                      </div>
                      <span className={cn(
                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border",
-                       m.status === 'active' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                       m.status === 'active' ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-orange-50 text-orange-600 border-orange-200"
                      )}>
                         {m.status}
                      </span>
                   </div>
 
                   <div className="space-y-4">
-                     <div className="flex justify-between items-center text-sm border-b border-zinc-800/50 pb-4">
-                        <span className="text-zinc-500 font-medium">TPV (Cobranças Pagas)</span>
-                        <span className="font-bold text-zinc-200">{currency.format(m.tpv)}</span>
+                     <div className="flex justify-between items-center text-sm border-b border-apple-border pb-4">
+                        <span className="text-apple-muted font-medium">TPV (Cobranças Pagas)</span>
+                        <span className="font-bold text-apple-black">{currency.format(m.tpv)}</span>
                      </div>
                      <button 
                       onClick={() => handleAccessClient(m)}
-                      className="w-full mt-4 bg-zinc-800 group-hover:bg-orange-500 group-hover:text-zinc-950 text-zinc-300 font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95"
+                      className="w-full mt-4 bg-apple-black hover:bg-zinc-800 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95"
                      >
                         ACESSAR ERP DO CLIENTE <ChevronRight size={18} />
                      </button>

@@ -17,11 +17,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 const menuStructure = [
   { title: 'Visão Geral', icon: LayoutDashboard, path: '/', roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] },
   { title: 'Minha Carteira', icon: GraduationCap, path: '/contador', roles: ['Contador'] },
-  { title: 'Vendas', icon: ShoppingCart, roles: ['Admin', 'Vendas', 'Contador'], submenus: [{ label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, { label: 'Gestão de Vendas', path: '/vendas/lista' }, { label: 'Orçamentos', path: '/vendas/orcamentos' }, { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }] },
-  { title: 'Indústria', icon: Factory, roles: ['Admin', 'Estoque'], submenus: [{ label: 'Controle de Produção', path: '/industria/producao' }] },
-  { title: 'Estoque', icon: Package, roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], submenus: [{ label: 'Produtos', path: '/estoque/produtos' }, { label: 'Movimentações', path: '/estoque/movimentacoes' }] },
-  { title: 'Financeiro', icon: Landmark, roles: ['Admin', 'Financeiro', 'Contador'], submenus: [{ label: 'Dashboard Financeiro', path: '/financeiro/dashboard' }, { label: 'Contas a Receber', path: '/financeiro/cobrancas' }, { label: 'Assinaturas', path: '/financeiro/assinaturas' }, { label: 'Contas a Pagar', path: '/financeiro/pagar' }, { label: 'Contas Bancárias', path: '/financeiro/bancos' }, { label: 'DRE Contábil', path: '/financeiro/dre' }, { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' }] },
-  { title: 'Gente e Gestão', icon: Users, roles: ['Admin', 'RH', 'Contador'], submenus: [{ label: 'Colaboradores', path: '/rh/colaboradores' }, { label: 'Folha Gerencial', path: '/rh/folha' }] },
+  { title: 'Vendas', moduleId: 'vendas', icon: ShoppingCart, roles: ['Admin', 'Vendas', 'Contador'], submenus: [{ label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, { label: 'Gestão de Vendas', path: '/vendas/lista' }, { label: 'Orçamentos', path: '/vendas/orcamentos' }, { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }] },
+  { title: 'Indústria', moduleId: 'industria', icon: Factory, roles: ['Admin', 'Estoque'], submenus: [{ label: 'Controle de Produção', path: '/industria/producao' }] },
+  { title: 'Estoque', moduleId: 'estoque', icon: Package, roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], submenus: [{ label: 'Produtos', path: '/estoque/produtos' }, { label: 'Movimentações', path: '/estoque/movimentacoes' }] },
+  { title: 'Financeiro', moduleId: 'financeiro', icon: Landmark, roles: ['Admin', 'Financeiro', 'Contador'], submenus: [{ label: 'Dashboard Financeiro', path: '/financeiro/dashboard' }, { label: 'Contas a Receber', path: '/financeiro/cobrancas' }, { label: 'Assinaturas', path: '/financeiro/assinaturas' }, { label: 'Contas a Pagar', path: '/financeiro/pagar' }, { label: 'Contas Bancárias', path: '/financeiro/bancos' }, { label: 'DRE Contábil', path: '/financeiro/dre' }, { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' }] },
+  { title: 'Gente e Gestão', moduleId: 'rh', icon: Users, roles: ['Admin', 'RH', 'Contador'], submenus: [{ label: 'Colaboradores', path: '/rh/colaboradores' }, { label: 'Folha Gerencial', path: '/rh/folha' }] },
   { title: 'Cadastros', icon: Contact, roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], submenus: [{ label: 'Clientes', path: '/clientes' }, { label: 'Fornecedores', path: '/fornecedores' }] },
   { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] },
   { 
@@ -41,10 +41,9 @@ const menuStructure = [
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, isAdmin, activeMerchant, setActiveMerchant } = useAuth();
+  const { user, signOut, systemRole, isAdmin, profile, activeMerchant, setActiveMerchant } = useAuth();
   const { theme, setTheme } = useTheme();
   
-  const [profile, setProfile] = useState<any>(null);
   const [openMenus, setOpenMenus] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -54,12 +53,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (user) {
-      supabase.from('profiles').select('*').eq('id', user.id).single().then(({ data }) => setProfile(data));
-    }
-  }, [user]);
-
   const toggleMenu = (title: string) => setOpenMenus(prev => prev.includes(title) ? prev.filter(m => m !== title) : [...prev, title]);
   
   const handleLogout = async () => { 
@@ -67,9 +60,26 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     navigate('/login'); 
   };
   
+  // Determina as features/módulos baseados em quem está sendo visualizado (O próprio usuário ou a empresa que o contador está auditando)
+  const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
+
   const visibleMenus = menuStructure.filter(menu => {
+    // Esconder painel super admin se não for admin
     if (menu.requireSuperAdmin && !isAdmin) return false;
-    return menu.roles.includes(systemRole);
+    
+    // Validar RBAC interno da empresa (Vendedor não vê finanças, etc)
+    if (!menu.roles.includes(systemRole)) return false;
+
+    // Se o menu exige um módulo de plano (ex: industria, financeiro)
+    // Administradores Master do SaaS sempre veem tudo na sua conta, 
+    // mas se o menu exige módulo, ocultamos caso o plano atual não tenha.
+    if (menu.moduleId && !isAdmin) {
+       if (!activePlanFeatures.includes(menu.moduleId)) {
+         return false;
+       }
+    }
+
+    return true;
   });
 
   return (
@@ -135,7 +145,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        {/* Banner de Contador Ativo - Ajustado para não quebrar o layout */}
+        {/* Banner de Contador Ativo */}
         {activeMerchant && (
            <div className="bg-orange-500 px-6 py-2.5 flex items-center justify-between z-[60] shrink-0">
               <div className="flex items-center gap-2">
@@ -177,7 +187,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </section>
 
-        {/* BOTTOM NAVIGATION (MOBILE) - Ajustado para visual Apple Style */}
+        {/* BOTTOM NAVIGATION (MOBILE) */}
         <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/95 backdrop-blur-2xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
            <Link to="/" className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", location.pathname === "/" ? "text-orange-500 scale-110" : "text-apple-muted")}>
               <LayoutDashboard size={22} strokeWidth={location.pathname === "/" ? 2.5 : 2} />
