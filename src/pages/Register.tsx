@@ -54,7 +54,7 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // 1. Criar Usuário no Auth
+      // 1. Criar Usuário no Auth com todos os metadados
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -122,44 +122,102 @@ const Register = () => {
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
           <form onSubmit={handleRegister} className="p-8 space-y-6">
+            
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6"><User size={12} /> 1. Administrador da Conta</p>
-                <input name="fullName" required value={formData.fullName} onChange={handleChange} placeholder="Nome completo" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
-                <input name="cpf" required value={formData.cpf} onChange={handleChange} placeholder="CPF" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
-                <input name="email" type="email" required value={formData.email} onChange={handleChange} placeholder="E-mail" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
-                <input name="phone" required value={formData.phone} onChange={handleChange} placeholder="WhatsApp" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">Nome completo</label>
+                  <input name="fullName" required value={formData.fullName} onChange={handleChange} placeholder="Seu nome" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">CPF</label>
+                  <input name="cpf" required value={formData.cpf} onChange={handleChange} placeholder="000.000.000-00" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">E-mail corporativo</label>
+                  <input name="email" type="email" required value={formData.email} onChange={handleChange} placeholder="email@empresa.com" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">WhatsApp</label>
+                  <input name="phone" required value={formData.phone} onChange={handleChange} placeholder="(00) 00000-0000" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
               </div>
             )}
 
             {step === 2 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6"><Building2 size={12} /> 2. Dados do Negócio</p>
-                <input name="company" required value={formData.company} onChange={handleChange} placeholder="Razão Social" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
-                <input name="tradeName" required value={formData.tradeName} onChange={handleChange} placeholder="Nome Fantasia" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">Razão Social</label>
+                  <input name="company" required value={formData.company} onChange={handleChange} placeholder="Nome jurídico da empresa" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">Nome Fantasia (Marca)</label>
+                  <input name="tradeName" required value={formData.tradeName} onChange={handleChange} placeholder="Como sua marca é conhecida" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-500 ml-1 flex items-center gap-1.5"><Globe size={12} /> Site</label>
+                    <input name="website" value={formData.website} onChange={handleChange} placeholder="www.site.com.br" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-xs outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-500 ml-1 flex items-center gap-1.5"><Instagram size={12} /> Instagram</label>
+                    <input name="instagram" value={formData.instagram} onChange={handleChange} placeholder="@suaempresa" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-xs outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                  </div>
+                </div>
               </div>
             )}
 
             {step === 3 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6"><Lock size={12} /> 3. Segurança</p>
-                <input name="password" type="password" required value={formData.password} onChange={handleChange} placeholder="Crie sua senha" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
-                <input name="confirmPassword" type="password" required value={formData.confirmPassword} onChange={handleChange} placeholder="Confirme a senha" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500" />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">Senha de acesso</label>
+                  <input name="password" type="password" required value={formData.password} onChange={handleChange} placeholder="Mínimo 6 caracteres" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-zinc-500 ml-1">Confirmar senha</label>
+                  <input name="confirmPassword" type="password" required value={formData.confirmPassword} onChange={handleChange} placeholder="Repita a senha" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-1 focus:ring-orange-500 transition-all" />
+                </div>
               </div>
             )}
 
             {step === 4 && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6"><Zap size={12} /> 4. Seleção de Plano</p>
-                {plansLoading ? <div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-500" size={32} /></div> : (
+                {plansLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <Loader2 className="animate-spin text-orange-500" size={32} />
+                    <p className="text-xs text-zinc-500">Carregando ofertas...</p>
+                  </div>
+                ) : (
                   <div className="space-y-3">
                     {plans.map((p) => (
-                      <div key={p.id} onClick={() => setFormData({...formData, planId: p.id})} className={cn("p-5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between", formData.planId === p.id ? "bg-orange-500/10 border-orange-500" : "bg-zinc-950 border-zinc-800")}>
+                      <div 
+                        key={p.id} 
+                        onClick={() => setFormData({...formData, planId: p.id})} 
+                        className={cn(
+                          "p-5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between group", 
+                          formData.planId === p.id ? "bg-orange-500/10 border-orange-500 ring-2 ring-orange-500/20" : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
+                        )}
+                      >
                         <div className="flex items-center gap-4">
-                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border", formData.planId === p.id ? "bg-orange-500 text-zinc-950" : "bg-zinc-900 text-zinc-500")}><Zap size={20} /></div>
-                          <div><p className="font-bold text-zinc-100">{p.name}</p><p className="text-[10px] text-zinc-500">Até {p.max_employees} colaboradores</p></div>
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center border transition-colors", 
+                            formData.planId === p.id ? "bg-orange-500 text-zinc-950 border-orange-400" : "bg-zinc-900 text-zinc-500 border-zinc-800 group-hover:text-zinc-300"
+                          )}>
+                            <Zap size={20} className={formData.planId === p.id ? "fill-current" : ""} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-zinc-100">{p.name}</p>
+                            <p className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5"><Users size={10} /> Até {p.max_employees} colaboradores</p>
+                          </div>
                         </div>
-                        <p className="font-black text-orange-500">{currency.format(p.price)}</p>
+                        <div className="text-right">
+                          <p className="font-black text-orange-500">{currency.format(p.price)}</p>
+                          <p className="text-[9px] text-zinc-600 font-bold uppercase">Mensal</p>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -168,17 +226,42 @@ const Register = () => {
             )}
 
             <div className="flex gap-3 pt-4">
-              {step > 1 && <button type="button" onClick={() => setStep(step - 1)} className="flex-1 bg-zinc-800 text-zinc-100 font-bold py-4 rounded-2xl"><ChevronLeft size={18} className="mx-auto" /></button>}
+              {step > 1 && (
+                <button 
+                  type="button" 
+                  onClick={() => setStep(step - 1)} 
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-bold py-4 rounded-2xl transition-all flex items-center justify-center"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+              
               {step < 4 ? (
-                <button type="button" onClick={nextStep} className="flex-[2] bg-orange-500 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2">Avançar <ArrowRight size={18} /></button>
+                <button 
+                  type="button" 
+                  onClick={nextStep} 
+                  className="flex-[3] bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 group transition-all"
+                >
+                  Continuar
+                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </button>
               ) : (
-                <button type="submit" disabled={loading} className="flex-[2] bg-orange-500 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2">
+                <button 
+                  type="submit" 
+                  disabled={loading || plans.length === 0} 
+                  className="flex-[3] bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 disabled:opacity-50 transition-all"
+                >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : "Finalizar Cadastro"}
                 </button>
               )}
             </div>
           </form>
         </div>
+
+        <p className="text-center text-zinc-500 text-sm">
+          Já tem uma conta?{' '}
+          <Link to="/login" className="text-orange-500 font-bold hover:underline">Entrar agora</Link>
+        </p>
       </div>
     </div>
   );
