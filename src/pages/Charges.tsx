@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Copy, Trash2, Loader2, Plus, DollarSign, QrCode, FileText } from 'lucide-react';
+import { Search, Copy, Trash2, Loader2, Plus, DollarSign, QrCode, FileText, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddChargeModal from '@/components/charges/AddChargeModal';
 import AddManualReceivableModal from '@/components/charges/AddManualReceivableModal';
+import IssueInvoiceModal from '@/components/fiscal/IssueInvoiceModal';
 
 const Charges = () => {
   const { user } = useAuth();
@@ -18,6 +19,8 @@ const Charges = () => {
   const [loading, setLoading] = useState(true);
   const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
+  const [selectedCharge, setSelectedCharge] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchCharges = async () => {
@@ -26,7 +29,7 @@ const Charges = () => {
     
     const { data, error } = await supabase
       .from('charges')
-      .select('*, customers(name)')
+      .select('*, customers(name, id)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -44,6 +47,12 @@ const Charges = () => {
     const internalLink = `${window.location.origin}/pagar/${chargeId}`;
     navigator.clipboard.writeText(internalLink);
     showSuccess("Link de checkout copiado!");
+  };
+
+  const handleOpenFiscal = (e: React.MouseEvent, charge: any) => {
+    e.stopPropagation();
+    setSelectedCharge(charge);
+    setIsFiscalModalOpen(true);
   };
 
   const handleDelete = async (charge: any) => {
@@ -163,7 +172,16 @@ const Charges = () => {
                       </td>
                       <td className="px-8 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
-                          {charge.method !== 'manual' && (
+                          {charge.status === 'pago' && (
+                            <button 
+                              onClick={(e) => handleOpenFiscal(e, charge)}
+                              title="Emitir Nota Fiscal" 
+                              className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                            >
+                              <FileText size={16}/>
+                            </button>
+                          )}
+                          {charge.method !== 'manual' && charge.status !== 'pago' && (
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -207,6 +225,20 @@ const Charges = () => {
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
         onSuccess={fetchCharges}
+      />
+
+      <IssueInvoiceModal 
+        isOpen={isFiscalModalOpen}
+        onClose={() => {
+          setIsFiscalModalOpen(false);
+          setSelectedCharge(null);
+        }}
+        onSuccess={fetchCharges}
+        defaultData={selectedCharge ? {
+          customerId: selectedCharge.customer_id,
+          amount: selectedCharge.amount.toString(),
+          description: selectedCharge.description || `Referente à cobrança #${selectedCharge.id.split('-')[0].toUpperCase()}`
+        } : undefined}
       />
     </AppLayout>
   );

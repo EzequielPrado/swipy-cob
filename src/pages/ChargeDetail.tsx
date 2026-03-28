@@ -3,13 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet } from 'lucide-react';
+import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet, ReceiptText } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import IssueInvoiceModal from '@/components/fiscal/IssueInvoiceModal';
 
 const ChargeDetail = () => {
   const { id } = useParams();
@@ -19,7 +20,10 @@ const ChargeDetail = () => {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Modais
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState('');
 
   const fetchDetails = async () => {
@@ -47,7 +51,9 @@ const ChargeDetail = () => {
       }
       await supabase.from('charges').update({ status: 'pago', bank_account_id: selectedAccountId }).eq('id', id);
       await supabase.from('notification_logs').insert({ charge_id: id, type: 'payment', status: 'success', message: 'Fatura marcada como PAGA pelo lojista.' });
-      showSuccess("Baixa realizada!"); setIsPayModalOpen(false); fetchDetails();
+      showSuccess("Baixa realizada!"); 
+      setIsPayModalOpen(false); 
+      fetchDetails();
     } catch (err: any) { showError(err.message); } finally { setActionLoading(null); }
   };
 
@@ -82,7 +88,6 @@ const ChargeDetail = () => {
     if (log.type === 'payment') return <CheckCircle2 size={16} className="text-emerald-500" />;
     if (log.type === 'whatsapp') return <Send size={16} className="text-blue-500" />;
     
-    // Ícones dinâmicos baseados no dispositivo rastreado
     const msg = log.message.toLowerCase();
     if (msg.includes('ios') || msg.includes('iphone')) return <Smartphone size={16} className="text-orange-500" />;
     if (msg.includes('android')) return <Smartphone size={16} className="text-emerald-500" />;
@@ -99,7 +104,7 @@ const ChargeDetail = () => {
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4"><Link to="/financeiro/cobrancas" className="p-2 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm"><ArrowLeft size={20} /></Link><h2 className="text-2xl font-black text-apple-black tracking-tight">Auditando Cobrança</h2></div>
+          <div className="flex items-center gap-4"><Link to="/financeiro/cobrancas" className="p-2.5 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm"><ArrowLeft size={20} /></Link><h2 className="text-2xl font-black text-apple-black tracking-tight">Auditando Cobrança</h2></div>
           <div className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border shadow-sm", charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-orange-50 text-orange-600 border-orange-100")}>{charge.status}</div>
         </div>
 
@@ -150,24 +155,34 @@ const ChargeDetail = () => {
                 </div>
                 
                 <div className="mt-8 pt-8 border-t border-apple-border space-y-3">
-                   {charge.method !== 'manual' && charge.status !== 'pago' && (
-                     <button 
-                       onClick={handleResendWhatsApp} 
-                       disabled={!!actionLoading}
-                       className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-sm bg-apple-offWhite text-apple-dark border border-apple-border hover:bg-apple-light flex items-center justify-center gap-2"
-                     >
-                       {actionLoading === 'resend' ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                       REENVIAR WHATSAPP
-                     </button>
-                   )}
+                   {charge.status === 'pago' ? (
+                      <button 
+                        onClick={() => setIsFiscalModalOpen(true)}
+                        className="w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-2 shadow-xl shadow-blue-600/10 active:scale-95"
+                      >
+                        <ReceiptText size={18} /> EMITIR NOTA FISCAL
+                      </button>
+                   ) : (
+                     <>
+                        {charge.method !== 'manual' && (
+                          <button 
+                            onClick={handleResendWhatsApp} 
+                            disabled={!!actionLoading}
+                            className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-sm bg-apple-offWhite text-apple-dark border border-apple-border hover:bg-apple-light flex items-center justify-center gap-2"
+                          >
+                            {actionLoading === 'resend' ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                            REENVIAR WHATSAPP
+                          </button>
+                        )}
 
-                   <button 
-                     onClick={() => setIsPayModalOpen(true)} 
-                     disabled={charge.status === 'pago'} 
-                     className={cn("w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-xl", charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 cursor-not-allowed" : "bg-apple-black text-white hover:bg-zinc-800")}
-                   >
-                     {charge.status === 'pago' ? "RECEBIMENTO CONCLUÍDO" : "BAIXAR MANUALMENTE"}
-                   </button>
+                        <button 
+                          onClick={() => setIsPayModalOpen(true)} 
+                          className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-xl bg-apple-black text-white hover:bg-zinc-800"
+                        >
+                          BAIXAR MANUALMENTE
+                        </button>
+                     </>
+                   )}
                 </div>
              </div>
           </div>
@@ -189,6 +204,17 @@ const ChargeDetail = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <IssueInvoiceModal 
+        isOpen={isFiscalModalOpen}
+        onClose={() => setIsFiscalModalOpen(false)}
+        onSuccess={fetchDetails}
+        defaultData={charge ? {
+          customerId: charge.customer_id,
+          amount: charge.amount.toString(),
+          description: charge.description || `Referente à cobrança #${charge.id.split('-')[0].toUpperCase()}`
+        } : undefined}
+      />
     </AppLayout>
   );
 };
