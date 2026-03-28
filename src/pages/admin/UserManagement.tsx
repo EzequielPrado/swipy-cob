@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
-import { Search, Loader2, Building2, ShieldCheck, Settings2, GraduationCap, UserPlus, Mail, User } from 'lucide-react';
+import { Search, Loader2, Building2, ShieldCheck, Settings2, GraduationCap, UserPlus, Mail, User, ShieldAlert, Briefcase } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ const UserManagement = () => {
     email: '',
     full_name: '',
     company: '',
-    system_role: 'Admin' // Admin (Lojista) ou Contador
+    system_role: 'Admin'
   });
 
   const fetchData = async () => {
@@ -73,12 +73,15 @@ const UserManagement = () => {
   const handleSaveEdit = async () => {
     setUpdating(true);
     try {
+      // Se for funcionário ou contador, limpamos campos que são exclusivos de lojistas (Admin)
+      const isMerchant = editData.system_role === 'Admin';
+      
       await supabase.from('profiles').update({ 
         status: editData.status, 
         system_role: editData.system_role,
-        woovi_api_key: editData.woovi_api_key, 
-        plan_id: editData.plan_id === 'none' ? null : editData.plan_id, 
-        accountant_id: editData.accountant_id === 'none' ? null : editData.accountant_id, 
+        woovi_api_key: isMerchant ? editData.woovi_api_key : null, 
+        plan_id: isMerchant ? (editData.plan_id === 'none' ? null : editData.plan_id) : null, 
+        accountant_id: isMerchant ? (editData.accountant_id === 'none' ? null : editData.accountant_id) : null, 
         updated_at: new Date().toISOString() 
       }).eq('id', selectedUser.id);
       
@@ -96,7 +99,6 @@ const UserManagement = () => {
     e.preventDefault();
     setUpdating(true);
     try {
-      // Usamos a função de convite existente, mas adaptada
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/invite-employee`, {
         method: 'POST',
         headers: {
@@ -125,7 +127,17 @@ const UserManagement = () => {
     }
   };
 
-  const filtered = users.filter(u => (u.company?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()));
+  const getRoleIcon = (role: string) => {
+    if (role === 'Contador') return <GraduationCap size={20} />;
+    if (role === 'Admin') return <Building2 size={20} />;
+    return <User size={20} />;
+  };
+
+  const filtered = users.filter(u => 
+    (u.company?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+    (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (u.system_role?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  );
 
   return (
     <AppLayout>
@@ -135,21 +147,19 @@ const UserManagement = () => {
             <h2 className="text-3xl font-black tracking-tight text-apple-black flex items-center gap-3">
               <ShieldCheck className="text-orange-500" size={32} /> Governança SaaS
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Controle de acessos, planos e hierarquia de contadores.</p>
+            <p className="text-apple-muted mt-1 font-medium">Gestão global de acessos, lojistas e colaboradores.</p>
           </div>
           <button 
             onClick={() => setIsCreateModalOpen(true)}
             className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2"
           >
-            <UserPlus size={18} /> CADASTRAR PARCEIRO
+            <UserPlus size={18} /> CADASTRAR USUÁRIO
           </button>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-            <Input placeholder="Pesquisar lojista ou contador..." className="bg-apple-white border-apple-border pl-11 h-12 rounded-2xl shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-          </div>
+        <div className="relative max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+          <Input placeholder="Nome, empresa ou cargo..." className="bg-apple-white border-apple-border pl-11 h-12 rounded-2xl shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
@@ -157,8 +167,8 @@ const UserManagement = () => {
             <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
               <tr>
                 <th className="px-8 py-6">Entidade / Responsável</th>
-                <th className="px-8 py-6">Perfil / Plano</th>
-                <th className="px-8 py-6">Vínculo Contábil</th>
+                <th className="px-8 py-6">Papel no Sistema</th>
+                <th className="px-8 py-6">Vínculo / Plano</th>
                 <th className="px-8 py-6 text-right">Ações</th>
               </tr>
             </thead>
@@ -167,31 +177,43 @@ const UserManagement = () => {
                 <tr key={u.id} className="hover:bg-apple-light transition-colors">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border", u.system_role === 'Contador' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-orange-50 text-orange-600 border-orange-100")}>
-                        {u.system_role === 'Contador' ? <GraduationCap size={20} /> : <Building2 size={20} />}
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center border", 
+                        u.system_role === 'Contador' ? "bg-blue-50 text-blue-600 border-blue-100" : 
+                        u.system_role === 'Admin' ? "bg-orange-50 text-orange-600 border-orange-100" :
+                        "bg-apple-offWhite text-apple-muted border-apple-border"
+                      )}>
+                        {getRoleIcon(u.system_role)}
                       </div>
                       <div>
-                        <p className="text-sm font-black text-apple-black">{u.company || 'PF'}</p>
+                        <p className="text-sm font-black text-apple-black">{u.company || 'Pessoa Física'}</p>
                         <p className="text-[10px] text-apple-muted font-bold">{u.full_name}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <div className="flex flex-col items-start gap-2">
-                      <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", u.system_role === 'Contador' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100")}>
-                        {u.system_role}
-                      </span>
-                      {u.system_role !== 'Contador' && (
-                        <span className="text-[10px] text-apple-muted font-bold uppercase">
-                          Plano: {u.system_plans?.name || 'Gratuito'}
-                        </span>
-                      )}
-                    </div>
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", 
+                      u.system_role === 'Contador' ? "bg-blue-50 text-blue-600 border-blue-100" : 
+                      u.system_role === 'Admin' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                      "bg-apple-offWhite text-apple-dark border-apple-border"
+                    )}>
+                      {u.system_role === 'Admin' ? 'Lojista Master' : u.system_role}
+                    </span>
                   </td>
                   <td className="px-8 py-5">
-                    <p className="text-[10px] font-bold text-apple-muted uppercase">
-                      {u.accountant_id ? accountants.find(a => a.id === u.accountant_id)?.company || accountants.find(a => a.id === u.accountant_id)?.full_name : 'N/A'}
-                    </p>
+                    <div className="flex flex-col gap-1">
+                      {u.system_role === 'Admin' ? (
+                        <>
+                          <span className="text-[10px] text-orange-500 font-bold uppercase">Plano: {u.system_plans?.name || 'SaaS Gratuito'}</span>
+                          {u.accountant_id && <span className="text-[9px] text-apple-muted font-bold flex items-center gap-1"><GraduationCap size={10} /> Auditoria Contábil Ativa</span>}
+                        </>
+                      ) : u.system_role === 'Contador' ? (
+                        <span className="text-[10px] text-blue-600 font-bold uppercase">Auditor de Carteira</span>
+                      ) : (
+                        <span className="text-[10px] text-apple-muted font-bold uppercase">Membro de Equipe</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-8 py-5 text-right">
                     <button onClick={() => handleOpenEdit(u)} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
@@ -210,7 +232,7 @@ const UserManagement = () => {
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
            <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
              <DialogTitle className="text-xl font-black flex items-center gap-3">
-               <Settings2 className="text-orange-500" /> Ajustar Governança
+               <ShieldAlert className="text-orange-500" /> Ajustar Privilégios
              </DialogTitle>
              <p className="text-xs text-apple-muted font-bold mt-2">Editando: {selectedUser?.company || selectedUser?.full_name}</p>
            </DialogHeader>
@@ -218,62 +240,66 @@ const UserManagement = () => {
            <div className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-black text-apple-muted">Perfil do Sistema</Label>
+                  <Label className="text-[10px] uppercase font-black text-apple-muted">Cargo Operacional</Label>
                    <Select value={editData.system_role} onValueChange={v => setEditData({...editData, system_role: v})}>
                       <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-apple-white border-apple-border">
-                        <SelectItem value="Admin">Lojista (Merchant)</SelectItem>
-                        <SelectItem value="Contador">Contador Parceiro</SelectItem>
+                        <SelectItem value="Admin">Lojista (Dono da Empresa)</SelectItem>
+                        <SelectItem value="Contador">Contador Parceiro (Auditor)</SelectItem>
+                        <SelectItem value="Vendas">Vendedor (CRM/PDV)</SelectItem>
+                        <SelectItem value="Financeiro">Financeiro (Caixa/Contas)</SelectItem>
+                        <SelectItem value="Estoque">Estoque (Inventário/Fábrica)</SelectItem>
+                        <SelectItem value="RH">RH (Folha/Time)</SelectItem>
                       </SelectContent>
                    </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-black text-apple-muted">Status</Label>
+                  <Label className="text-[10px] uppercase font-black text-apple-muted">Situação da Conta</Label>
                    <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
                       <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-apple-white border-apple-border">
-                        <SelectItem value="active">Ativo</SelectItem>
-                        <SelectItem value="pending">Pendente</SelectItem>
-                        <SelectItem value="suspended">Suspenso</SelectItem>
+                        <SelectItem value="active">Conta Ativa</SelectItem>
+                        <SelectItem value="pending">Aguardando Onboarding</SelectItem>
+                        <SelectItem value="suspended">Acesso Bloqueado</SelectItem>
                       </SelectContent>
                    </Select>
                 </div>
               </div>
 
-              {editData.system_role !== 'Contador' && (
-                <>
+              {editData.system_role === 'Admin' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-black text-apple-muted">Plano de Assinatura</Label>
+                    <Label className="text-[10px] uppercase font-black text-apple-muted">Plano SaaS</Label>
                     <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
                       <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione um plano" /></SelectTrigger>
                       <SelectContent className="bg-apple-white border-apple-border">
-                        <SelectItem value="none">Nenhum / Gratuito</SelectItem>
+                        <SelectItem value="none">Sem Plano / Free</SelectItem>
                         {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-black text-apple-muted">Contador Vinculado</Label>
+                    <Label className="text-[10px] uppercase font-black text-apple-muted">Vincular Escritório Contábil</Label>
                     <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
-                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione o contador..." /></SelectTrigger>
+                      <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione o auditor..." /></SelectTrigger>
                       <SelectContent className="bg-apple-white border-apple-border">
-                        <SelectItem value="none">Sem Contador Vinculado</SelectItem>
+                        <SelectItem value="none">Gestão Interna (Sem vínculo)</SelectItem>
                         {accountants.map(a => <SelectItem key={a.id} value={a.id}>{a.company || a.full_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
-                </>
-              )}
 
-              <div className="space-y-2 pt-4 border-t border-apple-border">
-                <Label className="text-[10px] uppercase font-black text-apple-muted">Token Woovi (AppID)</Label>
-                <Input value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono text-xs" />
-              </div>
+                  <div className="space-y-2 pt-4 border-t border-apple-border">
+                    <Label className="text-[10px] uppercase font-black text-apple-muted">Token Woovi (AppID)</Label>
+                    <Input value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono text-xs" />
+                  </div>
+                </div>
+              )}
               
               <DialogFooter className="pt-4">
                 <button disabled={updating} onClick={handleSaveEdit} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all shadow-xl active:scale-95">
-                  {updating ? <Loader2 className="animate-spin mx-auto" /> : "ATUALIZAR CONFIGURAÇÕES"}
+                  {updating ? <Loader2 className="animate-spin mx-auto" /> : "CONFIRMAR ALTERAÇÕES"}
                 </button>
               </DialogFooter>
            </div>
