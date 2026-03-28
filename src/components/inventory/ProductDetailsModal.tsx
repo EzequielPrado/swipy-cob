@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Package, History, ArrowDownToLine, ArrowUpFromLine, TrendingUp } from 'lucide-react';
+import { Loader2, Package, History, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Percent, DollarSign } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface ProductDetailsModalProps {
@@ -24,20 +24,15 @@ const ProductDetailsModal = ({ isOpen, onClose, product }: ProductDetailsModalPr
 
   const fetchMovements = async () => {
     setLoading(true);
-    
-    // Removido o join com profiles que estava causando erro silencioso
     const { data, error } = await supabase
       .from('inventory_movements')
       .select('*')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error("Erro ao buscar histórico:", error.message);
-    } else if (data) {
+    if (!error && data) {
       setMovements(data);
     }
-    
     setLoading(false);
   };
 
@@ -45,88 +40,102 @@ const ProductDetailsModal = ({ isOpen, onClose, product }: ProductDetailsModalPr
 
   const cost = Number(product.cost_price || 0);
   const price = Number(product.price || 0);
-  const margin = price - cost;
+  const taxPercent = Number(product.tax_percentage || 0);
+  
+  // Cálculo de Margem Real (Preço - Custo - Imposto)
+  const taxAmount = price * (taxPercent / 100);
+  const netRevenue = price - taxAmount;
+  const margin = netRevenue - cost;
   const marginPercent = cost > 0 ? ((margin / cost) * 100).toFixed(1) : '100';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[600px] p-0 overflow-hidden">
-        <DialogHeader className="p-6 border-b border-zinc-800 bg-zinc-950/30">
+      <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] shadow-2xl">
+        <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
           <div className="flex justify-between items-start">
             <div>
-              <DialogTitle className="text-2xl font-bold flex items-center gap-2 mb-1">
+              <DialogTitle className="text-2xl font-black flex items-center gap-3 mb-1">
                 <Package className="text-orange-500" size={24} />
                 {product.name}
               </DialogTitle>
-              <p className="text-xs text-zinc-500 font-mono tracking-widest uppercase">SKU: {product.sku}</p>
+              <p className="text-xs text-apple-muted font-mono tracking-widest uppercase font-bold">SKU: {product.sku}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Estoque Atual</p>
-              <p className={cn("text-2xl font-bold", product.stock_quantity > 0 ? "text-emerald-400" : "text-zinc-500")}>
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Estoque Atual</p>
+              <p className={cn("text-2xl font-black", product.stock_quantity > 0 ? "text-emerald-600" : "text-apple-muted")}>
                 {product.stock_quantity} <span className="text-sm font-normal">un</span>
               </p>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 divide-x divide-zinc-800 border-b border-zinc-800">
-          <div className="p-4 bg-zinc-950/50">
-            <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Custo</p>
-            <p className="text-lg font-bold text-zinc-300">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cost)}
-            </p>
-          </div>
-          <div className="p-4 bg-zinc-950/50">
-            <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Preço Venda</p>
-            <p className="text-lg font-bold text-orange-400">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-apple-border border-b border-apple-border bg-white">
+          <div className="p-6">
+            <p className="text-[9px] text-apple-muted uppercase font-black tracking-widest mb-1">Preço Venda</p>
+            <p className="text-lg font-black text-apple-black">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}
             </p>
           </div>
-          <div className="p-4 bg-emerald-500/5">
-            <p className="text-[10px] text-emerald-500/70 uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
-              <TrendingUp size={10} /> Lucro (Margem)
+          <div className="p-6">
+            <p className="text-[9px] text-red-500 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+               <Percent size={10} /> Impostos
             </p>
-            <p className="text-lg font-bold text-emerald-500">
+            <p className="text-lg font-black text-red-500">
+               {taxPercent}%
+               <span className="text-[10px] block font-medium opacity-60">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(taxAmount)}</span>
+            </p>
+          </div>
+          <div className="p-6">
+            <p className="text-[9px] text-apple-muted uppercase font-black tracking-widest mb-1">Custo Un.</p>
+            <p className="text-lg font-black text-apple-dark">
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cost)}
+            </p>
+          </div>
+          <div className="p-6 bg-emerald-50">
+            <p className="text-[9px] text-emerald-600 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+              <TrendingUp size={10} /> Margem Real
+            </p>
+            <p className="text-lg font-black text-emerald-600">
               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(margin)} 
-              <span className="text-xs ml-1 opacity-70">({marginPercent}%)</span>
+              <span className="text-[10px] block font-medium opacity-60">({marginPercent}%)</span>
             </p>
           </div>
         </div>
 
-        <div className="p-6">
-          <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <History size={14} /> Histórico de Lançamentos
+        <div className="p-8">
+          <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <History size={16} className="text-orange-500" /> Histórico de Lançamentos
           </h4>
 
           {loading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-orange-500" size={24} />
+            <div className="flex justify-center py-12">
+              <Loader2 className="animate-spin text-orange-500" size={32} />
             </div>
           ) : movements.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500 text-sm italic">
+            <div className="text-center py-12 text-apple-muted text-sm font-medium italic">
               Nenhuma movimentação registrada.
             </div>
           ) : (
-            <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-2 space-y-3">
+            <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-4 space-y-3">
               {movements.map((mov) => (
-                <div key={mov.id} className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div key={mov.id} className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl flex items-center justify-between group hover:border-apple-dark transition-all">
+                  <div className="flex items-center gap-4">
                     <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
-                      mov.type === 'in' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm",
+                      mov.type === 'in' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
                     )}>
-                      {mov.type === 'in' ? <ArrowDownToLine size={14} /> : <ArrowUpFromLine size={14} />}
+                      {mov.type === 'in' ? <ArrowDownToLine size={18} /> : <ArrowUpFromLine size={18} />}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-zinc-200">
+                      <p className="text-sm font-black text-apple-black">
                         {mov.type === 'in' ? 'Entrada' : 'Saída'} de {mov.quantity} un
                       </p>
-                      <p className="text-[10px] text-zinc-500 mt-0.5">{mov.notes || 'Sem observação'}</p>
+                      <p className="text-[10px] text-apple-muted font-bold mt-0.5 uppercase tracking-tight">{mov.notes || 'Sem observação'}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] text-zinc-400">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</p>
-                    <p className="text-[9px] text-zinc-600 mt-0.5">{new Date(mov.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-[10px] font-black text-apple-dark">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-[9px] text-apple-muted font-bold mt-0.5">{new Date(mov.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
               ))}
