@@ -13,12 +13,55 @@ import { useTheme } from 'next-themes';
 import NotificationBell from './NotificationBell';
 
 const menuStructure = [
-  { title: 'Visão Geral', icon: LayoutDashboard, path: '/', roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] },
-  { title: 'Minha Carteira', icon: GraduationCap, path: '/contador', roles: ['Contador'] },
-  { title: 'Swipy Conta', icon: Wallet, path: '/conta-swipy', roles: ['Admin', 'Financeiro', 'Contador'] },
-  { title: 'Vendas', moduleId: 'vendas', icon: ShoppingCart, roles: ['Admin', 'Vendas', 'Contador'], submenus: [{ label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, { label: 'Gestão de Vendas', path: '/vendas/lista' }, { label: 'Orçamentos', path: '/vendas/orcamentos' }, { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }] },
-  { title: 'Indústria', moduleId: 'industria', icon: Factory, roles: ['Admin', 'Estoque'], submenus: [{ label: 'Controle de Produção', path: '/industria/producao' }] },
-  { title: 'Estoque', moduleId: 'estoque', icon: Package, roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], submenus: [{ label: 'Produtos', path: '/estoque/produtos' }, { label: 'Movimentações', path: '/estoque/movimentacoes' }] },
+  { 
+    title: 'Visão Geral', 
+    icon: LayoutDashboard, 
+    path: '/', 
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] 
+  },
+  { 
+    title: 'Swipy Conta', 
+    icon: Wallet, 
+    path: '/conta-swipy', 
+    roles: ['Admin', 'Financeiro', 'Contador'] 
+  },
+  { 
+    title: 'Minha Carteira', 
+    icon: GraduationCap, 
+    path: '/contador', 
+    roles: ['Contador'] 
+  },
+  { 
+    title: 'Vendas', 
+    moduleId: 'vendas', 
+    icon: ShoppingCart, 
+    roles: ['Admin', 'Vendas', 'Contador'], 
+    submenus: [
+      { label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, 
+      { label: 'Gestão de Vendas', path: '/vendas/lista' }, 
+      { label: 'Orçamentos', path: '/vendas/orcamentos' }, 
+      { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }
+    ] 
+  },
+  { 
+    title: 'Indústria', 
+    moduleId: 'industria', 
+    icon: Factory, 
+    roles: ['Admin', 'Estoque'], 
+    submenus: [
+      { label: 'Controle de Produção', path: '/industria/producao' }
+    ] 
+  },
+  { 
+    title: 'Estoque', 
+    moduleId: 'estoque', 
+    icon: Package, 
+    roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], 
+    submenus: [
+      { label: 'Produtos', path: '/estoque/produtos' }, 
+      { label: 'Movimentações', path: '/estoque/movimentacoes' }
+    ] 
+  },
   { 
     title: 'Financeiro', 
     moduleId: 'financeiro', 
@@ -35,9 +78,31 @@ const menuStructure = [
       { label: 'Raio-X de Performance', path: '/financeiro/performance' }
     ] 
   },
-  { title: 'Gente e Gestão', moduleId: 'rh', icon: Users, roles: ['Admin', 'RH', 'Contador'], submenus: [{ label: 'Colaboradores', path: '/rh/colaboradores' }, { label: 'Folha Gerencial', path: '/rh/folha' }] },
-  { title: 'Cadastros', icon: Contact, roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], submenus: [{ label: 'Clientes', path: '/clientes' }, { label: 'Fornecedores', path: '/fornecedores' }] },
-  { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] },
+  { 
+    title: 'Gente e Gestão', 
+    moduleId: 'rh', 
+    icon: Users, 
+    roles: ['Admin', 'RH', 'Contador'], 
+    submenus: [
+      { label: 'Colaboradores', path: '/rh/colaboradores' }, 
+      { label: 'Folha Gerencial', path: '/rh/folha' }
+    ] 
+  },
+  { 
+    title: 'Cadastros', 
+    icon: Contact, 
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], 
+    submenus: [
+      { label: 'Clientes', path: '/clientes' }, 
+      { label: 'Fornecedores', path: '/fornecedores' }
+    ] 
+  },
+  { 
+    title: 'Personalização', 
+    icon: Palette, 
+    path: '/configuracoes', 
+    roles: ['Admin'] 
+  },
   { 
     title: 'Administração SaaS', 
     icon: ShieldCheck, 
@@ -81,16 +146,17 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
 
   const visibleMenus = menuStructure.filter(menu => {
-    // 1. Verificar Super Admin
+    // 1. Se exige Super Admin (Dono do SaaS) e o usuário não é, oculta.
     if (menu.requireSuperAdmin && !isAdmin) return false;
     
-    // 2. Verificar Cargo (Role)
+    // 2. Se o cargo (Role) do usuário não está na lista permitida do menu, oculta.
     if (!menu.roles.includes(systemRole)) return false;
     
-    // 3. Verificar Liberação do Plano (apenas se for lojista comum)
+    // 3. Se for um módulo opcional (moduleId) e o usuário não for Super Admin, verifica se o plano permite.
     if (menu.moduleId && !isAdmin) {
        if (!activePlanFeatures.includes(menu.moduleId)) return false;
     }
+    
     return true;
   });
 
@@ -125,8 +191,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               return (
                 <div key={item.title} className="mb-1">
                   {hasSubmenus ? (
-                    <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all", isChildActive || isOpen ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
-                      <div className="flex items-center gap-3"><item.icon size={18} className={cn(isChildActive || isOpen ? "text-orange-500" : "text-apple-muted")} />{item.title}</div>
+                    <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all", (isChildActive || isOpen) ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
+                      <div className="flex items-center gap-3"><item.icon size={18} className={cn((isChildActive || isOpen) ? "text-orange-500" : "text-apple-muted")} />{item.title}</div>
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </button>
                   ) : (
