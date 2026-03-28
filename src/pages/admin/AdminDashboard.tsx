@@ -5,10 +5,13 @@ import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, CreditCard, Activity, AlertTriangle, Loader2, RefreshCw, Zap,
-  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar
+  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar, Send
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalCharges: 0, activeSubs: 0, totalVolumePaid: 0, totalCustomers: 0 });
@@ -17,12 +20,17 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [runningAction, setRunningAction] = useState<string | null>(null);
 
+  // States para o Teste de WhatsApp
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [selectedTestChargeId, setSelectedTestChargeId] = useState<string | null>(null);
+
   const fetchGlobalData = async () => {
     setLoading(true);
     try {
       const [profilesRes, chargesRes, subsRes, custRes] = await Promise.all([
         supabase.from('profiles').select('id, company, full_name'),
-        supabase.from('charges').select('amount, status, user_id, customer_id, customers(name)'),
+        supabase.from('charges').select('id, amount, status, user_id, customer_id, customers(name)').order('created_at', { ascending: false }).limit(30),
         supabase.from('subscriptions').select('id').eq('status', 'active'),
         supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20)
       ]);
@@ -47,7 +55,7 @@ const AdminDashboard = () => {
         setRecentCharges(enrichedCharges);
       }
 
-      // Mapear clientes globais com o nome do lojista (Corrigindo o "não puxou")
+      // Mapear clientes globais com o nome do lojista
       if (custRes.data) {
         const enrichedCustomers = custRes.data.map(cust => ({
           ...cust,
@@ -81,6 +89,39 @@ const AdminDashboard = () => {
       
       showSuccess(action === 'subscriptions' ? "Assinaturas processadas com sucesso!" : "Régua de cobrança disparada!");
       fetchGlobalData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const handleSendTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testPhone || !selectedTestChargeId) return showError("Informe o número de telefone de teste.");
+    
+    setRunningAction('test_whatsapp');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/resend-charge-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          chargeId: selectedTestChargeId,
+          origin: window.location.origin,
+          overridePhone: testPhone
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      showSuccess("Mensagem de teste enviada com sucesso!");
+      setIsTestModalOpen(false);
+      setTestPhone('');
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -181,34 +222,52 @@ const AdminDashboard = () => {
                 <Activity size={16} className="text-orange-500" /> Fluxo de Caixa SaaS
               </h3>
             </div>
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
-                <tr>
-                  <th className="px-8 py-5">Lojista</th>
-                  <th className="px-8 py-5 text-right">Valor</th>
-                  <th className="px-8 py-5 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {recentCharges.map((c) => (
-                  <tr key={c.id} className="hover:bg-apple-light transition-colors">
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-apple-black truncate max-w-[150px]">{c.merchant?.company || c.merchant?.full_name || 'Lojista Master'}</p>
-                      <p className="text-[9px] text-apple-muted uppercase font-bold">Cliente: {c.customers?.name}</p>
-                    </td>
-                    <td className="px-8 py-5 text-right font-black text-apple-black">{currency.format(c.amount)}</td>
-                    <td className="px-8 py-5 text-right">
-                      <span className={cn(
-                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border",
-                        c.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100"
-                      )}>
-                        {c.status}
-                      </span>
-                    </td>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left min-w-[500px]">
+                <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
+                  <tr>
+                    <th className="px-8 py-5">Lojista</th>
+                    <th className="px-8 py-5 text-right">Valor</th>
+                    <th className="px-8 py-5 text-right">Status</th>
+                    <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {recentCharges.map((c) => (
+                    <tr key={c.id} className="hover:bg-apple-light transition-colors">
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-apple-black truncate max-w-[150px]">{c.merchant?.company || c.merchant?.full_name || 'Lojista Master'}</p>
+                        <p className="text-[9px] text-apple-muted uppercase font-bold">Cliente: {c.customers?.name}</p>
+                      </td>
+                      <td className="px-8 py-5 text-right font-black text-apple-black">{currency.format(c.amount)}</td>
+                      <td className="px-8 py-5 text-right">
+                        <span className={cn(
+                          "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border",
+                          c.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100"
+                        )}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => {
+                              setSelectedTestChargeId(c.id);
+                              setTestPhone('');
+                              setIsTestModalOpen(true);
+                            }}
+                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm border border-blue-100 flex items-center justify-center"
+                            title="Disparar Teste WhatsApp (Override Number)"
+                          >
+                            <Send size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* CRM CONSOLIDADO (BASE DE CLIENTES GERAL) */}
@@ -251,6 +310,45 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL DE TESTE DE WHATSAPP (OVERRIDE NUMBER) */}
+      <Dialog open={isTestModalOpen} onOpenChange={setIsTestModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 bg-apple-offWhite border-b border-apple-border">
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <Send className="text-blue-500" /> Teste de WhatsApp
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSendTest} className="p-8 space-y-6">
+             <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+               <p className="text-xs text-blue-600 font-medium">A mensagem usará os dados reais da cobrança (Nome, Valor, Link e QR Code), mas será entregue no número que você digitar abaixo.</p>
+             </div>
+             <div className="space-y-2">
+                <Label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">
+                  Número de Teste (DDI+DDD+Nº)
+                </Label>
+                <Input 
+                  required
+                  placeholder="5511999999999" 
+                  value={testPhone}
+                  onChange={e => setTestPhone(e.target.value)}
+                  className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono" 
+                />
+             </div>
+             <DialogFooter>
+               <button 
+                 type="submit" 
+                 disabled={runningAction === 'test_whatsapp'} 
+                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+               >
+                 {runningAction === 'test_whatsapp' ? <Loader2 className="animate-spin" /> : <Send size={18} />}
+                 ENVIAR TESTE
+               </button>
+             </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   );
 };

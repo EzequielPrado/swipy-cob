@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { chargeId, origin } = await req.json()
+    const { chargeId, origin, overridePhone } = await req.json()
 
     // Busca a cobrança
     const { data: charge, error: chargeError } = await supabaseClient
@@ -39,7 +39,11 @@ serve(async (req) => {
     const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
     const systemCheckoutUrl = `${origin || 'https://swipy.com'}/pagar/${charge.id}`;
 
-    // Mapeamento dinâmico
+    // Define para qual número enviar (O de teste do Admin ou o do Cliente original)
+    const targetPhone = overridePhone || charge.customers.phone;
+    if (!targetPhone) throw new Error("Número de telefone destino não encontrado/informado.");
+
+    // Mapeamento dinâmico das variáveis do template
     const variables = rule.mapping.map((key: string) => {
       if (key === 'customer_name') return charge.customers.name;
       if (key === 'merchant_name') return merchantName;
@@ -50,7 +54,7 @@ serve(async (req) => {
       return '---';
     });
 
-    // Mídia
+    // Mídia (Imagem/QRCode)
     let qrImageUrl = null;
     if (rule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
       qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
@@ -74,7 +78,7 @@ serve(async (req) => {
         'Authorization': req.headers.get('Authorization') || ''
       },
       body: JSON.stringify({
-        to: charge.customers.phone,
+        to: targetPhone,
         templateName: rule.name,
         language: rule.language || 'pt_BR',
         imageUrl: qrImageUrl,
@@ -90,7 +94,9 @@ serve(async (req) => {
       charge_id: charge.id,
       type: 'whatsapp',
       status: waRes.ok ? 'success' : 'error',
-      message: waRes.ok ? 'Cobrança reenviada manualmente pelo WhatsApp' : `Erro no reenvio: ${waData.error || 'Falha na Meta'}`
+      message: waRes.ok 
+        ? (overridePhone ? `Teste de reenvio enviado para ${overridePhone}` : 'Cobrança reenviada manualmente pelo WhatsApp') 
+        : `Erro no reenvio: ${waData.error || 'Falha na Meta'}`
     });
 
     if (!waRes.ok) throw new Error(waData.error || "Erro na Meta API");
