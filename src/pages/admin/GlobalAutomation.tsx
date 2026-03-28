@@ -188,7 +188,7 @@ const GlobalAutomation = () => {
 
                         {/* Variáveis e Corpo da Mensagem */}
                         <div className="space-y-4">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-apple-muted">Variáveis do Corpo ({{`{{1}}`}}, {{`{{2}}`}}...)</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-apple-muted">Variáveis do Corpo ({'{{1}}'}, {'{{2}}'}...)</Label>
                           <div className="grid grid-cols-2 gap-3">
                             {t.mapping?.map((key: string, vIdx: number) => (
                               <div key={vIdx} className="flex gap-2 items-center">
