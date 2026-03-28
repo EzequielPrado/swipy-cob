@@ -10,7 +10,7 @@ import {
   CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const FinancialCalendar = () => {
@@ -24,7 +24,6 @@ const FinancialCalendar = () => {
     if (!effectiveUserId) return;
     setLoading(true);
     
-    // Usando formato de string para evitar problemas de fuso horário em colunas do tipo DATE
     const start = format(startOfMonth(currentDate), 'yyyy-MM-01');
     const end = format(endOfMonth(currentDate), 'yyyy-MM-dd');
 
@@ -54,9 +53,18 @@ const FinancialCalendar = () => {
     });
   }, [currentDate]);
 
+  // Função auxiliar para comparar datas de forma segura (ignorando timezone shift)
+  const isItemOnDay = (dateStr: string, day: Date) => {
+    if (!dateStr) return false;
+    // Pegamos apenas a parte YYYY-MM-DD da string para comparar o dia puro
+    const itemDate = dateStr.split('T')[0];
+    const targetDate = format(day, 'yyyy-MM-dd');
+    return itemDate === targetDate;
+  };
+
   const getDayStats = (day: Date) => {
-    const dayCharges = data.charges.filter(c => isSameDay(new Date(c.due_date + 'T12:00:00'), day));
-    const dayExpenses = data.expenses.filter(e => isSameDay(new Date(e.due_date + 'T12:00:00'), day));
+    const dayCharges = data.charges.filter(c => isItemOnDay(c.due_date, day));
+    const dayExpenses = data.expenses.filter(e => isItemOnDay(e.due_date, day));
     
     return {
       in: dayCharges.reduce((acc, c) => acc + Number(c.amount), 0),
@@ -71,8 +79,8 @@ const FinancialCalendar = () => {
   const selectedDayItems = useMemo(() => {
     if (!selectedDay) return { charges: [], expenses: [] };
     return {
-      charges: data.charges.filter(c => isSameDay(new Date(c.due_date + 'T12:00:00'), selectedDay)),
-      expenses: data.expenses.filter(e => isSameDay(new Date(e.due_date + 'T12:00:00'), selectedDay))
+      charges: data.charges.filter(c => isItemOnDay(c.due_date, selectedDay)),
+      expenses: data.expenses.filter(e => isItemOnDay(e.due_date, selectedDay))
     };
   }, [selectedDay, data]);
 
@@ -96,7 +104,6 @@ const FinancialCalendar = () => {
           </div>
         </div>
 
-        {/* LEGENDA */}
         <div className="flex flex-wrap gap-6 bg-apple-white border border-apple-border p-4 rounded-2xl shadow-sm">
            <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" />

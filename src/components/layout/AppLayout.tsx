@@ -81,8 +81,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
 
   const visibleMenus = menuStructure.filter(menu => {
+    // 1. Verificar Super Admin
     if (menu.requireSuperAdmin && !isAdmin) return false;
+    
+    // 2. Verificar Cargo (Role)
     if (!menu.roles.includes(systemRole)) return false;
+    
+    // 3. Verificar Liberação do Plano (apenas se for lojista comum)
     if (menu.moduleId && !isAdmin) {
        if (!activePlanFeatures.includes(menu.moduleId)) return false;
     }
