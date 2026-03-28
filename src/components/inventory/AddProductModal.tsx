@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Package, DollarSign, Wand2, Factory, Hammer } from 'lucide-react';
+import { Loader2, Package, DollarSign, Wand2, Factory, Hammer, Percent } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface AddProductModalProps {
@@ -27,6 +27,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     description: '',
     price: '',
     costPrice: '',
+    taxPercentage: '0',
     sku: '',
     category: '',
     stock_quantity: '0',
@@ -47,6 +48,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     try {
       const priceNum = parseFloat(formData.price.replace(',', '.'));
       const costNum = parseFloat(formData.costPrice.replace(',', '.') || '0');
+      const taxNum = parseFloat(formData.taxPercentage.replace(',', '.') || '0');
       
       if (isNaN(priceNum)) throw new Error("Preço de venda inválido");
 
@@ -60,6 +62,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
         description: formData.description,
         price: priceNum,
         cost_price: costNum,
+        tax_percentage: taxNum,
         sku: finalSku,
         category: formData.category || (itemType === 'service' ? 'Serviços' : 'Geral'),
         stock_quantity: stockQty,
@@ -83,7 +86,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
       onClose();
       
       setFormData({ 
-        name: '', description: '', price: '', costPrice: '', sku: '', 
+        name: '', description: '', price: '', costPrice: '', taxPercentage: '0', sku: '', 
         category: '', stock_quantity: '0', is_produced: false 
       });
     } catch (err: any) {
@@ -138,17 +141,25 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
             <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ex: Consultoria, Teclado Mecânico..." />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-apple-dark">Preço de Venda (R$)</Label>
+              <Label className="text-xs font-bold text-apple-dark">Venda (R$)</Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500" size={16} />
-                <Input required placeholder="0,00" className="bg-apple-offWhite border-apple-border h-12 pl-10 rounded-xl font-black text-apple-black" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} />
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500" size={14} />
+                <Input required placeholder="0,00" className="bg-apple-offWhite border-apple-border h-12 pl-8 rounded-xl font-black text-apple-black" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-apple-dark">Preço de Custo (Opcional)</Label>
+              <Label className="text-xs font-bold text-apple-dark">Imposto (%)</Label>
+              <div className="relative">
+                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500" size={14} />
+                <Input placeholder="0" className="bg-apple-offWhite border-apple-border h-12 pl-8 rounded-xl font-bold" value={formData.taxPercentage} onChange={(e) => setFormData({...formData, taxPercentage: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-apple-dark">Custo (R$)</Label>
               <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.costPrice} onChange={(e) => setFormData({...formData, costPrice: e.target.value})} placeholder="0,00" />
             </div>
           </div>
