@@ -19,7 +19,8 @@ import {
   Lock,
   RefreshCw,
   Briefcase,
-  GraduationCap
+  GraduationCap,
+  Key
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -239,7 +240,7 @@ const UserManagement = () => {
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    {u.accountant_id ? (
+                    {u.accountant_id && u.accountant_id !== 'none' ? (
                       <div className="flex items-center gap-2 text-xs font-bold text-zinc-400">
                         <GraduationCap size={14} className="text-blue-500" />
                         {users.find(acc => acc.id === u.accountant_id)?.full_name || 'N/A'}
@@ -267,13 +268,14 @@ const UserManagement = () => {
       </div>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px] p-0 rounded-[2.5rem] overflow-hidden">
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[550px] p-0 rounded-[2.5rem] overflow-hidden">
            <DialogHeader className="p-8 border-b border-zinc-800 bg-zinc-950/30">
               <DialogTitle className="text-xl font-black flex items-center gap-3">
                 <Settings2 className="text-orange-500" /> Governança de Perfil
               </DialogTitle>
            </DialogHeader>
-           <div className="p-8 space-y-6">
+           
+           <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] uppercase font-bold text-zinc-500">Nome Responsável</Label>
@@ -291,18 +293,44 @@ const UserManagement = () => {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-2">
+                  <Key size={14} className="text-orange-500" /> Woovi API Key (Token)
+                </Label>
+                <Input 
+                  value={editData.woovi_api_key} 
+                  onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} 
+                  placeholder="AppID da Woovi"
+                  className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-mono text-xs" 
+                />
+              </div>
+
               {editData.system_role !== 'Contador' && (
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-zinc-500">Vincular a um Contador</Label>
-                  <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
-                    <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                      <SelectValue placeholder="Selecione o parceiro..." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                      <SelectItem value="none">Nenhum (Venda Direta)</SelectItem>
-                      {accountants.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.full_name} ({acc.company || 'PF'})</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-zinc-500">Plano Assinado</Label>
+                    <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
+                      <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                        <SelectValue placeholder="Selecione o plano..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                        <SelectItem value="none">Plano Básico (Free)</SelectItem>
+                        {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-zinc-500">Vincular a um Contador</Label>
+                    <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
+                      <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                        <SelectValue placeholder="Selecione o parceiro..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                        <SelectItem value="none">Nenhum (Venda Direta)</SelectItem>
+                        {accountants.map(acc => <SelectItem key={acc.id} value={acc.id}>{acc.full_name} ({acc.company || 'PF'})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
               
@@ -318,6 +346,7 @@ const UserManagement = () => {
                  </Select>
               </div>
            </div>
+
            <DialogFooter className="p-8 border-t border-zinc-800 bg-zinc-950/50">
               <button disabled={updating} onClick={handleSaveUser} className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg">
                 {updating ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} ATUALIZAR ACESSOS
