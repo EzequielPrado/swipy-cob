@@ -111,11 +111,8 @@ const Dashboard = () => {
     setLoading(true);
 
     try {
-      // Definir range do mês selecionado
       const [year, month] = selectedMonth.split('-');
-      // Primeiro dia do mês
       const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
-      // Último dia do mês
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
 
       const { data: charges } = await supabase
@@ -196,7 +193,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchFinancialData();
-  }, [user, selectedMonth]); // Atualiza sempre que o mês mudar
+  }, [user, selectedMonth]); 
 
   useEffect(() => {
     if(user) fetchWalletBalance();
@@ -207,22 +204,22 @@ const Dashboard = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Visão Financeira</h2>
-            <p className="text-zinc-400 mt-1">Fluxo de Caixa, Desempenho e Conciliação</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Visão Financeira</h2>
+            <p className="text-apple-muted mt-1 font-medium">Fluxo de Caixa, Desempenho e Conciliação</p>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden pr-2">
-              <div className="pl-3 text-zinc-500">
+            <div className="flex items-center bg-apple-white border border-apple-border rounded-lg overflow-hidden pr-2 shadow-sm">
+              <div className="pl-3 text-apple-muted">
                 <CalendarDays size={16} />
               </div>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-400">
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-500">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                   {monthOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value} className="focus:bg-apple-light">{opt.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -230,9 +227,9 @@ const Dashboard = () => {
 
             <button 
               onClick={fetchWalletBalance}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm font-semibold hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-apple-white border border-apple-border rounded-lg text-sm font-semibold hover:bg-apple-light transition-colors text-apple-black shadow-sm"
             >
-              {wallet.loading ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <RefreshCw size={16} className="text-zinc-400" />}
+              {wallet.loading ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <RefreshCw size={16} className="text-apple-muted" />}
               Sincronizar
             </button>
           </div>
@@ -240,52 +237,52 @@ const Dashboard = () => {
 
         {/* TOP CARDS: O DRE BÁSICO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><ArrowUpRight size={100} /></div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
               <ArrowUpRight size={16} className="text-emerald-500" /> Entradas (Realizadas)
             </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(finance.entradasTotais)}</p>
+            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
+              <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.entradasTotais)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
+            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
              <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><ArrowDownRight size={100} /></div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
               <ArrowDownRight size={16} className="text-red-500" /> Saídas (Pagas)
             </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(finance.saidasTotais)}</p>
+            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
+              <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.saidasTotais)}</p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
+            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
           </div>
 
           <div className={cn(
-            "p-6 rounded-[2rem] shadow-xl relative overflow-hidden border",
+            "p-6 rounded-[2rem] shadow-sm relative overflow-hidden border",
             finance.lucroLiquido >= 0 
-              ? "bg-emerald-500/5 border-emerald-500/20" 
-              : "bg-red-500/5 border-red-500/20"
+              ? "bg-emerald-50 border-emerald-200" 
+              : "bg-red-50 border-red-200"
           )}>
             <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><Scale size={100} /></div>
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
               <Scale size={16} className={finance.lucroLiquido >= 0 ? "text-emerald-500" : "text-red-500"} /> 
               Saldo Operacional (Lucro)
             </h3>
-            {loading ? <Loader2 className="animate-spin text-zinc-600" /> : (
-              <p className={cn("text-4xl font-black", finance.lucroLiquido >= 0 ? "text-emerald-400" : "text-red-400")}>
+            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
+              <p className={cn("text-4xl font-black", finance.lucroLiquido >= 0 ? "text-emerald-600" : "text-red-600")}>
                 {currencyFormatter.format(finance.lucroLiquido)}
               </p>
             )}
-            <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Caixa Líquido no Mês</p>
+            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">Caixa Líquido no Mês</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* GRÁFICO */}
-          <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl min-h-[400px]">
-            <h3 className="text-sm font-bold text-zinc-100 mb-6 flex items-center gap-2">
+          <div className="lg:col-span-2 bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm min-h-[400px]">
+            <h3 className="text-sm font-bold text-apple-black mb-6 flex items-center gap-2">
               <TrendingUp size={18} className="text-orange-500"/>
               Comparativo: Entradas x Saídas
             </h3>
@@ -297,15 +294,15 @@ const Dashboard = () => {
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={finance.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="name" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d2d2d7" vertical={false} />
+                    <XAxis dataKey="name" stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #d2d2d7', borderRadius: '12px' }}
                       itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
                       formatter={(value: number) => [currencyFormatter.format(value), '']}
                     />
-                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px', color: '#86868b' }} />
                     <Bar dataKey="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
                     <Bar dataKey="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
                   </BarChart>
@@ -316,53 +313,53 @@ const Dashboard = () => {
 
           {/* INDICADORES SECUNDÁRIOS */}
           <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
+            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3 text-zinc-500">
+                <div className="flex items-center gap-3 text-apple-muted">
                   <Wallet size={16} className="text-orange-500" />
                   <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Carteira Woovi</span>
                 </div>
                 <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Em tempo real</p>
               </div>
-              <p className="text-3xl font-bold text-zinc-100 mb-4">
+              <p className="text-3xl font-bold text-apple-black mb-4">
                 {wallet.loading ? "..." : currencyFormatter.format(wallet.total)}
               </p>
               
-              <div className="grid grid-cols-2 gap-4 border-t border-zinc-800 pt-4">
+              <div className="grid grid-cols-2 gap-4 border-t border-apple-border pt-4">
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Disponível</p>
-                  <p className="text-sm font-bold text-emerald-400">
+                  <p className="text-[9px] uppercase tracking-widest text-apple-muted font-bold mb-1">Disponível</p>
+                  <p className="text-sm font-bold text-emerald-500">
                     {wallet.loading ? "..." : currencyFormatter.format(wallet.available)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold mb-1">Bloqueado</p>
-                  <p className="text-sm font-bold text-zinc-400">
+                  <p className="text-[9px] uppercase tracking-widest text-apple-muted font-bold mb-1">Bloqueado</p>
+                  <p className="text-sm font-bold text-apple-muted">
                     {wallet.loading ? "..." : currencyFormatter.format(wallet.blocked)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl">
-              <div className="flex items-center gap-3 text-zinc-500 mb-2">
+            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+              <div className="flex items-center gap-3 text-apple-muted mb-2">
                 <Target size={16} className="text-blue-500" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">MRR (Assinaturas Ativas)</span>
               </div>
-              <p className="text-2xl font-bold text-zinc-100 mb-1">
+              <p className="text-2xl font-bold text-apple-black mb-1">
                 {loading ? "..." : currencyFormatter.format(finance.mrr)}
               </p>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Receita Recorrente Mensal</p>
+              <p className="text-[10px] text-apple-muted uppercase tracking-widest">Receita Recorrente Mensal</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-               <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Receber (Mês)</span>
-                <p className="text-lg font-bold text-zinc-300 mt-1">{loading ? "..." : currencyFormatter.format(finance.aReceber)}</p>
+               <div className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-apple-muted">A Receber (Mês)</span>
+                <p className="text-lg font-bold text-apple-black mt-1">{loading ? "..." : currencyFormatter.format(finance.aReceber)}</p>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">A Pagar (Mês)</span>
-                <p className="text-lg font-bold text-red-400 mt-1">{loading ? "..." : currencyFormatter.format(finance.aPagar)}</p>
+              <div className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-apple-muted">A Pagar (Mês)</span>
+                <p className="text-lg font-bold text-red-500 mt-1">{loading ? "..." : currencyFormatter.format(finance.aPagar)}</p>
               </div>
             </div>
           </div>

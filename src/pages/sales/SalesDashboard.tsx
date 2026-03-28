@@ -50,7 +50,6 @@ const SalesDashboard = () => {
       setLoading(true);
 
       try {
-        // 1. Buscar todas as vendas/orçamentos
         const { data: quotes } = await supabase
           .from('quotes')
           .select('*, employees(full_name)')
@@ -58,7 +57,6 @@ const SalesDashboard = () => {
 
         if (!quotes) return;
 
-        // Métricas Gerais
         const approvedQuotes = quotes.filter(q => q.status !== 'draft');
         const totalVolume = approvedQuotes.reduce((acc, curr) => acc + Number(curr.total_amount), 0);
         const avgTicket = approvedQuotes.length > 0 ? totalVolume / approvedQuotes.length : 0;
@@ -71,7 +69,6 @@ const SalesDashboard = () => {
           avgTicket
         });
 
-        // Ranking de Vendedores
         const sellerMap: Record<string, { name: string, total: number, count: number }> = {};
         approvedQuotes.forEach(q => {
           const sellerName = q.employees?.full_name || 'Venda Direta';
@@ -85,7 +82,6 @@ const SalesDashboard = () => {
           .slice(0, 5);
         setTopSellers(sellersChart);
 
-        // 2. Buscar Itens para Curva ABC (Top Produtos)
         const quoteIds = approvedQuotes.map(q => q.id);
         if (quoteIds.length > 0) {
           const { data: items } = await supabase
@@ -109,7 +105,6 @@ const SalesDashboard = () => {
           }
         }
 
-        // Tendência de Vendas (Últimos 7 dias simulado agrupando as datas)
         const trendMap: Record<string, number> = {};
         approvedQuotes.forEach(q => {
           const date = new Date(q.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -117,7 +112,6 @@ const SalesDashboard = () => {
           trendMap[date] += Number(q.total_amount);
         });
 
-        // Ordenar as datas
         const trendChart = Object.keys(trendMap)
           .sort((a, b) => {
             const [d1, m1] = a.split('/');
@@ -153,63 +147,63 @@ const SalesDashboard = () => {
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-apple-black">
             <Target className="text-orange-500" size={32} />
             Dashboard de Vendas
           </h2>
-          <p className="text-zinc-400 mt-1">Métricas, performance e curva ABC dos seus produtos.</p>
+          <p className="text-apple-muted mt-1 font-medium">Métricas, performance e curva ABC dos seus produtos.</p>
         </div>
 
         {/* TOP CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl relative overflow-hidden border-t-orange-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm relative overflow-hidden border-t-orange-500">
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
               <TrendingUp size={14} className="text-orange-500" /> Volume Faturado
             </p>
-            <p className="text-3xl font-black text-zinc-100">{currencyFormatter.format(metrics.totalVolume)}</p>
+            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.totalVolume)}</p>
           </div>
           
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl relative overflow-hidden border-t-emerald-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm relative overflow-hidden border-t-emerald-500">
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
               <ShoppingCart size={14} className="text-emerald-500" /> Pedidos Fechados
             </p>
-            <p className="text-3xl font-black text-zinc-100">{metrics.totalOrders}</p>
+            <p className="text-3xl font-black text-apple-black">{metrics.totalOrders}</p>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl relative overflow-hidden border-t-blue-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm relative overflow-hidden border-t-blue-500">
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
               <Percent size={14} className="text-blue-500" /> Conversão
             </p>
-            <p className="text-3xl font-black text-blue-400">{metrics.conversionRate.toFixed(1)}%</p>
-            <p className="text-[10px] text-zinc-500 mt-1">Orçamentos x Pagos</p>
+            <p className="text-3xl font-black text-blue-600">{metrics.conversionRate.toFixed(1)}%</p>
+            <p className="text-[10px] text-apple-muted mt-1">Orçamentos x Pagos</p>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl relative overflow-hidden border-t-purple-500/50">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm relative overflow-hidden border-t-purple-500">
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
               <Award size={14} className="text-purple-500" /> Ticket Médio
             </p>
-            <p className="text-3xl font-black text-zinc-100">{currencyFormatter.format(metrics.avgTicket)}</p>
+            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.avgTicket)}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* CURVA ABC (Produtos) */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-            <h3 className="font-bold text-zinc-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm">
+            <h3 className="font-bold text-apple-black mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
               <Package size={18} className="text-orange-500" /> Top Produtos (Qtd. Vendida)
             </h3>
             <div className="h-[300px] w-full">
               {topProducts.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">Sem dados suficientes.</div>
+                <div className="h-full flex items-center justify-center text-apple-muted text-sm">Sem dados suficientes.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topProducts} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={true} vertical={false} />
-                    <XAxis type="number" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis dataKey="name" type="category" stroke="#a1a1aa" fontSize={11} tickLine={false} axisLine={false} width={100} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d2d2d7" horizontal={true} vertical={false} />
+                    <XAxis type="number" stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis dataKey="name" type="category" stroke="#1d1d1f" fontSize={11} tickLine={false} axisLine={false} width={100} />
                     <Tooltip 
-                      cursor={{fill: '#27272a'}}
-                      contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                      cursor={{fill: '#f5f5f7'}}
+                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #d2d2d7', borderRadius: '12px' }}
                       itemStyle={{ color: '#f97316', fontWeight: 'bold' }}
                     />
                     <Bar dataKey="qty" fill="#f97316" radius={[0, 4, 4, 0]} barSize={24} name="Unidades" />
@@ -220,33 +214,33 @@ const SalesDashboard = () => {
           </div>
 
           {/* RANKING VENDEDORES */}
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-            <h3 className="font-bold text-zinc-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
+          <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm">
+            <h3 className="font-bold text-apple-black mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
               <Users size={18} className="text-blue-500" /> Ranking de Vendedores
             </h3>
             <div className="space-y-4">
               {topSellers.length === 0 ? (
-                <div className="h-[200px] flex items-center justify-center text-zinc-500 text-sm">Sem dados suficientes.</div>
+                <div className="h-[200px] flex items-center justify-center text-apple-muted text-sm">Sem dados suficientes.</div>
               ) : (
                 topSellers.map((seller, idx) => (
-                  <div key={seller.name} className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between">
+                  <div key={seller.name} className="bg-apple-offWhite border border-apple-border rounded-2xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-lg border",
-                        idx === 0 ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/30" :
-                        idx === 1 ? "bg-zinc-400/20 text-zinc-300 border-zinc-400/30" :
-                        idx === 2 ? "bg-orange-700/20 text-orange-600 border-orange-700/30" :
-                        "bg-zinc-800 text-zinc-500 border-zinc-700"
+                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border",
+                        idx === 0 ? "bg-yellow-50 text-yellow-600 border-yellow-200" :
+                        idx === 1 ? "bg-zinc-100 text-zinc-600 border-zinc-300" :
+                        idx === 2 ? "bg-orange-50 text-orange-600 border-orange-200" :
+                        "bg-white text-apple-muted border-apple-border"
                       )}>
                         {idx + 1}º
                       </div>
                       <div>
-                        <p className="font-bold text-zinc-200">{seller.name}</p>
-                        <p className="text-[10px] text-zinc-500">{seller.count} vendas concluídas</p>
+                        <p className="font-bold text-apple-black">{seller.name}</p>
+                        <p className="text-[10px] text-apple-muted">{seller.count} vendas concluídas</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-blue-400">{currencyFormatter.format(seller.total)}</p>
+                      <p className="font-black text-blue-600">{currencyFormatter.format(seller.total)}</p>
                     </div>
                   </div>
                 ))
@@ -255,25 +249,25 @@ const SalesDashboard = () => {
           </div>
 
           {/* TENDÊNCIA DE VENDAS */}
-          <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 p-6 rounded-3xl shadow-xl">
-            <h3 className="font-bold text-zinc-100 mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
+          <div className="lg:col-span-2 bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm">
+            <h3 className="font-bold text-apple-black mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
               <TrendingUp size={18} className="text-emerald-500" /> Evolução (Últimos 7 dias)
             </h3>
             <div className="h-[250px] w-full">
               {salesTrend.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">Sem dados suficientes.</div>
+                <div className="h-full flex items-center justify-center text-apple-muted text-sm">Sem dados suficientes.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={salesTrend} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="date" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d2d2d7" vertical={false} />
+                    <XAxis dataKey="date" stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #d2d2d7', borderRadius: '12px' }}
                       itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
                       formatter={(value: number) => [currencyFormatter.format(value), 'Faturado']}
                     />
-                    <Line type="monotone" dataKey="volume" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#09090b' }} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="volume" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

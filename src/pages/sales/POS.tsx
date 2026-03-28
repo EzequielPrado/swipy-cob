@@ -77,7 +77,6 @@ const POS = () => {
     });
   }, [products, searchTerm, categoryFilter]);
 
-  // Cálculos do Carrinho
   const subtotalAmount = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   const discountValue = parseFloat(discount.replace(',', '.')) || 0;
   const freightValue = parseFloat(freight.replace(',', '.')) || 0;
@@ -151,7 +150,6 @@ const POS = () => {
 
     setProcessing(true);
     try {
-      // 1. Criar Venda como Concluída (bypass pipeline)
       const { data: quote, error: quoteError } = await supabase.from('quotes').insert({
         user_id: user?.id,
         customer_id: checkoutData.customerId,
@@ -163,7 +161,6 @@ const POS = () => {
 
       if (quoteError) throw quoteError;
 
-      // 2. Inserir Itens, Baixar Estoque e Gerar Ordens de Produção
       const quoteItems = [];
       const movements = [];
       const productionOrders = [];
@@ -177,8 +174,6 @@ const POS = () => {
           total_price: item.price * item.qty
         });
 
-        // Só gera saída de estoque imediata se NÃO for produzido. 
-        // Se for produzido, o estoque só baixa quando a produção terminar (ou baixa insumos, mas aqui simplificaremos)
         if (!item.is_produced) {
           movements.push({
             user_id: user?.id,
@@ -192,7 +187,6 @@ const POS = () => {
             .update({ stock_quantity: Math.max(0, item.stock_quantity - item.qty) })
             .eq('id', item.id);
         } else {
-          // GERA ORDEM DE PRODUÇÃO
           productionOrders.push({
             user_id: user?.id,
             product_id: item.id,
@@ -211,7 +205,6 @@ const POS = () => {
         showSuccess(`${productionOrders.length} Ordens de Produção geradas.`);
       }
 
-      // 3. Processar Pagamento
       if (checkoutData.method === 'pix') {
         const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
           method: 'POST',
@@ -269,23 +262,23 @@ const POS = () => {
       <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-8rem)] gap-6">
         
         {/* LADO ESQUERDO: CATÁLOGO */}
-        <div className="flex-1 flex flex-col bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative min-h-[500px] lg:min-h-0">
+        <div className="flex-1 flex flex-col bg-apple-white border border-apple-border rounded-3xl overflow-hidden shadow-sm relative min-h-[500px] lg:min-h-0">
           
-          <div className="p-6 border-b border-zinc-800 bg-zinc-950/50 flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
+          <div className="p-6 border-b border-apple-border bg-apple-offWhite flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
             <div className="relative w-full sm:w-96">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
               <input 
                 type="text" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar produto por nome ou SKU..." 
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                className="w-full bg-white border border-apple-border rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black shadow-sm"
               />
             </div>
             <div className="flex gap-2 overflow-x-auto custom-scrollbar w-full sm:w-auto pb-2 sm:pb-0">
               <button 
                 onClick={() => setCategoryFilter('all')}
-                className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all", categoryFilter === 'all' ? "bg-orange-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700")}
+                className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === 'all' ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-white text-apple-muted border-apple-border hover:bg-apple-light")}
               >
                 Todos
               </button>
@@ -293,7 +286,7 @@ const POS = () => {
                 <button 
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all", categoryFilter === cat ? "bg-orange-500 text-zinc-950" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700")}
+                  className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === cat ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-white text-apple-muted border-apple-border hover:bg-apple-light")}
                 >
                   {cat}
                 </button>
@@ -305,7 +298,7 @@ const POS = () => {
             {loading ? (
               <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
             ) : filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-500">
+              <div className="flex flex-col items-center justify-center h-full text-apple-muted">
                 <PackageOpen size={48} className="mb-4 opacity-20" />
                 <p>Nenhum produto encontrado.</p>
               </div>
@@ -315,23 +308,23 @@ const POS = () => {
                   <button
                     key={prod.id}
                     onClick={() => addToCart(prod)}
-                    className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5 transition-all text-left flex flex-col group relative overflow-hidden active:scale-95"
+                    className="bg-white border border-apple-border p-4 rounded-2xl hover:border-orange-500 hover:shadow-md transition-all text-left flex flex-col group relative overflow-hidden active:scale-95"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <div className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center text-zinc-500 border border-zinc-800 group-hover:bg-orange-500/10 group-hover:text-orange-500 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-apple-offWhite flex items-center justify-center text-apple-muted border border-apple-border group-hover:bg-orange-50 group-hover:text-orange-500 group-hover:border-orange-200 transition-colors">
                         {prod.is_produced ? <Factory size={20} className="text-orange-500" /> : prod.name.charAt(0).toUpperCase()}
                       </div>
                       <span className={cn(
-                        "text-[10px] font-bold px-2 py-1 rounded-md",
-                        prod.is_produced ? "bg-orange-500/10 text-orange-400" :
-                        prod.stock_quantity > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                        "text-[10px] font-bold px-2 py-1 rounded-md border",
+                        prod.is_produced ? "bg-orange-50 text-orange-600 border-orange-200" :
+                        prod.stock_quantity > 0 ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"
                       )}>
                         {prod.is_produced ? 'INDUSTRIAL' : `${prod.stock_quantity} un`}
                       </span>
                     </div>
-                    <p className="font-bold text-zinc-200 line-clamp-2 mb-1 group-hover:text-orange-400 transition-colors">{prod.name}</p>
-                    <p className="text-[10px] text-zinc-500 font-mono mb-4">{prod.sku || 'Sem SKU'}</p>
-                    <p className="text-lg font-black text-zinc-100 mt-auto">{currencyFormatter.format(prod.price)}</p>
+                    <p className="font-bold text-apple-black line-clamp-2 mb-1 group-hover:text-orange-500 transition-colors">{prod.name}</p>
+                    <p className="text-[10px] text-apple-muted font-mono mb-4">{prod.sku || 'Sem SKU'}</p>
+                    <p className="text-lg font-black text-apple-dark mt-auto">{currencyFormatter.format(prod.price)}</p>
                   </button>
                 ))}
               </div>
@@ -340,14 +333,14 @@ const POS = () => {
         </div>
 
         {/* LADO DIREITO: CARRINHO */}
-        <div className="w-full lg:max-w-[380px] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col shrink-0">
-          <div className="p-6 border-b border-zinc-800 bg-zinc-950/50 shrink-0 flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
+        <div className="w-full lg:max-w-[380px] bg-apple-white border border-apple-border rounded-3xl shadow-sm flex flex-col shrink-0">
+          <div className="p-6 border-b border-apple-border bg-apple-offWhite shrink-0 flex items-center justify-between">
+            <h2 className="text-lg font-bold flex items-center gap-2 text-apple-black">
               <ShoppingCart className="text-orange-500" size={20} />
               Carrinho Ativo
             </h2>
             {cart.length > 0 && (
-              <button onClick={resetCart} className="text-xs font-bold text-zinc-500 hover:text-red-400 transition-colors">
+              <button onClick={resetCart} className="text-xs font-bold text-apple-muted hover:text-red-500 transition-colors">
                 Limpar
               </button>
             )}
@@ -355,28 +348,28 @@ const POS = () => {
 
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3 min-h-[300px] lg:min-h-0">
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-zinc-600 opacity-50">
+              <div className="flex flex-col items-center justify-center h-full text-apple-muted opacity-80">
                 <ShoppingCart size={40} className="mb-4" />
                 <p className="text-sm font-medium">Carrinho Vazio</p>
                 <p className="text-[10px] mt-1 text-center px-4">Selecione produtos no catálogo ao lado para iniciar uma venda.</p>
               </div>
             ) : (
               cart.map((item) => (
-                <div key={item.id} className="bg-zinc-950 border border-zinc-800 p-3 rounded-2xl flex items-center justify-between">
+                <div key={item.id} className="bg-white border border-apple-border p-3 rounded-2xl flex items-center justify-between shadow-sm">
                   <div className="flex-1 overflow-hidden pr-2">
-                    <p className="text-sm font-bold text-zinc-200 truncate">{item.name}</p>
-                    <p className="text-xs text-orange-400 font-bold mt-0.5">{currencyFormatter.format(item.price * item.qty)}</p>
+                    <p className="text-sm font-bold text-apple-black truncate">{item.name}</p>
+                    <p className="text-xs text-orange-500 font-bold mt-0.5">{currencyFormatter.format(item.price * item.qty)}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    <button onClick={() => removeFromCart(item.id)} className="text-zinc-600 hover:text-red-400 p-1">
+                    <button onClick={() => removeFromCart(item.id)} className="text-apple-muted hover:text-red-500 p-1">
                       <Trash2 size={14} />
                     </button>
-                    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
-                      <button onClick={() => updateQty(item.id, -1)} className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded">
+                    <div className="flex items-center gap-2 bg-apple-offWhite border border-apple-border rounded-lg p-1">
+                      <button onClick={() => updateQty(item.id, -1)} className="p-1 text-apple-muted hover:text-apple-black hover:bg-apple-light rounded">
                         <Minus size={12} />
                       </button>
-                      <span className="text-xs font-bold w-4 text-center">{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)} className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded">
+                      <span className="text-xs font-bold w-4 text-center text-apple-black">{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, 1)} className="p-1 text-apple-muted hover:text-apple-black hover:bg-apple-light rounded">
                         <Plus size={12} />
                       </button>
                     </div>
@@ -387,42 +380,42 @@ const POS = () => {
           </div>
 
           {/* RESUMO DO CARRINHO */}
-          <div className="p-6 bg-zinc-950 border-t border-zinc-800 shrink-0 rounded-b-3xl">
+          <div className="p-6 bg-apple-offWhite border-t border-apple-border shrink-0 rounded-b-3xl">
             <div className="space-y-4 mb-6">
-              <div className="flex items-center justify-between text-sm text-zinc-400">
+              <div className="flex items-center justify-between text-sm text-apple-dark">
                 <span className="font-medium">Subtotal</span>
-                <span>{currencyFormatter.format(subtotalAmount)}</span>
+                <span className="font-bold">{currencyFormatter.format(subtotalAmount)}</span>
               </div>
-              <div className="flex items-center justify-between text-sm text-zinc-400">
+              <div className="flex items-center justify-between text-sm text-apple-dark">
                 <span className="flex items-center gap-1 font-medium"><Tag size={14} className="text-orange-500" /> Desconto (R$)</span>
                 <input 
                   type="text"
                   placeholder="0,00"
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value)}
-                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-zinc-100 font-bold"
+                  className="w-24 bg-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-bold shadow-sm"
                 />
               </div>
-              <div className="flex items-center justify-between text-sm text-zinc-400">
+              <div className="flex items-center justify-between text-sm text-apple-dark">
                 <span className="flex items-center gap-1 font-medium"><Truck size={14} className="text-blue-500" /> Frete / Taxa (R$)</span>
                 <input 
                   type="text"
                   placeholder="0,00"
                   value={freight}
                   onChange={(e) => setFreight(e.target.value)}
-                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-zinc-100 font-bold"
+                  className="w-24 bg-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-bold shadow-sm"
                 />
               </div>
-              <div className="flex items-center justify-between pt-4 border-t border-zinc-800/50">
-                <span className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Total da Venda</span>
-                <span className="text-3xl font-black text-zinc-100">{currencyFormatter.format(totalAmount)}</span>
+              <div className="flex items-center justify-between pt-4 border-t border-apple-border">
+                <span className="text-apple-muted font-bold uppercase tracking-widest text-xs">Total da Venda</span>
+                <span className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalAmount)}</span>
               </div>
             </div>
 
             <button 
               onClick={() => setIsCheckoutOpen(true)}
               disabled={cart.length === 0}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 text-lg"
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-apple-border disabled:text-apple-muted text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-sm text-lg"
             >
               COBRAR <ArrowRight size={20} />
             </button>
@@ -432,19 +425,19 @@ const POS = () => {
 
       {/* MODAL DE CHECKOUT */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px]">
           <DialogHeader>
             <DialogTitle className="text-xl">Finalizar Venda</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-6 py-4">
-            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 text-center shadow-inner">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mb-2">Valor a Cobrar</p>
+            <div className="bg-apple-offWhite border border-apple-border rounded-2xl p-6 text-center shadow-inner">
+              <p className="text-[10px] text-apple-muted uppercase tracking-widest font-bold mb-2">Valor a Cobrar</p>
               <p className="text-4xl font-black text-orange-500">{currencyFormatter.format(totalAmount)}</p>
               {(discountValue > 0 || freightValue > 0) && (
                 <div className="flex justify-center gap-2 mt-3">
-                  {discountValue > 0 && <span className="text-[10px] text-zinc-400 font-bold bg-zinc-900 px-2 py-1 rounded-md border border-zinc-800">- {currencyFormatter.format(discountValue)} (Desc)</span>}
-                  {freightValue > 0 && <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">+ {currencyFormatter.format(freightValue)} (Frete)</span>}
+                  {discountValue > 0 && <span className="text-[10px] text-apple-muted font-bold bg-white px-2 py-1 rounded-md border border-apple-border">- {currencyFormatter.format(discountValue)} (Desc)</span>}
+                  {freightValue > 0 && <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-200">+ {currencyFormatter.format(freightValue)} (Frete)</span>}
                 </div>
               )}
             </div>
@@ -454,14 +447,16 @@ const POS = () => {
                 <Label className="flex items-center gap-2"><User size={14} className="text-orange-500" /> Cliente</Label>
                 <button 
                   onClick={() => setIsAddCustomerModalOpen(true)}
-                  className="text-[10px] text-orange-500 font-bold uppercase tracking-widest hover:underline flex items-center gap-1"
+                  className="text-[10px] text-orange-500 font-bold uppercase tracking-widest hover:underline flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-md border border-orange-100"
                 >
                   <Plus size={12} /> Novo Cliente
                 </button>
               </div>
               <Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Selecione o cliente..." /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
+                  <SelectValue placeholder="Selecione o cliente..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-apple-border text-apple-black">
                   {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -470,8 +465,10 @@ const POS = () => {
             <div className="space-y-2">
               <Label className="flex items-center gap-2"><Contact size={14} className="text-blue-500" /> Vendedor (Opcional)</Label>
               <Select value={checkoutData.sellerId} onValueChange={v => setCheckoutData({...checkoutData, sellerId: v})}>
-                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Selecione quem realizou a venda..." /></SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
+                  <SelectValue placeholder="Selecione quem realizou a venda..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-apple-border text-apple-black">
                   <SelectItem value="none">Nenhum (Venda Direta)</SelectItem>
                   {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
                 </SelectContent>
@@ -479,7 +476,7 @@ const POS = () => {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-xs uppercase text-zinc-500 font-bold tracking-widest">Método de Pagamento</Label>
+              <Label className="text-xs uppercase text-apple-muted font-bold tracking-widest">Método de Pagamento</Label>
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { id: 'pix', icon: QrCode, label: 'PIX (Woovi)' },
@@ -492,8 +489,8 @@ const POS = () => {
                     className={cn(
                       "flex flex-col items-center justify-center p-4 rounded-xl border transition-all gap-2",
                       checkoutData.method === method.id 
-                        ? "bg-orange-500/10 border-orange-500 text-orange-400" 
-                        : "bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                        ? "bg-orange-50 border-orange-500 text-orange-600 shadow-sm" 
+                        : "bg-white border-apple-border text-apple-muted hover:border-apple-dark hover:text-apple-dark"
                     )}
                   >
                     <method.icon size={24} />
@@ -508,7 +505,7 @@ const POS = () => {
             <button 
               onClick={handleCheckout}
               disabled={processing || !checkoutData.customerId}
-              className="w-full bg-orange-500 text-zinc-950 font-bold py-4 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
             >
               {processing ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
               Confirmar Pagamento
