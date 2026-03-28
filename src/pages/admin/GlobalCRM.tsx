@@ -6,15 +6,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, Search, TrendingUp, AlertCircle, CheckCircle2, 
   ArrowUpRight, ShieldCheck, Filter, Download, Info, Building2, User,
-  Wallet, PieChart, Zap
+  Wallet, PieChart, Zap, AlertTriangle
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from 'lucide-react';
+import { showError } from '@/utils/toast';
 
 const GlobalCRM = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [globalStats, setGlobalStats] = useState({ 
     totalVolume: 0, 
     avgDelinquency: 0, 
@@ -25,26 +27,45 @@ const GlobalCRM = () => {
 
   const fetchCRMData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [customersRes, chargesRes] = await Promise.all([
-        supabase.from('customers').select('*, profiles:user_id(company)'),
-        supabase.from('charges').select('customer_id, amount, status, due_date')
+      console.log("[GlobalCRM] Iniciando sincronização master...");
+
+      // 1. Puxar Clientes e Cobranças de forma independente para evitar erros de JOIN complexos
+      const [customersRes, chargesRes, profilesRes] = await Promise.all([
+        supabase.from('customers').select('*'),
+        supabase.from('charges').select('customer_id, amount, status, due_date'),
+        supabase.from('profiles').select('id, company')
       ]);
 
-      if (!customersRes.data || !chargesRes.data) return;
+      if (customersRes.error) throw new Error(`Erro Clientes: ${customersRes.error.message}`);
+      if (chargesRes.error) throw new Error(`Erro Cobranças: ${chargesRes.error.message}`);
 
-      const allCharges = chargesRes.data;
+      const allCustomers = customersRes.data || [];
+      const allCharges = chargesRes.data || [];
+      const allProfiles = profilesRes.data || [];
+
+      if (allCustomers.length === 0) {
+        console.warn("[GlobalCRM] Nenhum cliente encontrado no banco.");
+        setCustomerData([]);
+        setLoading(false);
+        return;
+      }
+
       const today = new Date().toISOString().split('T')[0];
+      
+      // 2. Agrupar dados por CPF/CNPJ (Consolidação de Identidade)
       const groupedByTaxId: Record<string, any> = {};
 
-      customersRes.data.forEach(cust => {
-        const taxId = cust.tax_id?.replace(/\D/g, '') || 'S-DOC';
-        if (!groupedByTaxId[taxId]) {
-          groupedByTaxId[taxId] = {
+      allCustomers.forEach(cust => {
+        // Limpamos o documento para agrupar corretamente mesmo que digitado diferente em lojas diferentes
+        const rawTaxId = cust.tax_id?.replace(/\D/g, '') || 'SEM-DOC';
+        
+        if (!groupedByTaxId[rawTaxId]) {
+          groupedByTaxId[rawTaxId] = {
             name: cust.name,
             taxId: cust.tax_id,
             email: cust.email,
-            phone: cust.phone,
             merchants: new Set(),
             totalPaid: 0,
             totalPending: 0,
@@ -54,28 +75,32 @@ const GlobalCRM = () => {
           };
         }
         
-        groupedByTaxId[taxId].merchants.add(cust.profiles?.company || 'Lojista Indefinido');
+        // Localizar o nome da empresa do lojista
+        const merchant = allProfiles.find(p => p.id === cust.user_id);
+        groupedByTaxId[rawTaxId].merchants.add(merchant?.company || 'Lojista Desconhecido');
         
+        // Somar cobranças vinculadas a ESTE registro de cliente (ID interno)
         const custCharges = allCharges.filter(c => c.customer_id === cust.id);
         custCharges.forEach(ch => {
-          groupedByTaxId[taxId].countTotal++;
+          groupedByTaxId[rawTaxId].countTotal++;
           const val = Number(ch.amount || 0);
 
           if (ch.status === 'pago') {
-            groupedByTaxId[taxId].totalPaid += val;
-            groupedByTaxId[taxId].countPaid++;
+            groupedByTaxId[rawTaxId].totalPaid += val;
+            groupedByTaxId[rawTaxId].countPaid++;
           } else if (ch.status === 'atrasado' || (ch.status === 'pendente' && ch.due_date < today)) {
-            groupedByTaxId[taxId].totalOverdue += val;
+            groupedByTaxId[rawTaxId].totalOverdue += val;
           } else {
-            groupedByTaxId[taxId].totalPending += val;
+            groupedByTaxId[rawTaxId].totalPending += val;
           }
         });
       });
 
+      // 3. Formatar para exibição
       const finalArray = Object.values(groupedByTaxId).map(c => {
         const delinquencyRate = c.countTotal > 0 ? ((c.countTotal - c.countPaid) / c.countTotal) * 100 : 0;
         let score = 100 - (delinquencyRate * 0.8);
-        if (c.totalPaid > 5000) score += 5;
+        if (c.totalPaid > 5000) score += 5; // Bônus por bom volume pago
         
         return {
           ...c,
@@ -87,19 +112,18 @@ const GlobalCRM = () => {
 
       setCustomerData(finalArray);
 
-      const totalPaidGlobal = finalArray.reduce((acc, curr) => acc + curr.totalPaid, 0);
-      const totalOverdueGlobal = finalArray.reduce((acc, curr) => acc + curr.totalOverdue, 0);
-      const avgDel = finalArray.length > 0 ? (finalArray.reduce((acc, curr) => acc + curr.delinquencyRate, 0) / finalArray.length) : 0;
-
+      // 4. Stats Consolidadas
       setGlobalStats({
-        totalVolume: totalPaidGlobal,
-        avgDelinquency: avgDel,
+        totalVolume: finalArray.reduce((acc, curr) => acc + curr.totalPaid, 0),
+        avgDelinquency: finalArray.length > 0 ? (finalArray.reduce((acc, curr) => acc + curr.delinquencyRate, 0) / finalArray.length) : 0,
         totalCustomers: finalArray.length,
-        totalOverdue: totalOverdueGlobal
+        totalOverdue: finalArray.reduce((acc, curr) => acc + curr.totalOverdue, 0)
       });
 
-    } catch (err) {
-      console.error("[GlobalCRM] Error:", err);
+    } catch (err: any) {
+      console.error("[GlobalCRM] Erro Crítico:", err.message);
+      setError(err.message);
+      showError("Falha ao sincronizar base global.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +133,7 @@ const GlobalCRM = () => {
 
   const filteredData = customerData.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.taxId.includes(searchTerm)
+    c.taxId?.includes(searchTerm)
   );
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -122,18 +146,28 @@ const GlobalCRM = () => {
             <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 text-apple-black">
               <ShieldCheck className="text-orange-500" size={32} /> CRM Global Master
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Gestão centralizada de risco e volume transacionado.</p>
+            <p className="text-apple-muted mt-1 font-medium">Gestão unificada de risco por CPF/CNPJ em toda a rede Swipy.</p>
           </div>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
             <Input 
               placeholder="Buscar por documento ou nome..." 
-              className="pl-12 bg-apple-white border-apple-border rounded-2xl h-12 w-[320px] shadow-sm"
+              className="pl-12 bg-apple-white border-apple-border rounded-2xl h-12 w-full md:w-[320px] shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-100 p-6 rounded-[2rem] flex items-center gap-4 text-red-600">
+            <AlertTriangle size={24} />
+            <div>
+              <p className="font-bold uppercase text-[10px] tracking-widest">Erro de Acesso</p>
+              <p className="text-sm font-medium">{error}. Verifique se você possui permissão de Administrador.</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
@@ -161,11 +195,11 @@ const GlobalCRM = () => {
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
             <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
-              <Zap size={16} className="text-orange-500" /> Scoring Consolidado por CPF/CNPJ
+              <Zap size={16} className="text-orange-500" /> Scoring Inteligente por Documento
             </h3>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
                 <tr>
@@ -223,10 +257,15 @@ const GlobalCRM = () => {
                       <td className="px-8 py-5 text-center">
                          <div className="flex justify-center -space-x-2">
                             {cust.merchants.slice(0, 3).map((m: string, mIdx: number) => (
-                               <div key={mIdx} className="w-8 h-8 rounded-full bg-apple-white border-2 border-apple-border flex items-center justify-center text-[9px] font-black text-orange-500" title={m}>
+                               <div key={mIdx} className="w-8 h-8 rounded-full bg-apple-white border-2 border-apple-border flex items-center justify-center text-[9px] font-black text-orange-500 shadow-sm" title={m}>
                                   {m.charAt(0)}
                                </div>
                             ))}
+                            {cust.merchants.length > 3 && (
+                               <div className="w-8 h-8 rounded-full bg-apple-offWhite border-2 border-apple-border flex items-center justify-center text-[8px] font-black text-apple-muted">
+                                  +{cust.merchants.length - 3}
+                               </div>
+                            )}
                          </div>
                       </td>
                     </tr>
