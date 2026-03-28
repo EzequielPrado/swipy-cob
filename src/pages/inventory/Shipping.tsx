@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { 
   Truck, Loader2, Search, PackageCheck, AlertTriangle, 
   ChevronRight, ArrowRight, Package, User, Clock, CheckCircle2,
-  PackageSearch, FileText
+  PackageSearch, FileText, Receipt
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -22,12 +22,12 @@ const Shipping = () => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [invoicingId, setInvoicingId] = useState<string | null>(null);
 
   const fetchQueue = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // Buscamos pedidos que estão em estágios de fulfillment (entre aprovado e antes de enviado)
       const { data, error } = await supabase
         .from('quotes')
         .select(`
@@ -60,13 +60,45 @@ const Shipping = () => {
     );
   }, [orders, searchTerm]);
 
+  const handleInvoice = async (order: any) => {
+    setInvoicingId(order.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${session?.access_token}` 
+        },
+        body: JSON.stringify({ 
+          chargeId: order.id, 
+          customerId: order.customer_id, 
+          amount: order.total_amount, 
+          description: `Fatura ref. Pedido #${order.id.split('-')[0].toUpperCase()}` 
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      // Atualizar status para invoiced no banco
+      await supabase.from('quotes').update({ status: 'invoiced' }).eq('id', order.id);
+      
+      showSuccess("Fatura oficial emitida e enviada ao cliente!");
+      fetchQueue();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setInvoicingId(null);
+    }
+  };
+
   const handleShip = async () => {
     if (!selectedOrder) return;
     setProcessing(true);
     try {
       const items = selectedOrder.quote_items || [];
       
-      // 1. Verificar se há estoque suficiente para todos os itens
       for (const item of items) {
         if (!item.products) continue;
         if (item.products.stock_quantity < item.quantity) {
@@ -74,11 +106,8 @@ const Shipping = () => {
         }
       }
 
-      // 2. Realizar as baixas no estoque e registrar movimentação
       for (const item of items) {
         if (!item.product_id) continue;
-
-        // Subtrair quantidade
         const newQty = item.products.stock_quantity - item.quantity;
         const { error: prodError } = await supabase
           .from('products')
@@ -87,7 +116,6 @@ const Shipping = () => {
         
         if (prodError) throw prodError;
 
-        // Registrar Log de Saída
         await supabase.from('inventory_movements').insert({
           user_id: user?.id,
           product_id: item.product_id,
@@ -97,7 +125,6 @@ const Shipping = () => {
         });
       }
 
-      // 3. Atualizar status do pedido para 'shipped'
       const { error: quoteError } = await supabase
         .from('quotes')
         .update({ status: 'shipped' })
@@ -138,7 +165,7 @@ const Shipping = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por cliente ou ref. do pedido..." 
-            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all shadow-sm"
+            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all shadow-sm text-apple-black"
           />
         </div>
 
@@ -151,8 +178,8 @@ const Shipping = () => {
                <p className="font-bold">Nenhum pedido aguardando expedição.</p>
             </div>
           ) : filteredOrders.map((order) => {
-            // Verificar se todos os itens têm estoque para serem despachados
             const hasStockIssue = order.quote_items?.some((i: any) => i.products && i.products.stock_quantity < i.quantity);
+            const isInvoiced = order.status === 'invoiced';
 
             return (
               <div key={order.id} className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 flex flex-col shadow-sm hover:border-orange-200 transition-all group">
@@ -160,12 +187,19 @@ const Shipping = () => {
                   <div className="w-12 h-12 rounded-2xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-orange-500 font-mono text-sm font-black shadow-inner">
                     #{order.id.split('-')[0].toUpperCase()}
                   </div>
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                    hasStockIssue ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  )}>
-                    {hasStockIssue ? 'Sem Estoque' : 'Pronto p/ Sair'}
-                  </span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                      hasStockIssue ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    )}>
+                      {hasStockIssue ? 'Sem Estoque' : 'Pronto p/ Sair'}
+                    </span>
+                    {isInvoiced && (
+                      <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-blue-50 text-blue-600 border-blue-100 flex items-center gap-1">
+                        <Receipt size={10} /> Faturado
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex-1 space-y-6">
@@ -192,7 +226,18 @@ const Shipping = () => {
                    </div>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-apple-border">
+                <div className="mt-8 pt-6 border-t border-apple-border space-y-3">
+                   {!isInvoiced && (
+                     <button 
+                       onClick={() => handleInvoice(order)}
+                       disabled={!!invoicingId}
+                       className="w-full bg-blue-50 text-blue-600 hover:bg-blue-100 font-black py-3 rounded-xl flex items-center justify-center gap-2 transition-all border border-blue-100"
+                     >
+                       {invoicingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Receipt size={16} />}
+                       EMITIR FATURA OFICIAL
+                     </button>
+                   )}
+                   
                    <button 
                     onClick={() => { setSelectedOrder(order); setIsConfirmOpen(true); }}
                     disabled={hasStockIssue}
