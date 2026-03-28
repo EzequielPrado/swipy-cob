@@ -23,13 +23,25 @@ const menuStructure = [
   { title: 'Financeiro', icon: Landmark, roles: ['Admin', 'Financeiro', 'Contador'], submenus: [{ label: 'Dashboard Financeiro', path: '/financeiro/dashboard' }, { label: 'Contas a Receber', path: '/financeiro/cobrancas' }, { label: 'Assinaturas', path: '/financeiro/assinaturas' }, { label: 'Contas a Pagar', path: '/financeiro/pagar' }, { label: 'Contas Bancárias', path: '/financeiro/bancos' }, { label: 'DRE Contábil', path: '/financeiro/dre' }, { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' }] },
   { title: 'Gente e Gestão', icon: Users, roles: ['Admin', 'RH', 'Contador'], submenus: [{ label: 'Colaboradores', path: '/rh/colaboradores' }, { label: 'Folha Gerencial', path: '/rh/folha' }] },
   { title: 'Cadastros', icon: Contact, roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], submenus: [{ label: 'Clientes', path: '/clientes' }, { label: 'Fornecedores', path: '/fornecedores' }] },
-  { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] }
+  { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] },
+  { 
+    title: 'Administração SaaS', 
+    icon: ShieldCheck, 
+    roles: ['Admin'], 
+    requireSuperAdmin: true,
+    submenus: [
+      { label: 'Visão Global', path: '/admin/dashboard' }, 
+      { label: 'Lojistas', path: '/admin/usuarios' }, 
+      { label: 'Planos', path: '/admin/planos' }, 
+      { label: 'Automação Global', path: '/admin/automacao' }
+    ] 
+  }
 ];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, activeMerchant, setActiveMerchant } = useAuth();
+  const { user, signOut, systemRole, isAdmin, activeMerchant, setActiveMerchant } = useAuth();
   const { theme, setTheme } = useTheme();
   
   const [profile, setProfile] = useState<any>(null);
@@ -49,8 +61,16 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   }, [user]);
 
   const toggleMenu = (title: string) => setOpenMenus(prev => prev.includes(title) ? prev.filter(m => m !== title) : [...prev, title]);
-  const handleLogout = async () => { await signOut(); navigate('/login'); };
-  const visibleMenus = menuStructure.filter(menu => menu.roles.includes(systemRole));
+  
+  const handleLogout = async () => { 
+    await signOut(); 
+    navigate('/login'); 
+  };
+  
+  const visibleMenus = menuStructure.filter(menu => {
+    if (menu.requireSuperAdmin && !isAdmin) return false;
+    return menu.roles.includes(systemRole);
+  });
 
   return (
     <div className="flex h-screen bg-apple-light text-apple-black overflow-hidden relative font-sans">
