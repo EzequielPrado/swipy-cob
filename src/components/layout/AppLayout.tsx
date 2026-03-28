@@ -271,9 +271,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               </div>
            </Link>
 
-           <Link to="/financeiro/dre" className={cn("flex flex-col items-center gap-1.5", location.pathname.includes("dre") ? "text-orange-500" : "text-apple-muted")}>
-              <FileDown size={20} />
-              <span className="text-[9px] font-black uppercase">PDF</span>
+           <Link to="/vendas/pdv" className={cn("flex flex-col items-center gap-1.5", location.pathname.includes("pdv") ? "text-orange-500" : "text-apple-muted")}>
+              <ShoppingCart size={20} />
+              <span className="text-[9px] font-black uppercase">PDV</span>
            </Link>
            
            <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center gap-1.5 text-apple-muted">
