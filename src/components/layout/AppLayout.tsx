@@ -68,7 +68,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="p-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <img src="/logo-swipy.png" alt="Logo" className="w-8 h-8 object-contain" />
-            <span className="text-xl font-bold tracking-tighter">Swipy</span>
+            <span className="text-xl font-bold tracking-tighter text-apple-black">Swipy</span>
           </Link>
           <button className="lg:hidden p-2 text-apple-muted" onClick={() => setIsMobileMenuOpen(false)}>
              <X size={20} />
@@ -77,7 +77,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-10">
           <nav className="space-y-1">
-            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu</p>
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
             {visibleMenus.map((item) => {
               const hasSubmenus = !!item.submenus;
               const isOpen = openMenus.includes(item.title);
@@ -96,7 +96,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     </Link>
                   )}
                   {hasSubmenus && isOpen && (
-                    <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1">
+                    <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1 animate-in slide-in-from-top-1 duration-200">
                       {item.submenus!.map(sub => (
                         <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black")}>{sub.label}</Link>
                       ))}
@@ -109,67 +109,79 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         <div className="p-4 border-t border-apple-border bg-apple-offWhite">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-apple-muted hover:text-red-500 w-full transition-colors"><LogOut size={18} />Sair</button>
+          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-apple-muted hover:text-red-500 w-full transition-colors"><LogOut size={18} />Sair do sistema</button>
         </div>
       </aside>
 
-      {/* CONTEÚDO */}
+      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Banner de Contador Ativo - Ajustado para não quebrar o layout */}
         {activeMerchant && (
-           <div className="bg-orange-500 px-6 py-2 flex items-center justify-between z-50">
-              <p className="text-white text-[10px] font-bold uppercase tracking-widest">Visualizando: {activeMerchant.company}</p>
-              <button onClick={() => { setActiveMerchant(null); navigate('/contador'); }} className="text-white text-[10px] font-black underline">SAIR</button>
+           <div className="bg-orange-500 px-6 py-2.5 flex items-center justify-between z-[60] shrink-0">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={14} className="text-white" />
+                <p className="text-white text-[10px] font-bold uppercase tracking-widest truncate max-w-[200px] sm:max-w-none">
+                  Sessão Auditoria: {activeMerchant.company}
+                </p>
+              </div>
+              <button onClick={() => { setActiveMerchant(null); navigate('/contador'); }} className="text-white text-[9px] font-black underline bg-white/10 px-2 py-1 rounded-md hover:bg-white/20 transition-colors">ENCERRAR ACESSO</button>
            </div>
         )}
 
+        {/* Header fixo no topo */}
         <header className="h-16 border-b border-apple-border flex items-center justify-between px-4 md:px-8 bg-apple-white/80 backdrop-blur-md shrink-0 sticky top-0 z-40">
-          <div className="flex items-center gap-3">
-            <button className="lg:hidden p-2 text-apple-muted" onClick={() => setIsMobileMenuOpen(true)}>
+          <div className="flex items-center gap-3 overflow-hidden">
+            <button className="lg:hidden p-2 text-apple-muted -ml-2" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu size={24} />
             </button>
-            <h1 className="text-sm font-bold text-apple-black hidden sm:block">{profile?.company || 'Swipy ERP'}</h1>
+            <h1 className="text-sm font-black text-apple-black truncate uppercase tracking-widest">
+              {profile?.company || 'Swipy ERP'}
+            </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {mounted && (
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted bg-apple-white rounded-full border border-apple-border shadow-sm">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted bg-apple-offWhite rounded-xl border border-apple-border shadow-sm hover:bg-apple-light transition-all">
                 {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
             )}
-            <div className="w-9 h-9 rounded-full bg-apple-light border border-apple-border overflow-hidden">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
+            <div className="w-9 h-9 rounded-xl bg-apple-offWhite border border-apple-border overflow-hidden shadow-sm">
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" className="w-full h-full object-cover" />
             </div>
           </div>
         </header>
 
+        {/* Área de Scroll do Conteúdo */}
         <section className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 lg:pb-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
         </section>
 
-        {/* BOTTOM NAVIGATION (MOBILE) */}
-        <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/90 backdrop-blur-xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-           <Link to="/" className={cn("flex flex-col items-center gap-1", location.pathname === "/" ? "text-orange-500" : "text-apple-muted")}>
-              <LayoutDashboard size={20} />
-              <span className="text-[9px] font-bold uppercase">Início</span>
+        {/* BOTTOM NAVIGATION (MOBILE) - Ajustado para visual Apple Style */}
+        <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/95 backdrop-blur-2xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+           <Link to="/" className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", location.pathname === "/" ? "text-orange-500 scale-110" : "text-apple-muted")}>
+              <LayoutDashboard size={22} strokeWidth={location.pathname === "/" ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-tighter">Início</span>
            </Link>
-           <Link to="/vendas/orcamentos" className={cn("flex flex-col items-center gap-1", location.pathname.includes("orcamentos") ? "text-orange-500" : "text-apple-muted")}>
-              <FileText size={20} />
-              <span className="text-[9px] font-bold uppercase">Propostas</span>
+           <Link to="/vendas/orcamentos" className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", location.pathname.includes("orcamentos") ? "text-orange-500 scale-110" : "text-apple-muted")}>
+              <FileText size={22} strokeWidth={location.pathname.includes("orcamentos") ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-tighter">Propostas</span>
            </Link>
            
-           {/* PDV CENTRAL */}
-           <Link to="/vendas/pdv" className="relative -top-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/40 border-4 border-apple-light active:scale-90 transition-transform">
-              <Zap size={24} fill="currentColor" />
+           {/* PDV CENTRAL - Botão de Ação Rápida */}
+           <Link to="/vendas/pdv" className="relative -top-7 w-16 h-16 bg-orange-500 rounded-3xl flex items-center justify-center text-white shadow-[0_10px_25px_rgba(249,115,22,0.4)] border-4 border-apple-white active:scale-90 transition-all rotate-45">
+              <div className="-rotate-45">
+                <Zap size={28} fill="currentColor" />
+              </div>
            </Link>
 
-           <Link to="/clientes" className={cn("flex flex-col items-center gap-1", location.pathname.includes("clientes") ? "text-orange-500" : "text-apple-muted")}>
-              <Users size={20} />
-              <span className="text-[9px] font-bold uppercase">Clientes</span>
+           <Link to="/clientes" className={cn("flex flex-col items-center gap-1.5 transition-all duration-300", location.pathname.includes("clientes") ? "text-orange-500 scale-110" : "text-apple-muted")}>
+              <Users size={22} strokeWidth={location.pathname.includes("clientes") ? 2.5 : 2} />
+              <span className="text-[9px] font-black uppercase tracking-tighter">Clientes</span>
            </Link>
-           <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center gap-1 text-apple-muted">
-              <Menu size={20} />
-              <span className="text-[9px] font-bold uppercase">Menu</span>
+           <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center gap-1.5 text-apple-muted active:scale-95 transition-all">
+              <Menu size={22} />
+              <span className="text-[9px] font-black uppercase tracking-tighter">Menu</span>
            </button>
         </nav>
       </main>

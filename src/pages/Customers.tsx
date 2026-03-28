@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Mail, Plus, Loader2, Edit3, Trash2, FileText, Download, ExternalLink } from 'lucide-react';
+import { Search, Mail, Plus, Loader2, Edit3, Trash2, FileText, Download, ExternalLink, Filter, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -102,175 +102,138 @@ const Customers = () => {
     }
   };
 
-  const handleSendEmail = async (e: React.MouseEvent, customer: any) => {
-    e.stopPropagation();
-    setActionLoading(`email-${customer.id}`);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const session = (await supabase.auth.getSession()).data.session;
-      
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/send-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({
-          to: customer.email,
-          subject: 'Atualização de Cadastro - Swipy Fintech LTDA',
-          html: `<h1>Olá, ${customer.name}!</h1><p>Confirmamos que seus dados foram atualizados em nosso sistema.</p>`
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.details || result.error || 'Erro ao enviar e-mail');
-      
-      showSuccess(`E-mail enviado para ${customer.email}`);
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        showError("O servidor de e-mail demorou muito para responder. Verifique as configurações SMTP.");
-      } else {
-        showError(error.message);
-      }
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   return (
     <AppLayout>
-      <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-end">
+      <div className="flex flex-col gap-6 md:gap-8">
+        {/* CABEÇALHO FLEXÍVEL */}
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Clientes</h2>
-            <p className="text-apple-muted mt-1 font-medium">Gerencie sua base e clique em um cliente para ver o histórico (CRM).</p>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black flex items-center gap-3">
+              <User size={32} className="text-orange-500" /> Clientes
+            </h2>
+            <p className="text-apple-muted mt-1 font-medium">Gestão de base e inteligência comercial (CRM).</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             <button 
               onClick={handleExportCSV}
-              className="bg-apple-white hover:bg-apple-offWhite text-apple-dark px-4 py-2 rounded-lg transition-all border border-apple-border flex items-center gap-2 text-sm shadow-sm"
+              className="flex-1 md:flex-none bg-apple-white hover:bg-apple-offWhite text-apple-dark px-4 py-2.5 rounded-xl transition-all border border-apple-border flex items-center justify-center gap-2 text-xs font-bold shadow-sm"
             >
               <Download size={16} /> CSV
             </button>
             <button 
               onClick={handleExportPDF}
-              className="bg-apple-white hover:bg-apple-offWhite text-apple-dark px-4 py-2 rounded-lg transition-all border border-apple-border flex items-center gap-2 text-sm shadow-sm"
+              className="flex-1 md:flex-none bg-apple-white hover:bg-apple-offWhite text-apple-dark px-4 py-2.5 rounded-xl transition-all border border-apple-border flex items-center justify-center gap-2 text-xs font-bold shadow-sm"
             >
               <FileText size={16} /> PDF
             </button>
             <button 
               onClick={() => setIsAddModalOpen(true)}
-              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-sm"
+              className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95"
             >
-              <Plus size={18} /> Novo Cliente
+              <Plus size={18} /> NOVO CLIENTE
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-            <input 
-              type="text" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nome, e-mail ou documento..." 
-              className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm"
-            />
-          </div>
+        {/* BUSCA */}
+        <div className="relative w-full md:max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+          <input 
+            type="text" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Nome, e-mail ou CPF/CNPJ..." 
+            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all shadow-sm text-apple-black"
+          />
         </div>
 
-        <div className="bg-apple-white border border-apple-border rounded-3xl overflow-hidden min-h-[400px] shadow-sm">
+        {/* TABELA RESPONSIVA COM WRAPPER DE ROLAGEM */}
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="animate-spin text-orange-500" size={32} />
-            </div>
-          ) : filteredCustomers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-apple-muted">
-              <p>{searchTerm ? "Nenhum resultado para sua busca." : "Nenhum cliente cadastrado."}</p>
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-orange-500">
+              <Loader2 className="animate-spin" size={40} />
+              <p className="text-xs font-black uppercase tracking-widest">Sincronizando base...</p>
             </div>
           ) : (
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase tracking-[0.2em] border-b border-apple-border">
-                <tr>
-                  <th className="px-8 py-5">Cliente</th>
-                  <th className="px-8 py-5">Documento</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {filteredCustomers.map((customer) => (
-                  <tr 
-                    key={customer.id} 
-                    onClick={() => navigate(`/clientes/${customer.id}`)}
-                    className="hover:bg-apple-light transition-colors cursor-pointer group"
-                  >
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center text-xs font-bold text-orange-500 shadow-sm group-hover:border-orange-500 transition-colors">
-                          {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors flex items-center gap-2">
-                            {customer.name}
-                            <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-orange-500" />
-                          </p>
-                          <p className="text-xs text-apple-muted">{customer.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-xs text-apple-dark font-mono tracking-tighter">{customer.tax_id}</td>
-                    <td className="px-8 py-5">
-                      <span className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                        customer.status === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
-                        "bg-apple-offWhite text-apple-muted border-apple-border"
-                      )}>
-                        <div className={cn(
-                          "w-1 h-1 rounded-full",
-                          customer.status === 'em dia' ? "bg-emerald-500" : "bg-apple-muted"
-                        )} />
-                        {customer.status}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button 
-                          onClick={(e) => handleSendEmail(e, customer)}
-                          disabled={actionLoading === `email-${customer.id}`}
-                          title="Enviar Notificação" 
-                          className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors disabled:opacity-50"
-                        >
-                          {actionLoading === `email-${customer.id}` ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16}/>}
-                        </button>
-                        <button 
-                          onClick={(e) => handleEditClick(e, customer)}
-                          title="Editar" 
-                          className="p-2.5 text-apple-muted hover:text-blue-500 transition-colors"
-                        >
-                          <Edit3 size={16}/>
-                        </button>
-                        <button 
-                          onClick={(e) => handleDelete(e, customer)}
-                          disabled={actionLoading === customer.id}
-                          title="Excluir" 
-                          className="p-2.5 text-apple-muted hover:text-red-500 transition-colors disabled:opacity-50"
-                        >
-                          {actionLoading === customer.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
-                        </button>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                  <tr>
+                    <th className="px-8 py-6">Entidade / Responsável</th>
+                    <th className="px-8 py-6">Documento</th>
+                    <th className="px-8 py-6">Situação</th>
+                    <th className="px-8 py-6 text-right">Ações de Gestão</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {filteredCustomers.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-8 py-20 text-center text-apple-muted font-bold italic">
+                        Nenhum registro localizado.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <tr 
+                        key={customer.id} 
+                        onClick={() => navigate(`/clientes/${customer.id}`)}
+                        className="hover:bg-apple-light transition-colors cursor-pointer group"
+                      >
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-sm font-black text-orange-500 shadow-inner group-hover:border-orange-500 group-hover:bg-orange-50 transition-all">
+                              {customer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-sm font-black text-apple-black group-hover:text-orange-500 transition-colors flex items-center gap-2">
+                                {customer.name}
+                                <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-all text-orange-500" />
+                              </p>
+                              <p className="text-[11px] text-apple-muted font-medium truncate max-w-[150px] sm:max-w-none">{customer.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className="text-xs text-apple-dark font-mono font-bold tracking-tighter bg-apple-offWhite px-2 py-1 rounded-md border border-apple-border">
+                            {customer.tax_id}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                            customer.status === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            "bg-orange-50 text-orange-600 border-orange-100"
+                          )}>
+                            <div className={cn(
+                              "w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]",
+                              customer.status === 'em dia' ? "bg-emerald-500" : "bg-orange-500 animate-pulse"
+                            )} />
+                            {customer.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={(e) => handleEditClick(e, customer)}
+                              className="p-3 text-apple-muted hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                            >
+                              <Edit3 size={18}/>
+                            </button>
+                            <button 
+                              onClick={(e) => handleDelete(e, customer)}
+                              disabled={actionLoading === customer.id}
+                              className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-50"
+                            >
+                              {actionLoading === customer.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18}/>}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
