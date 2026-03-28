@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X
+  Moon, Sun, Menu, X, FileText
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -26,192 +26,152 @@ const menuStructure = [
   { title: 'Personalização', icon: Palette, path: '/configuracoes', roles: ['Admin'] }
 ];
 
-const adminItems = [
-  { icon: BarChart3, label: 'Visão Global', path: '/admin/dashboard' },
-  { icon: UserCog, label: 'Monitoramento de Usuários', path: '/admin/usuarios' },
-  { icon: Zap, label: 'Gestão de Planos', path: '/admin/planos' },
-  { icon: MessagesSquare, label: 'Régua Global', path: '/admin/automacao' },
-];
-
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, isAdmin, activeMerchant, setActiveMerchant } = useAuth();
+  const { user, signOut, systemRole, activeMerchant, setActiveMerchant } = useAuth();
   const { theme, setTheme } = useTheme();
   
   const [profile, setProfile] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [hasNew, setHasNew] = useState(false);
   const [openMenus, setOpenMenus] = useState<string[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const currentOpen = [...openMenus];
-    menuStructure.forEach(menu => {
-      if (menu.submenus?.some(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path + '/'))) {
-        if (!currentOpen.includes(menu.title)) currentOpen.push(menu.title);
-      }
-    });
-    setOpenMenus(currentOpen);
-    setIsMobileMenuOpen(false); // Fecha o menu ao mudar de rota no mobile
+    setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
     if (user) {
       supabase.from('profiles').select('*').eq('id', user.id).single().then(({ data }) => setProfile(data));
-
-      const channel = supabase.channel('realtime-payments').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'charges', filter: `user_id=eq.${user.id}` }, (payload) => {
-        if (payload.new.status === 'pago' && payload.old.status !== 'pago') {
-          const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload.new.amount);
-          const newNotification = { id: Date.now(), title: 'Pagamento Confirmado!', message: `Recebemos o pagamento de ${amount}.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
-          setNotifications(prev => [newNotification, ...prev].slice(0, 5)); setHasNew(true); showSuccess(`💰 Pagamento de ${amount} confirmado agora!`);
-        }
-      }).subscribe();
-      return () => { supabase.removeChannel(channel); };
     }
   }, [user]);
 
   const toggleMenu = (title: string) => setOpenMenus(prev => prev.includes(title) ? prev.filter(m => m !== title) : [...prev, title]);
-
   const handleLogout = async () => { await signOut(); navigate('/login'); };
-
   const visibleMenus = menuStructure.filter(menu => menu.roles.includes(systemRole));
 
   return (
-    <div className="flex h-screen bg-apple-light text-apple-black overflow-hidden font-sans relative">
+    <div className="flex h-screen bg-apple-light text-apple-black overflow-hidden relative font-sans">
       
       {/* OVERLAY MOBILE */}
       {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR (DRAWER NO MOBILE) */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-[280px] border-r border-apple-border flex flex-col bg-apple-white shadow-[4px_0_24px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0",
+        "fixed inset-y-0 left-0 z-[110] w-72 border-r border-apple-border flex flex-col bg-apple-white transition-transform duration-300 lg:relative lg:translate-x-0",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <img src="/logo-swipy.png" alt="Swipy Logo" className="w-8 h-8 object-contain" />
-            <span className="text-2xl font-bold tracking-tighter text-apple-black">Swipy</span>
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo-swipy.png" alt="Logo" className="w-8 h-8 object-contain" />
+            <span className="text-xl font-bold tracking-tighter">Swipy</span>
           </Link>
           <button className="lg:hidden p-2 text-apple-muted" onClick={() => setIsMobileMenuOpen(false)}>
              <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-6">
-          <div className="space-y-6">
-            <nav className="space-y-1">
-              <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
-              {visibleMenus.map((item) => {
-                const isActive = item.path ? location.pathname === item.path : false;
-                const hasSubmenus = !!item.submenus;
-                const isOpen = openMenus.includes(item.title);
-                const isChildActive = hasSubmenus && item.submenus!.some(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path + '/'));
+        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-10">
+          <nav className="space-y-1">
+            <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu</p>
+            {visibleMenus.map((item) => {
+              const hasSubmenus = !!item.submenus;
+              const isOpen = openMenus.includes(item.title);
+              const isChildActive = hasSubmenus && item.submenus!.some(sub => location.pathname === sub.path);
 
-                return (
-                  <div key={item.title} className="mb-1">
-                    {hasSubmenus ? (
-                      <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group", isChildActive || isOpen ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
-                        <div className="flex items-center gap-3"><item.icon size={18} className={cn(isChildActive || isOpen ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark")} />{item.title}</div>
-                        {isOpen ? <ChevronDown size={14} className="text-apple-muted" /> : <ChevronRight size={14} className="text-apple-muted" />}
-                      </button>
-                    ) : (
-                      <Link to={item.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group", isActive ? "bg-orange-500/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
-                        <item.icon size={18} className={cn(isActive ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark")} />{item.title}
-                      </Link>
-                    )}
-                    {hasSubmenus && isOpen && (
-                      <div className="mt-1 mb-2 ml-4 pl-4 border-l border-apple-border space-y-1">
-                        {item.submenus!.map(sub => {
-                          const isSubActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
-                          return <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", isSubActive ? "bg-orange-500/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-light")}>{sub.label}</Link>;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {['Admin', 'Financeiro', 'Contador'].includes(systemRole) && (
-                <div className="pt-4 mt-4 border-t border-apple-border">
-                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest px-3 mb-2">Fintech</p>
-                  <Link to="/conta-swipy" className={cn("flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border", location.pathname === "/conta-swipy" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold" : "bg-apple-offWhite border-apple-border text-apple-dark hover:bg-apple-light")}><Wallet size={18} className="text-emerald-500" /><span>Swipy Conta</span></Link>
+              return (
+                <div key={item.title} className="mb-1">
+                  {hasSubmenus ? (
+                    <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all", isChildActive || isOpen ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
+                      <div className="flex items-center gap-3"><item.icon size={18} className={cn(isChildActive || isOpen ? "text-orange-500" : "text-apple-muted")} />{item.title}</div>
+                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </button>
+                  ) : (
+                    <Link to={item.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === item.path ? "bg-orange-500/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
+                      <item.icon size={18} className={cn(location.pathname === item.path ? "text-orange-500" : "text-apple-muted")} />{item.title}
+                    </Link>
+                  )}
+                  {hasSubmenus && isOpen && (
+                    <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1">
+                      {item.submenus!.map(sub => (
+                        <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black")}>{sub.label}</Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </nav>
-
-            {isAdmin && (
-              <nav className="space-y-1 pt-4 border-t border-apple-border">
-                <p className="text-[10px] font-bold text-orange-500/70 uppercase tracking-widest px-3 mb-2">Administração Global</p>
-                {adminItems.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return <Link key={item.path} to={item.path} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group", isActive ? "bg-orange-500/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}><item.icon size={18} className={isActive ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark"} />{item.label}</Link>;
-                })}
-              </nav>
-            )}
-          </div>
+              );
+            })}
+          </nav>
         </div>
 
-        <div className="mt-auto p-4 border-t border-apple-border bg-apple-offWhite">
-          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors w-full group"><LogOut size={18} className="text-apple-muted group-hover:text-red-500" />Sair</button>
+        <div className="p-4 border-t border-apple-border bg-apple-offWhite">
+          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-apple-muted hover:text-red-500 w-full transition-colors"><LogOut size={18} />Sair</button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden bg-apple-light relative z-0">
+      {/* CONTEÚDO */}
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         {activeMerchant && (
-           <div className="bg-orange-500 px-4 md:px-8 py-2.5 flex items-center justify-between shadow-sm z-30 relative">
-              <div className="flex items-center gap-3"><ShieldCheck className="text-white" size={18} /><p className="text-white text-xs font-bold uppercase tracking-widest">Visualizando: <span className="underline">{activeMerchant.company || activeMerchant.full_name}</span></p></div>
-              <button onClick={() => { setActiveMerchant(null); navigate('/contador'); }} className="flex items-center gap-2 bg-white/20 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-white/30 transition-all uppercase tracking-tighter"><XCircle size={14} className="hidden sm:block"/> Sair</button>
+           <div className="bg-orange-500 px-6 py-2 flex items-center justify-between z-50">
+              <p className="text-white text-[10px] font-bold uppercase tracking-widest">Visualizando: {activeMerchant.company}</p>
+              <button onClick={() => { setActiveMerchant(null); navigate('/contador'); }} className="text-white text-[10px] font-black underline">SAIR</button>
            </div>
         )}
 
-        <header className="h-16 border-b border-apple-border flex items-center justify-between px-4 md:px-8 bg-apple-white/80 backdrop-blur-md shrink-0 sticky top-0 z-20">
+        <header className="h-16 border-b border-apple-border flex items-center justify-between px-4 md:px-8 bg-apple-white/80 backdrop-blur-md shrink-0 sticky top-0 z-40">
           <div className="flex items-center gap-3">
-            <button className="lg:hidden p-2 text-apple-muted hover:text-orange-500 transition-colors" onClick={() => setIsMobileMenuOpen(true)}>
+            <button className="lg:hidden p-2 text-apple-muted" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu size={24} />
             </button>
-            <h1 className="text-sm font-medium text-apple-muted hidden sm:block">Olá, <span className="text-apple-black font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span><span className="ml-3 text-[10px] bg-apple-offWhite border border-apple-border text-apple-dark px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">{systemRole}</span></h1>
+            <h1 className="text-sm font-bold text-apple-black hidden sm:block">{profile?.company || 'Swipy ERP'}</h1>
           </div>
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-4">
             {mounted && (
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted hover:text-orange-500 transition-colors bg-apple-white rounded-full border border-apple-border shadow-sm focus:outline-none">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted bg-apple-white rounded-full border border-apple-border shadow-sm">
                 {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
             )}
-
-            <DropdownMenu onOpenChange={(open) => open && setHasNew(false)}>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-apple-muted hover:text-orange-500 transition-colors relative focus:outline-none bg-apple-white rounded-full border border-apple-border shadow-sm">
-                  <Bell size={18} />
-                  {hasNew && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>}
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 bg-apple-white border-apple-border text-apple-black p-2 shadow-lg rounded-2xl z-50">
-                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-widest text-apple-muted px-2 py-3">Notificações</DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-apple-border" />
-                {notifications.length === 0 ? <div className="p-8 text-center text-xs text-apple-muted italic">Nenhuma notificação recente.</div> : notifications.map(n => (
-                  <DropdownMenuItem key={n.id} className="focus:bg-apple-light rounded-xl p-3 flex items-start gap-3 cursor-pointer"><div className="mt-1 w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0"><CheckCircle2 size={16} /></div><div className="flex-1 overflow-hidden"><p className="text-sm font-bold text-apple-black">{n.title}</p><p className="text-xs text-apple-muted leading-snug">{n.message}</p><p className="text-[10px] text-apple-muted mt-1 font-mono">{n.time}</p></div></DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <div className="w-9 h-9 rounded-full bg-apple-light border border-apple-border flex items-center justify-center overflow-hidden shadow-sm shrink-0">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" className="w-full h-full" />
+            <div className="w-9 h-9 rounded-full bg-apple-light border border-apple-border overflow-hidden">
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
             </div>
           </div>
         </header>
 
-        <section className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <section className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 lg:pb-8 custom-scrollbar">
+          <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </section>
+
+        {/* BOTTOM NAVIGATION (MOBILE) */}
+        <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/90 backdrop-blur-xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+           <Link to="/" className={cn("flex flex-col items-center gap-1", location.pathname === "/" ? "text-orange-500" : "text-apple-muted")}>
+              <LayoutDashboard size={20} />
+              <span className="text-[9px] font-bold uppercase">Início</span>
+           </Link>
+           <Link to="/vendas/orcamentos" className={cn("flex flex-col items-center gap-1", location.pathname.includes("orcamentos") ? "text-orange-500" : "text-apple-muted")}>
+              <FileText size={20} />
+              <span className="text-[9px] font-bold uppercase">Propostas</span>
+           </Link>
+           
+           {/* PDV CENTRAL */}
+           <Link to="/vendas/pdv" className="relative -top-6 w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-orange-500/40 border-4 border-apple-light active:scale-90 transition-transform">
+              <Zap size={24} fill="currentColor" />
+           </Link>
+
+           <Link to="/clientes" className={cn("flex flex-col items-center gap-1", location.pathname.includes("clientes") ? "text-orange-500" : "text-apple-muted")}>
+              <Users size={20} />
+              <span className="text-[9px] font-bold uppercase">Clientes</span>
+           </Link>
+           <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center gap-1 text-apple-muted">
+              <Menu size={20} />
+              <span className="text-[9px] font-bold uppercase">Menu</span>
+           </button>
+        </nav>
       </main>
     </div>
   );
