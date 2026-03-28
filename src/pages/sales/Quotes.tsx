@@ -24,7 +24,7 @@ const Quotes = () => {
       .from('quotes')
       .select('*, customers(name)')
       .eq('user_id', user.id)
-      .in('status', ['draft', 'approved']) // FILTRO CRÍTICO: Esconde vendas de PDV (completed) e pedidos em andamento
+      .in('status', ['draft', 'approved']) 
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -67,39 +67,39 @@ const Quotes = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Orçamentos</h2>
-            <p className="text-zinc-400 mt-1">Crie propostas comerciais e envie para aprovação online.</p>
+            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Orçamentos</h2>
+            <p className="text-apple-muted mt-1 font-medium">Crie propostas comerciais e envie para aprovação online.</p>
           </div>
           <Link 
             to="/vendas/orcamentos/novo"
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
+            className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-sm"
           >
             <Plus size={20} /> Novo Orçamento
           </Link>
         </div>
 
         <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
           <input 
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar por cliente ou ID..." 
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm"
           />
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
             <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
           ) : filteredQuotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
+            <div className="flex flex-col items-center justify-center h-64 text-apple-muted">
               <FileText size={48} className="mb-4 opacity-20" />
-              <p>Nenhum orçamento em aberto encontrado.</p>
+              <p className="font-medium">Nenhum orçamento em aberto encontrado.</p>
             </div>
           ) : (
             <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-5">Data / ID</th>
                   <th className="px-8 py-5">Cliente</th>
@@ -108,35 +108,35 @@ const Quotes = () => {
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-apple-border">
                 {filteredQuotes.map((quote) => (
-                  <tr key={quote.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <tr key={quote.id} className="hover:bg-apple-light transition-colors group">
                     <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-200">{new Date(quote.created_at).toLocaleDateString('pt-BR')}</p>
-                      <p className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">#{quote.id.split('-')[0]}</p>
+                      <p className="text-sm font-bold text-apple-black">{new Date(quote.created_at).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[10px] text-apple-muted font-mono mt-0.5 uppercase font-bold">#{quote.id.split('-')[0]}</p>
                     </td>
                     <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-100">{quote.customers?.name || 'Cliente Removido'}</p>
+                      <p className="text-sm font-bold text-apple-black">{quote.customers?.name || 'Cliente Removido'}</p>
                     </td>
-                    <td className="px-8 py-5 text-sm font-bold text-orange-400">
+                    <td className="px-8 py-5 text-sm font-black text-orange-600">
                       {currencyFormatter.format(quote.total_amount)}
                     </td>
                     <td className="px-8 py-5">
                       <span className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                        quote.status === 'approved' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                        "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                        quote.status === 'approved' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                        "bg-orange-50 text-orange-600 border-orange-100"
                       )}>
                         {quote.status === 'approved' ? <CheckCircle2 size={12} /> : <FileText size={12} />}
                         {quote.status === 'approved' ? 'Aprovado' : 'Em Aberto'}
                       </span>
                     </td>
                     <td className="px-8 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         {quote.status === 'draft' && (
                           <button 
                             onClick={() => navigate(`/vendas/orcamentos/${quote.id}/editar`)}
-                            className="p-2 text-zinc-500 hover:text-orange-400 transition-colors"
+                            className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors"
                             title="Editar Orçamento"
                           >
                             <Edit3 size={16}/>
@@ -144,21 +144,21 @@ const Quotes = () => {
                         )}
                         <button 
                           onClick={() => window.open(`/orcamento/${quote.id}`, '_blank')}
-                          className="p-2 text-zinc-500 hover:text-blue-400 transition-colors"
+                          className="p-2.5 text-apple-muted hover:text-blue-500 transition-colors"
                           title="Visualizar Público"
                         >
                           <ExternalLink size={16}/>
                         </button>
                         <button 
                           onClick={() => copyLink(quote.id)}
-                          className="p-2 text-zinc-500 hover:text-emerald-400 transition-colors"
+                          className="p-2.5 text-apple-muted hover:text-emerald-500 transition-colors"
                           title="Copiar Link Cliente"
                         >
                           <Copy size={16}/>
                         </button>
                         <button 
                           onClick={() => handleDelete(quote.id)}
-                          className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
+                          className="p-2.5 text-apple-muted hover:text-red-500 transition-colors"
                           title="Excluir"
                         >
                           <Trash2 size={16}/>

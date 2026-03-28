@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 const QuoteBuilder = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { id } = useParams(); // Para edição
+  const { id } = useParams();
 
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
@@ -36,7 +36,6 @@ const QuoteBuilder = () => {
     
     const loadInitialData = async () => {
       setDataLoading(true);
-      // Carrega clientes e produtos
       const [custRes, prodRes] = await Promise.all([
         supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
         supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name')
@@ -45,7 +44,6 @@ const QuoteBuilder = () => {
       if (custRes.data) setCustomers(custRes.data);
       if (prodRes.data) setProducts(prodRes.data);
 
-      // Se tiver ID, carrega o orçamento existente
       if (id) {
         const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).single();
         const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id);
@@ -62,7 +60,6 @@ const QuoteBuilder = () => {
             }));
             setItems(mappedItems);
 
-            // Calcula o frete/desconto com base na diferença entre o total_amount e a soma dos itens
             const subtotal = mappedItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
             const diff = quote.total_amount - subtotal;
             
@@ -108,7 +105,7 @@ const QuoteBuilder = () => {
     setItems([...items, { productId: '', quantity: 1, unitPrice: 0 }]);
   };
 
-  const subtotalAmount = items.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
+  const subtotalAmount = items.reduce((acc, item) => acc + (item.quantity * item.unitPrice), 0);
   const discountValue = parseFloat(discount.replace(',', '.')) || 0;
   const freightValue = parseFloat(freight.replace(',', '.')) || 0;
   const totalAmount = Math.max(0, subtotalAmount - discountValue + freightValue);
@@ -120,63 +117,25 @@ const QuoteBuilder = () => {
     setLoading(true);
     try {
       if (id) {
-        // UPDATE (Edição)
         const { error: quoteError } = await supabase
           .from('quotes')
-          .update({
-            customer_id: customerId,
-            total_amount: totalAmount,
-            expires_at: expiresAt,
-          })
+          .update({ customer_id: customerId, total_amount: totalAmount, expires_at: expiresAt })
           .eq('id', id);
 
         if (quoteError) throw quoteError;
-
-        // Limpar itens antigos e inserir os novos
         await supabase.from('quote_items').delete().eq('quote_id', id);
-
-        const quoteItemsToInsert = items.map(item => ({
-          quote_id: id,
-          product_id: item.productId,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          total_price: item.quantity * item.unitPrice
-        }));
-
+        const quoteItemsToInsert = items.map(item => ({ quote_id: id, product_id: item.productId, quantity: item.quantity, unit_price: item.unitPrice, total_price: item.quantity * item.unitPrice }));
         const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
         if (itemsError) throw itemsError;
-
-        showSuccess("Orçamento atualizado com sucesso!");
+        showSuccess("Orçamento atualizado!");
       } else {
-        // INSERT (Novo)
-        const { data: quote, error: quoteError } = await supabase
-          .from('quotes')
-          .insert({
-            user_id: user?.id,
-            customer_id: customerId,
-            total_amount: totalAmount,
-            expires_at: expiresAt,
-            status: 'draft'
-          })
-          .select()
-          .single();
-
+        const { data: quote, error: quoteError } = await supabase.from('quotes').insert({ user_id: user?.id, customer_id: customerId, total_amount: totalAmount, expires_at: expiresAt, status: 'draft' }).select().single();
         if (quoteError) throw quoteError;
-
-        const quoteItemsToInsert = items.map(item => ({
-          quote_id: quote.id,
-          product_id: item.productId,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          total_price: item.quantity * item.unitPrice
-        }));
-
+        const quoteItemsToInsert = items.map(item => ({ quote_id: quote.id, product_id: item.productId, quantity: item.quantity, unit_price: item.unitPrice, total_price: item.quantity * item.unitPrice }));
         const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
         if (itemsError) throw itemsError;
-
-        showSuccess("Orçamento criado com sucesso!");
+        showSuccess("Orçamento criado!");
       }
-      
       navigate('/vendas/orcamentos');
     } catch (err: any) {
       showError(err.message);
@@ -193,68 +152,68 @@ const QuoteBuilder = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-8 pb-12 max-w-5xl mx-auto">
+      <div className="flex flex-col gap-8 pb-12 max-w-6xl mx-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/vendas/orcamentos" className="p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-100 transition-colors">
+            <Link to="/vendas/orcamentos" className="p-2.5 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm">
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">{id ? "Editar Orçamento" : "Criar Orçamento"}</h2>
-              <p className="text-zinc-400 mt-1 text-sm">Monte a proposta comercial para seu cliente.</p>
+              <h2 className="text-2xl font-bold tracking-tight text-apple-black">{id ? "Editar Orçamento" : "Montar Proposta"}</h2>
+              <p className="text-apple-muted mt-1 text-sm font-medium">Configure os itens e as condições comerciais.</p>
             </div>
           </div>
           <button 
             onClick={handleSave}
             disabled={loading}
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-bold px-6 py-3 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
+            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3.5 rounded-2xl transition-all flex items-center gap-2 shadow-lg shadow-orange-500/10 disabled:opacity-50"
           >
             {loading ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-            {id ? "Salvar Alterações" : "Finalizar Orçamento"}
+            {id ? "SALVAR ALTERAÇÕES" : "FINALIZAR PROPOSTA"}
           </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-xl">
-              <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Calculator size={16} className="text-orange-500" /> Itens do Orçamento
+            <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
+              <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                <Calculator size={16} className="text-orange-500" /> Detalhamento de Itens
               </h3>
               
               <div className="space-y-4">
                 {items.map((item, index) => (
-                  <div key={index} className="flex flex-col md:flex-row items-end gap-4 p-4 bg-zinc-950 border border-zinc-800 rounded-2xl">
+                  <div key={index} className="flex flex-col md:flex-row items-end gap-4 p-6 bg-apple-offWhite border border-apple-border rounded-[1.5rem] shadow-inner">
                     <div className="w-full md:flex-1 space-y-2">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase">Produto / Serviço</label>
+                      <label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">Produto / Serviço</label>
                       <Select value={item.productId} onValueChange={(v) => handleProductChange(index, v)}>
-                        <SelectTrigger className="bg-zinc-900 border-zinc-800 h-11"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100 max-h-60">
+                        <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent className="bg-white border-apple-border text-apple-black">
                           {products.map(p => (
                             <SelectItem key={p.id} value={p.id}>
-                              {p.name} <span className="text-zinc-500 text-xs ml-2">(R$ {p.price})</span>
+                              {p.name} <span className="text-apple-muted text-xs ml-2">({currencyFormatter.format(p.price)})</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="w-full md:w-24 space-y-2">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase">Qtd</label>
+                      <label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">Qtd</label>
                       <Input 
                         type="number" min="1" 
                         value={item.quantity} 
                         onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 1)} 
-                        className="bg-zinc-900 border-zinc-800 h-11 text-center font-bold" 
+                        className="bg-white border-apple-border h-12 text-center font-black rounded-xl" 
                       />
                     </div>
                     <div className="w-full md:w-32 space-y-2">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase">Total Item</label>
-                      <div className="h-11 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center px-4 font-bold text-orange-400">
+                      <label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">Subtotal</label>
+                      <div className="h-12 bg-white border border-apple-border rounded-xl flex items-center px-4 font-black text-apple-dark">
                         {currencyFormatter.format(item.quantity * item.unitPrice)}
                       </div>
                     </div>
                     <button 
                       onClick={() => handleRemoveItem(index)}
-                      className="h-11 px-4 rounded-xl text-zinc-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                      className="h-12 px-4 rounded-xl text-apple-muted hover:bg-red-50 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -264,66 +223,57 @@ const QuoteBuilder = () => {
 
               <button 
                 onClick={addItemRow}
-                className="mt-6 w-full py-4 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-500 hover:border-orange-500/50 hover:text-orange-500 font-bold transition-all flex items-center justify-center gap-2"
+                className="mt-6 w-full py-5 border-2 border-dashed border-apple-border rounded-[1.5rem] text-apple-muted hover:border-orange-500/50 hover:text-orange-600 font-bold transition-all flex items-center justify-center gap-2 group"
               >
-                <Plus size={18} /> Adicionar Linha
+                <Plus size={18} className="group-hover:scale-110 transition-transform" /> ADICIONAR NOVO ITEM
               </button>
             </div>
           </div>
 
           <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-xl space-y-6">
+            <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm space-y-8">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Cliente</label>
+                <label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Cliente Destinatário</label>
                 <Select value={customerId} onValueChange={setCustomerId}>
-                  <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12"><SelectValue placeholder="Vincular a um cliente..." /></SelectTrigger>
-                  <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  <SelectTrigger className="bg-apple-offWhite border-apple-border h-14 rounded-xl text-sm font-bold"><SelectValue placeholder="Vincular a um cliente..." /></SelectTrigger>
+                  <SelectContent className="bg-white border-apple-border text-apple-black">
                     {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Validade da Proposta</label>
+                <label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Validade da Proposta</label>
                 <Input 
                   type="date" 
                   value={expiresAt} 
                   onChange={(e) => setExpiresAt(e.target.value)} 
-                  className="bg-zinc-950 border-zinc-800 h-12" 
+                  className="bg-apple-offWhite border-apple-border h-14 rounded-xl font-bold" 
                 />
               </div>
 
-              <div className="pt-6 border-t border-zinc-800 space-y-4">
-                <div className="flex items-center justify-between text-sm text-zinc-400">
-                  <span className="font-medium">Subtotal</span>
-                  <span>{currencyFormatter.format(subtotalAmount)}</span>
+              <div className="pt-8 border-t border-apple-border space-y-5">
+                <div className="flex items-center justify-between text-sm text-apple-muted font-bold">
+                  <span>SUBTOTAL</span>
+                  <span className="text-apple-black">{currencyFormatter.format(subtotalAmount)}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm text-zinc-400">
-                  <span className="flex items-center gap-1 font-medium"><Tag size={14} className="text-orange-500" /> Desconto (R$)</span>
+                <div className="flex items-center justify-between text-sm text-apple-muted font-bold">
+                  <span className="flex items-center gap-2"><Tag size={16} className="text-orange-500" /> DESCONTO (R$)</span>
                   <input 
-                    type="text"
-                    placeholder="0,00"
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                    className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-zinc-100 font-bold"
+                    type="text" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)}
+                    className="w-28 bg-apple-offWhite border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-black"
                   />
                 </div>
-                <div className="flex items-center justify-between text-sm text-zinc-400">
-                  <span className="flex items-center gap-1 font-medium"><Truck size={14} className="text-blue-500" /> Frete / Taxa (R$)</span>
+                <div className="flex items-center justify-between text-sm text-apple-muted font-bold">
+                  <span className="flex items-center gap-2"><Truck size={16} className="text-blue-500" /> FRETE (R$)</span>
                   <input 
-                    type="text"
-                    placeholder="0,00"
-                    value={freight}
-                    onChange={(e) => setFreight(e.target.value)}
-                    className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-zinc-100 font-bold"
+                    type="text" placeholder="0,00" value={freight} onChange={(e) => setFreight(e.target.value)}
+                    className="w-28 bg-apple-offWhite border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-black"
                   />
                 </div>
                 
-                <div className="pt-4 border-t border-zinc-800/50">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1 flex justify-between">
-                    Valor Final
-                    {(discountValue > 0 || freightValue > 0) && <span className="text-emerald-500">Valores Aplicados</span>}
-                  </p>
-                  <p className="text-4xl font-black text-zinc-100">{currencyFormatter.format(totalAmount)}</p>
+                <div className="pt-8 border-t border-apple-border">
+                  <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] mb-2">Valor Final da Proposta</p>
+                  <p className="text-5xl font-black text-apple-black tracking-tighter">{currencyFormatter.format(totalAmount)}</p>
                 </div>
               </div>
             </div>
