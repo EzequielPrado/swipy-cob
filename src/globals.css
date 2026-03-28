@@ -41,7 +41,7 @@
   }
 
   .dark {
-    /* Apple Dark Theme (Seus requisitos) */
+    /* Apple Dark Theme */
     --apple-light: #000000;
     --apple-white: #1c1c1e;
     --apple-offWhite: #2c2c2e;
@@ -88,4 +88,46 @@
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+}
+
+/* REGRAS GLOBAIS DE RESPONSIVIDADE PARA O MOBILE */
+@media (max-width: 768px) {
+  /* Força tabelas a não esmagarem os dados, habilitando scroll horizontal no pai */
+  table {
+    min-width: 700px;
+    width: 100%;
+  }
+  
+  .overflow-hidden:has(table), 
+  div:has(> table) {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Redimensiona textos gigantes dos Dashboards */
+  h2.text-3xl { font-size: 1.5rem !important; line-height: 2rem !important; }
+  h3.text-4xl, p.text-4xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+  p.text-5xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+  
+  /* Ajusta o padding exagerado e os cantos dos cards para caberem em telas pequenas */
+  .p-8, .p-10 { padding: 1.25rem !important; }
+  .px-8 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+  .rounded-\[2\.5rem\], .rounded-\[2rem\] { border-radius: 1.5rem !important; }
+}
+
+/* Ocultar barra de rolagem mas manter funcionamento (Estética Apple) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--apple-border);
+  border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.2);
 }
