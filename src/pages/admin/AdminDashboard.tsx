@@ -5,34 +5,38 @@ import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, CreditCard, Activity, AlertTriangle, Loader2, RefreshCw, Zap,
-  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar, Send
+  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar, Send, CheckCircle2, Clock
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalCharges: 0, activeSubs: 0, totalVolumePaid: 0, totalCustomers: 0 });
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
   const [globalCustomers, setGlobalCustomers] = useState<any[]>([]);
+  const [availableRules, setAvailableRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningAction, setRunningAction] = useState<string | null>(null);
 
   // States para o Teste de WhatsApp
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [testPhone, setTestPhone] = useState('');
-  const [selectedTestChargeId, setSelectedTestChargeId] = useState<string | null>(null);
+  const [selectedRuleId, setSelectedRuleId] = useState('');
+  const [selectedTestCharge, setSelectedTestCharge] = useState<any>(null);
 
   const fetchGlobalData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, chargesRes, subsRes, custRes] = await Promise.all([
+      const [profilesRes, chargesRes, subsRes, custRes, rulesRes] = await Promise.all([
         supabase.from('profiles').select('id, company, full_name'),
         supabase.from('charges').select('id, amount, status, user_id, customer_id, customers(name)').order('created_at', { ascending: false }).limit(30),
         supabase.from('subscriptions').select('id').eq('status', 'active'),
-        supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20)
+        supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20),
+        supabase.from('billing_rules').select('id, label, day_offset').eq('is_active', true).order('day_offset', { ascending: true })
       ]);
 
       const allProfiles = profilesRes.data || [];
@@ -46,7 +50,8 @@ const AdminDashboard = () => {
         totalCustomers: custRes.data?.length || 0
       });
 
-      // Mapear cobranças recentes com o nome do lojista
+      if (rulesRes.data) setAvailableRules(rulesRes.data);
+
       if (chargesRes.data) {
         const enrichedCharges = chargesRes.data.slice(0, 10).map(c => ({
           ...c,
@@ -55,7 +60,6 @@ const AdminDashboard = () => {
         setRecentCharges(enrichedCharges);
       }
 
-      // Mapear clientes globais com o nome do lojista
       if (custRes.data) {
         const enrichedCustomers = custRes.data.map(cust => ({
           ...cust,
@@ -98,7 +102,9 @@ const AdminDashboard = () => {
 
   const handleSendTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testPhone || !selectedTestChargeId) return showError("Informe o número de telefone de teste.");
+    if (!testPhone || !selectedTestCharge || !selectedRuleId) {
+      return showError("Preencha todos os campos do teste.");
+    }
     
     setRunningAction('test_whatsapp');
     try {
@@ -110,7 +116,8 @@ const AdminDashboard = () => {
           'Authorization': `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
-          chargeId: selectedTestChargeId,
+          chargeId: selectedTestCharge.id,
+          ruleId: selectedRuleId,
           origin: window.location.origin,
           overridePhone: testPhone
         })
@@ -119,7 +126,7 @@ const AdminDashboard = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
 
-      showSuccess("Mensagem de teste enviada com sucesso!");
+      showSuccess("Disparo de teste realizado!");
       setIsTestModalOpen(false);
       setTestPhone('');
     } catch (err: any) {
@@ -137,57 +144,13 @@ const AdminDashboard = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 text-apple-black">
-              <ShieldCheck className="text-orange-500" size={32} /> SaaS Governance
+              <ShieldCheck className="text-orange-500" size={32} /> Admin Control
             </h2>
-            <p className="text-apple-muted font-medium italic">Painel de Controle Master • Swipy Fintech LTDA</p>
+            <p className="text-apple-muted font-medium">Governança Master da Swipy Fintech.</p>
           </div>
-          <div className="flex gap-2">
-             <button onClick={fetchGlobalData} className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted shadow-sm hover:bg-apple-light transition-all">
-               <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
-             </button>
-          </div>
-        </div>
-
-        {/* CONTROLES DE SERVIDOR */}
-        <div className="bg-orange-500/5 border border-orange-500/20 p-8 rounded-[2.5rem] shadow-sm">
-           <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-             <Zap size={16} /> Ações de Automação de Servidor
-           </h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button 
-                onClick={() => runAutomation('subscriptions')}
-                disabled={!!runningAction}
-                className="bg-apple-white hover:bg-apple-offWhite border border-apple-border p-6 rounded-3xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-4 text-left">
-                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                    {runningAction === 'subscriptions' ? <Loader2 className="animate-spin" /> : <RefreshCw size={24} />}
-                  </div>
-                  <div>
-                    <p className="font-bold text-apple-black text-sm">Gerar Assinaturas do Dia</p>
-                    <p className="text-[10px] text-apple-muted">Processa mensalidades e cria cobranças Pix.</p>
-                  </div>
-                </div>
-                <Play size={18} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
-              </button>
-
-              <button 
-                onClick={() => runAutomation('billing')}
-                disabled={!!runningAction}
-                className="bg-apple-white hover:bg-apple-offWhite border border-apple-border p-6 rounded-3xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-4 text-left">
-                  <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 border border-orange-100 group-hover:bg-orange-600 group-hover:text-white transition-all">
-                    {runningAction === 'billing' ? <Loader2 className="animate-spin" /> : <MessageSquare size={24} />}
-                  </div>
-                  <div>
-                    <p className="font-bold text-apple-black text-sm">Disparar Réguas de Cobrança</p>
-                    <p className="text-[10px] text-apple-muted">Envia WhatsApps automáticos (Aviso, Vence Hoje, Atraso).</p>
-                  </div>
-                </div>
-                <Play size={18} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
-              </button>
-           </div>
+          <button onClick={fetchGlobalData} className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted shadow-sm hover:bg-apple-light transition-all">
+            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
 
         {/* KPIs GLOBAIS */}
@@ -195,52 +158,95 @@ const AdminDashboard = () => {
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
             <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Lojistas Ativos</p>
             <p className="text-4xl font-black text-apple-black">{stats.totalUsers}</p>
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Building2 size={80} /></div>
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Building2 size={100} /></div>
           </div>
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
             <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Volume SaaS (TPV)</p>
             <p className="text-4xl font-black text-emerald-600">{currency.format(stats.totalVolumePaid)}</p>
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={100} /></div>
           </div>
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
-            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Clientes Cadastrados</p>
+            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Clientes Finais</p>
             <p className="text-4xl font-black text-blue-600">{stats.totalCustomers}</p>
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Users size={80} /></div>
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Users size={100} /></div>
           </div>
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
             <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Assinaturas Ativas</p>
             <p className="text-4xl font-black text-orange-500">{stats.activeSubs}</p>
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><CalendarCheck size={80} /></div>
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><CalendarCheck size={100} /></div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* AUTOMAÇÕES */}
+        <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-5"><Zap size={140} className="text-orange-500" /></div>
+           <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+             <Zap size={16} /> Comandos de Servidor (Manual Override)
+           </h3>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+              <button 
+                onClick={() => runAutomation('subscriptions')}
+                disabled={!!runningAction}
+                className="bg-apple-offWhite hover:bg-blue-50 border border-apple-border p-8 rounded-3xl flex items-center justify-between group transition-all"
+              >
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 border border-apple-border shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all">
+                    {runningAction === 'subscriptions' ? <Loader2 className="animate-spin" /> : <RefreshCw size={28} />}
+                  </div>
+                  <div>
+                    <p className="font-black text-apple-black text-lg">Processar Assinaturas</p>
+                    <p className="text-xs text-apple-muted mt-1 font-medium">Gera as cobranças Pix para as recorrências de hoje.</p>
+                  </div>
+                </div>
+                <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
+              </button>
+
+              <button 
+                onClick={() => runAutomation('billing')}
+                disabled={!!runningAction}
+                className="bg-apple-offWhite hover:bg-orange-50 border border-apple-border p-8 rounded-3xl flex items-center justify-between group transition-all"
+              >
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-orange-600 border border-apple-border shadow-sm group-hover:bg-orange-600 group-hover:text-white transition-all">
+                    {runningAction === 'billing' ? <Loader2 className="animate-spin" /> : <MessageSquare size={28} />}
+                  </div>
+                  <div>
+                    <p className="font-black text-apple-black text-lg">Disparar Régua Global</p>
+                    <p className="text-xs text-apple-muted mt-1 font-medium">Envia os WhatsApps de aviso e atraso para todos.</p>
+                  </div>
+                </div>
+                <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
+              </button>
+           </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* MONITOR DE TRANSAÇÕES */}
-          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
+          <div className="lg:col-span-2 bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
             <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
               <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
-                <Activity size={16} className="text-orange-500" /> Fluxo de Caixa SaaS
+                <Activity size={16} className="text-orange-500" /> Fluxo Global de Cobranças
               </h3>
             </div>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left min-w-[500px]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
                 <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
                   <tr>
-                    <th className="px-8 py-5">Lojista</th>
+                    <th className="px-8 py-5">Merchant / Lojista</th>
                     <th className="px-8 py-5 text-right">Valor</th>
-                    <th className="px-8 py-5 text-right">Status</th>
-                    <th className="px-8 py-5 text-right">Ações</th>
+                    <th className="px-8 py-5 text-center">Status</th>
+                    <th className="px-8 py-5 text-right">Laboratório</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-apple-border">
                   {recentCharges.map((c) => (
-                    <tr key={c.id} className="hover:bg-apple-light transition-colors">
+                    <tr key={c.id} className="hover:bg-apple-light transition-colors group">
                       <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-apple-black truncate max-w-[150px]">{c.merchant?.company || c.merchant?.full_name || 'Lojista Master'}</p>
-                        <p className="text-[9px] text-apple-muted uppercase font-bold">Cliente: {c.customers?.name}</p>
+                        <p className="text-sm font-black text-apple-black truncate max-w-[200px]">{c.merchant?.company || 'Pessoa Física'}</p>
+                        <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1">Cliente: {c.customers?.name}</p>
                       </td>
                       <td className="px-8 py-5 text-right font-black text-apple-black">{currency.format(c.amount)}</td>
-                      <td className="px-8 py-5 text-right">
+                      <td className="px-8 py-5 text-center">
                         <span className={cn(
                           "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border",
                           c.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100"
@@ -249,19 +255,16 @@ const AdminDashboard = () => {
                         </span>
                       </td>
                       <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => {
-                              setSelectedTestChargeId(c.id);
-                              setTestPhone('');
-                              setIsTestModalOpen(true);
-                            }}
-                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm border border-blue-100 flex items-center justify-center"
-                            title="Disparar Teste WhatsApp (Override Number)"
-                          >
-                            <Send size={16} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedTestCharge(c);
+                            setIsTestModalOpen(true);
+                          }}
+                          className="p-3 bg-orange-50 text-orange-600 rounded-xl hover:bg-orange-600 hover:text-white transition-all shadow-sm border border-orange-100 group-hover:scale-105 active:scale-95"
+                          title="Testar Régua de Cobrança"
+                        >
+                          <Send size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -270,79 +273,89 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* CRM CONSOLIDADO (BASE DE CLIENTES GERAL) */}
-          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
-             <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
-              <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
-                <Users size={16} className="text-blue-500" /> CRM Global Master
-              </h3>
-            </div>
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
-                <tr>
-                  <th className="px-8 py-5">Cliente Final</th>
-                  <th className="px-8 py-5">Vinculado a</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {loading ? (
-                   <tr><td colSpan={2} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
-                ) : globalCustomers.length === 0 ? (
-                  <tr><td colSpan={2} className="py-20 text-center text-apple-muted italic">Nenhum cliente na base global.</td></tr>
-                ) : (
-                  globalCustomers.map((cust) => (
-                    <tr key={cust.id} className="hover:bg-apple-light transition-colors">
-                      <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-apple-black">{cust.name}</p>
-                        <p className="text-[9px] text-apple-muted font-bold font-mono">{cust.tax_id}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                         <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{cust.merchant?.company || cust.merchant?.full_name || 'Lojista Master'}</p>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            <div className="p-4 bg-apple-offWhite text-center border-t border-apple-border">
-               <button onClick={() => fetchGlobalData()} className="text-[10px] font-black text-apple-muted uppercase hover:text-apple-black transition-colors">Ver base completa de mercado</button>
-            </div>
+          {/* CRM GLOAL */}
+          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm flex flex-col">
+             <div className="p-8 border-b border-apple-border bg-apple-offWhite">
+                <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
+                  <Users size={16} className="text-blue-500" /> CRM Global Master
+                </h3>
+             </div>
+             <div className="flex-1 overflow-y-auto">
+               <table className="w-full text-left">
+                  <tbody className="divide-y divide-apple-border">
+                    {globalCustomers.map((cust) => (
+                      <tr key={cust.id} className="hover:bg-apple-light transition-colors">
+                        <td className="px-8 py-4">
+                           <p className="text-sm font-black text-apple-black">{cust.name}</p>
+                           <p className="text-[10px] text-apple-muted font-bold uppercase mt-1">Lojista: <span className="text-orange-500">{cust.merchant?.company || 'N/A'}</span></p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+               </table>
+             </div>
           </div>
         </div>
       </div>
 
-      {/* MODAL DE TESTE DE WHATSAPP (OVERRIDE NUMBER) */}
+      {/* MODAL DE TESTE AVANÇADO (CHOICE DE RÉGUA) */}
       <Dialog open={isTestModalOpen} onOpenChange={setIsTestModalOpen}>
-        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
-          <DialogHeader className="p-8 bg-apple-offWhite border-b border-apple-border">
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
-              <Send className="text-blue-500" /> Teste de WhatsApp
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[3rem] p-0 overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+          <DialogHeader className="p-10 bg-apple-offWhite border-b border-apple-border relative">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Send size={80} className="text-orange-500" /></div>
+            <DialogTitle className="text-2xl font-black flex items-center gap-3">
+              <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+                <Send size={24} />
+              </div>
+              Simulador de Régua
             </DialogTitle>
+            <p className="text-xs text-apple-muted font-bold mt-4">Simulando cobrança de <span className="text-orange-500">{selectedTestCharge?.customers?.name}</span> no valor de {selectedTestCharge && currency.format(selectedTestCharge.amount)}.</p>
           </DialogHeader>
-          <form onSubmit={handleSendTest} className="p-8 space-y-6">
-             <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-               <p className="text-xs text-blue-600 font-medium">A mensagem usará os dados reais da cobrança (Nome, Valor, Link e QR Code), mas será entregue no número que você digitar abaixo.</p>
+
+          <form onSubmit={handleSendTest} className="p-10 space-y-8">
+             <div className="space-y-3">
+                <Label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] ml-1">1. Qual template deseja testar?</Label>
+                <Select value={selectedRuleId} onValueChange={setSelectedRuleId}>
+                   <SelectTrigger className="bg-apple-offWhite border-apple-border h-14 rounded-2xl font-bold focus:ring-orange-500/20 text-sm shadow-sm">
+                      <SelectValue placeholder="Escolha um gatilho da régua..." />
+                   </SelectTrigger>
+                   <SelectContent className="bg-apple-white border-apple-border">
+                      {availableRules.map(rule => (
+                        <SelectItem key={rule.id} value={rule.id} className="focus:bg-orange-50">
+                          <div className="flex items-center gap-2">
+                             {rule.day_offset === -1 ? <Zap size={14} className="text-orange-500" /> : <Clock size={14} className="text-blue-500" />}
+                             <span className="font-bold">{rule.label}</span>
+                             <span className="text-[9px] text-apple-muted uppercase font-black ml-2 opacity-50">({rule.day_offset === -1 ? 'Criada' : `D${rule.day_offset}`})</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                   </SelectContent>
+                </Select>
              </div>
-             <div className="space-y-2">
-                <Label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">
-                  Número de Teste (DDI+DDD+Nº)
-                </Label>
-                <Input 
-                  required
-                  placeholder="5511999999999" 
-                  value={testPhone}
-                  onChange={e => setTestPhone(e.target.value)}
-                  className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono" 
-                />
+
+             <div className="space-y-3">
+                <Label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] ml-1">2. Telefone para entrega (DDI+DDD+Nº)</Label>
+                <div className="relative">
+                   <div className="absolute left-5 top-1/2 -translate-y-1/2 text-apple-muted"><Globe size={18} /></div>
+                   <Input 
+                      required
+                      placeholder="5511999999999" 
+                      value={testPhone}
+                      onChange={e => setTestPhone(e.target.value)}
+                      className="bg-apple-offWhite border-apple-border h-14 rounded-2xl pl-14 font-mono font-bold text-apple-black shadow-sm focus:ring-orange-500/20" 
+                   />
+                </div>
+                <p className="text-[9px] text-apple-muted font-medium px-1 italic">Dica: Use seu próprio número para validar como o cliente verá a mensagem.</p>
              </div>
-             <DialogFooter>
+
+             <DialogFooter className="pt-4">
                <button 
                  type="submit" 
-                 disabled={runningAction === 'test_whatsapp'} 
-                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                 disabled={runningAction === 'test_whatsapp' || !selectedRuleId} 
+                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-orange-500/20 flex items-center justify-center gap-3 disabled:opacity-50 text-base active:scale-95"
                >
-                 {runningAction === 'test_whatsapp' ? <Loader2 className="animate-spin" /> : <Send size={18} />}
-                 ENVIAR TESTE
+                 {runningAction === 'test_whatsapp' ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} />}
+                 DISPARAR TESTE AGORA
                </button>
              </DialogFooter>
           </form>

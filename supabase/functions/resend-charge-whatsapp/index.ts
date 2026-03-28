@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { chargeId, origin, overridePhone } = await req.json()
+    const { chargeId, origin, overridePhone, ruleId } = await req.json()
 
     // Busca a cobrança
     const { data: charge, error: chargeError } = await supabaseClient
@@ -26,24 +26,24 @@ serve(async (req) => {
 
     if (chargeError || !charge) throw new Error("Cobrança não encontrada")
 
-    // Pega a regra inicial (Criação)
-    const { data: rule } = await supabaseClient
-      .from('billing_rules')
-      .select('*')
-      .eq('day_offset', -1)
-      .eq('is_active', true)
-      .single();
+    // Busca a regra: Se enviou ruleId usa ela, senão pega a de criação (day_offset -1)
+    let query = supabaseClient.from('billing_rules').select('*').eq('is_active', true);
+    
+    if (ruleId) {
+      query = query.eq('id', ruleId);
+    } else {
+      query = query.eq('day_offset', -1);
+    }
 
-    if (!rule) throw new Error("Nenhuma regra de WhatsApp (Criação) ativa encontrada em 'Automação Global'.")
+    const { data: rule } = await query.single();
+
+    if (!rule) throw new Error("Regra de automação não encontrada.");
 
     const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
     const systemCheckoutUrl = `${origin || 'https://swipy.com'}/pagar/${charge.id}`;
-
-    // Define para qual número enviar (O de teste do Admin ou o do Cliente original)
     const targetPhone = overridePhone || charge.customers.phone;
-    if (!targetPhone) throw new Error("Número de telefone destino não encontrado/informado.");
 
-    // Mapeamento dinâmico das variáveis do template
+    // Mapeamento dinâmico
     const variables = rule.mapping.map((key: string) => {
       if (key === 'customer_name') return charge.customers.name;
       if (key === 'merchant_name') return merchantName;
@@ -54,10 +54,10 @@ serve(async (req) => {
       return '---';
     });
 
-    // Mídia (Imagem/QRCode)
+    // Imagem/QR
     let qrImageUrl = null;
     if (rule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
-      qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
+      qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&format=png&.png`;
     } else if (rule.image_url && rule.image_url !== '{{qr_code}}') {
       qrImageUrl = rule.image_url;
     }
@@ -70,13 +70,9 @@ serve(async (req) => {
       buttonVariable = systemCheckoutUrl;
     }
 
-    // Disparo Meta API
     const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers.get('Authorization') || ''
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': req.headers.get('Authorization') || '' },
       body: JSON.stringify({
         to: targetPhone,
         templateName: rule.name,
@@ -88,15 +84,12 @@ serve(async (req) => {
     });
 
     const waData = await waRes.json();
-
-    // Registra no Log
+    
     await supabaseClient.from('notification_logs').insert({
       charge_id: charge.id,
       type: 'whatsapp',
       status: waRes.ok ? 'success' : 'error',
-      message: waRes.ok 
-        ? (overridePhone ? `Teste de reenvio enviado para ${overridePhone}` : 'Cobrança reenviada manualmente pelo WhatsApp') 
-        : `Erro no reenvio: ${waData.error || 'Falha na Meta'}`
+      message: waRes.ok ? `TESTE REGUA (${rule.label}) enviado para ${targetPhone}` : `Erro Meta: ${waData.error}`
     });
 
     if (!waRes.ok) throw new Error(waData.error || "Erro na Meta API");
