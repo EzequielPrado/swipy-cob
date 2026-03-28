@@ -82,7 +82,6 @@ serve(async (req) => {
         const merchantName = profile.company || profile.full_name || "Nossa Empresa";
         const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
         
-        // Mapeamento dinâmico das variáveis do corpo {{1}}, {{2}}...
         const variables = creationRule.mapping.map((key: string) => {
           if (key === 'customer_name') return customer.name;
           if (key === 'merchant_name') return merchantName;
@@ -93,15 +92,14 @@ serve(async (req) => {
           return '---';
         });
 
-        // Resolve dinamicamente a Imagem
         let qrImageUrl = null;
         if (creationRule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
-          qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
+          qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&format=png&.png`;
         } else if (creationRule.image_url && creationRule.image_url !== '{{qr_code}}') {
           qrImageUrl = creationRule.image_url;
         }
 
-        // Resolve dinamicamente o Link do Botão
+        // RESOLUÇÃO DO BOTÃO: Se for payment_id, envia APENAS o ID para o final da URL
         let buttonVariable = null;
         if (creationRule.button_link_variable === 'payment_id') {
           buttonVariable = charge.id;
@@ -113,7 +111,7 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': req.headers.get('Authorization') || ''
+            'Authorization': req.headers.get('Authorization') || `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
           },
           body: JSON.stringify({
             to: customer.phone,
@@ -129,7 +127,7 @@ serve(async (req) => {
           charge_id: charge.id,
           type: 'whatsapp',
           status: waRes.ok ? 'success' : 'error',
-          message: waRes.ok ? 'WhatsApp de criação enviado' : 'Falha ao enviar WhatsApp de criação'
+          message: waRes.ok ? `WhatsApp Inicial (${creationRule.label}) enviado` : 'Falha ao enviar WhatsApp inicial'
         });
       } catch (waErr: any) {
         console.error("[create-woovi-charge] Erro WA:", waErr.message);

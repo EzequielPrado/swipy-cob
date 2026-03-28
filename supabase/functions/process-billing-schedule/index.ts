@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
+    const appUrl = Deno.env.get('APP_URL') || 'https://swipy.sh';
 
     const { data: rules } = await supabaseClient
       .from('billing_rules')
@@ -58,15 +58,14 @@ serve(async (req) => {
               return '---';
             });
 
-            // Resolve dinamicamente a Imagem
             let qrImageUrl = null;
             if (rule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
-              qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
+              qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&format=png&.png`;
             } else if (rule.image_url && rule.image_url !== '{{qr_code}}') {
               qrImageUrl = rule.image_url;
             }
 
-            // Resolve dinamicamente o Link do Botão
+            // BOTÃO: Envia apenas o ID se for payment_id
             let buttonVariable = null;
             if (rule.button_link_variable === 'payment_id') {
               buttonVariable = charge.id;
@@ -84,7 +83,7 @@ serve(async (req) => {
                 to: charge.customers.phone,
                 templateName: rule.name,
                 language: rule.language || 'pt_BR',
-                imageUrl: qrImageUrl, 
+                imageUrl: qrImageUrl,
                 variables: variables,
                 buttonVariable: buttonVariable 
               })
