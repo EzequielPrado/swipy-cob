@@ -15,6 +15,7 @@ import NotificationBell from './NotificationBell';
 const menuStructure = [
   { title: 'Visão Geral', icon: LayoutDashboard, path: '/', roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] },
   { title: 'Minha Carteira', icon: GraduationCap, path: '/contador', roles: ['Contador'] },
+  { title: 'Swipy Conta', icon: Wallet, path: '/conta-swipy', roles: ['Admin', 'Financeiro', 'Contador'] },
   { title: 'Vendas', moduleId: 'vendas', icon: ShoppingCart, roles: ['Admin', 'Vendas', 'Contador'], submenus: [{ label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, { label: 'Gestão de Vendas', path: '/vendas/lista' }, { label: 'Orçamentos', path: '/vendas/orcamentos' }, { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }] },
   { title: 'Indústria', moduleId: 'industria', icon: Factory, roles: ['Admin', 'Estoque'], submenus: [{ label: 'Controle de Produção', path: '/industria/producao' }] },
   { title: 'Estoque', moduleId: 'estoque', icon: Package, roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], submenus: [{ label: 'Produtos', path: '/estoque/produtos' }, { label: 'Movimentações', path: '/estoque/movimentacoes' }] },

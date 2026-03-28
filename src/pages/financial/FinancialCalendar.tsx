@@ -24,8 +24,9 @@ const FinancialCalendar = () => {
     if (!effectiveUserId) return;
     setLoading(true);
     
-    const start = startOfMonth(currentDate).toISOString();
-    const end = endOfMonth(currentDate).toISOString();
+    // Usando formato de string para evitar problemas de fuso horário em colunas do tipo DATE
+    const start = format(startOfMonth(currentDate), 'yyyy-MM-01');
+    const end = format(endOfMonth(currentDate), 'yyyy-MM-dd');
 
     try {
       const [chargesRes, expensesRes] = await Promise.all([
@@ -60,7 +61,7 @@ const FinancialCalendar = () => {
     return {
       in: dayCharges.reduce((acc, c) => acc + Number(c.amount), 0),
       out: dayExpenses.reduce((acc, e) => acc + Number(e.amount), 0),
-      hasPendingIn: dayCharges.some(c => c.status !== 'pago'),
+      hasPendingIn: dayCharges.some(c => c.status === 'pendente' || c.status === 'atrasado'),
       hasPaidIn: dayCharges.some(c => c.status === 'pago'),
       hasOut: dayExpenses.length > 0,
       count: dayCharges.length + dayExpenses.length
