@@ -186,8 +186,8 @@ const QuoteBuilder = () => {
                     <div className="w-full md:flex-1 space-y-2">
                       <label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">Produto / Serviço</label>
                       <Select value={item.productId} onValueChange={(v) => handleProductChange(index, v)}>
-                        <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                        <SelectContent className="bg-white border-apple-border text-apple-black">
+                        <SelectTrigger className="bg-apple-white border-apple-border h-12 rounded-xl"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                           {products.map(p => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name} <span className="text-apple-muted text-xs ml-2">({currencyFormatter.format(p.price)})</span>
@@ -202,12 +202,12 @@ const QuoteBuilder = () => {
                         type="number" min="1" 
                         value={item.quantity} 
                         onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 1)} 
-                        className="bg-white border-apple-border h-12 text-center font-black rounded-xl" 
+                        className="bg-apple-white border-apple-border h-12 text-center font-black rounded-xl" 
                       />
                     </div>
                     <div className="w-full md:w-32 space-y-2">
                       <label className="text-[10px] font-black text-apple-muted uppercase tracking-widest">Subtotal</label>
-                      <div className="h-12 bg-white border border-apple-border rounded-xl flex items-center px-4 font-black text-apple-dark">
+                      <div className="h-12 bg-apple-white border border-apple-border rounded-xl flex items-center px-4 font-black text-apple-dark">
                         {currencyFormatter.format(item.quantity * item.unitPrice)}
                       </div>
                     </div>
@@ -236,7 +236,7 @@ const QuoteBuilder = () => {
                 <label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Cliente Destinatário</label>
                 <Select value={customerId} onValueChange={setCustomerId}>
                   <SelectTrigger className="bg-apple-offWhite border-apple-border h-14 rounded-xl text-sm font-bold"><SelectValue placeholder="Vincular a um cliente..." /></SelectTrigger>
-                  <SelectContent className="bg-white border-apple-border text-apple-black">
+                  <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                     {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -260,14 +260,14 @@ const QuoteBuilder = () => {
                   <span className="flex items-center gap-2"><Tag size={16} className="text-orange-500" /> DESCONTO (R$)</span>
                   <input 
                     type="text" placeholder="0,00" value={discount} onChange={(e) => setDiscount(e.target.value)}
-                    className="w-28 bg-apple-offWhite border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-black"
+                    className="w-28 bg-apple-white border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-black shadow-sm"
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm text-apple-muted font-bold">
                   <span className="flex items-center gap-2"><Truck size={16} className="text-blue-500" /> FRETE (R$)</span>
                   <input 
                     type="text" placeholder="0,00" value={freight} onChange={(e) => setFreight(e.target.value)}
-                    className="w-28 bg-apple-offWhite border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-black"
+                    className="w-28 bg-apple-white border border-apple-border rounded-xl text-right px-4 py-2 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-black shadow-sm"
                   />
                 </div>
                 

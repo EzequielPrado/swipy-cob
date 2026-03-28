@@ -22,13 +22,16 @@ import {
   Zap,
   GraduationCap,
   XCircle,
-  ShieldCheck
+  ShieldCheck,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/integrations/supabase/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess } from '@/utils/toast';
+import { useTheme } from 'next-themes';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -130,12 +133,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, systemRole, isAdmin, activeMerchant, setActiveMerchant } = useAuth();
+  const { theme, setTheme } = useTheme();
+  
   const [profile, setProfile] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [hasNew, setHasNew] = useState(false);
   const [openMenus, setOpenMenus] = useState<string[]>([]);
 
+  // Evita erro de hidratação no Next-themes
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const currentOpen = [...openMenus];
     menuStructure.forEach(menu => {
       if (menu.submenus?.some(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path + '/'))) {
@@ -191,7 +200,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="flex h-screen bg-apple-light text-apple-black overflow-hidden font-sans">
-      {/* Sidebar Branca ao estilo Apple */}
       <aside className="w-[280px] border-r border-apple-border flex flex-col bg-apple-white shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-3">
@@ -358,6 +366,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </h1>
           </div>
           <div className="flex items-center gap-4">
+            
+            {/* TOGGLE THEME BUTTON */}
+            {mounted && (
+              <button 
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="p-2 text-apple-muted hover:text-orange-500 transition-colors bg-apple-white rounded-full border border-apple-border shadow-sm focus:outline-none"
+                title={theme === 'dark' ? 'Ativar Modo Claro' : 'Ativar Modo Escuro'}
+              >
+                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+            )}
+
             <DropdownMenu onOpenChange={(open) => open && setHasNew(false)}>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 text-apple-muted hover:text-orange-500 transition-colors relative focus:outline-none bg-apple-white rounded-full border border-apple-border shadow-sm">

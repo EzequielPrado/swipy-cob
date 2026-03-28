@@ -272,13 +272,13 @@ const POS = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar produto por nome ou SKU..." 
-                className="w-full bg-white border border-apple-border rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black shadow-sm"
+                className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black shadow-sm"
               />
             </div>
             <div className="flex gap-2 overflow-x-auto custom-scrollbar w-full sm:w-auto pb-2 sm:pb-0">
               <button 
                 onClick={() => setCategoryFilter('all')}
-                className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === 'all' ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-white text-apple-muted border-apple-border hover:bg-apple-light")}
+                className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === 'all' ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-apple-white text-apple-muted border-apple-border hover:bg-apple-light")}
               >
                 Todos
               </button>
@@ -286,7 +286,7 @@ const POS = () => {
                 <button 
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === cat ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-white text-apple-muted border-apple-border hover:bg-apple-light")}
+                  className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border", categoryFilter === cat ? "bg-orange-500 text-white border-orange-600 shadow-sm" : "bg-apple-white text-apple-muted border-apple-border hover:bg-apple-light")}
                 >
                   {cat}
                 </button>
@@ -308,7 +308,7 @@ const POS = () => {
                   <button
                     key={prod.id}
                     onClick={() => addToCart(prod)}
-                    className="bg-white border border-apple-border p-4 rounded-2xl hover:border-orange-500 hover:shadow-md transition-all text-left flex flex-col group relative overflow-hidden active:scale-95"
+                    className="bg-apple-white border border-apple-border p-4 rounded-2xl hover:border-orange-500 hover:shadow-md transition-all text-left flex flex-col group relative overflow-hidden active:scale-95"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div className="w-10 h-10 rounded-full bg-apple-offWhite flex items-center justify-center text-apple-muted border border-apple-border group-hover:bg-orange-50 group-hover:text-orange-500 group-hover:border-orange-200 transition-colors">
@@ -355,7 +355,7 @@ const POS = () => {
               </div>
             ) : (
               cart.map((item) => (
-                <div key={item.id} className="bg-white border border-apple-border p-3 rounded-2xl flex items-center justify-between shadow-sm">
+                <div key={item.id} className="bg-apple-white border border-apple-border p-3 rounded-2xl flex items-center justify-between shadow-sm">
                   <div className="flex-1 overflow-hidden pr-2">
                     <p className="text-sm font-bold text-apple-black truncate">{item.name}</p>
                     <p className="text-xs text-orange-500 font-bold mt-0.5">{currencyFormatter.format(item.price * item.qty)}</p>
@@ -393,7 +393,7 @@ const POS = () => {
                   placeholder="0,00"
                   value={discount}
                   onChange={(e) => setDiscount(e.target.value)}
-                  className="w-24 bg-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-bold shadow-sm"
+                  className="w-24 bg-apple-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black font-bold shadow-sm"
                 />
               </div>
               <div className="flex items-center justify-between text-sm text-apple-dark">
@@ -403,7 +403,7 @@ const POS = () => {
                   placeholder="0,00"
                   value={freight}
                   onChange={(e) => setFreight(e.target.value)}
-                  className="w-24 bg-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-bold shadow-sm"
+                  className="w-24 bg-apple-white border border-apple-border rounded-lg text-right px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-all text-apple-black font-bold shadow-sm"
                 />
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-apple-border">
@@ -436,7 +436,7 @@ const POS = () => {
               <p className="text-4xl font-black text-orange-500">{currencyFormatter.format(totalAmount)}</p>
               {(discountValue > 0 || freightValue > 0) && (
                 <div className="flex justify-center gap-2 mt-3">
-                  {discountValue > 0 && <span className="text-[10px] text-apple-muted font-bold bg-white px-2 py-1 rounded-md border border-apple-border">- {currencyFormatter.format(discountValue)} (Desc)</span>}
+                  {discountValue > 0 && <span className="text-[10px] text-apple-muted font-bold bg-apple-white px-2 py-1 rounded-md border border-apple-border">- {currencyFormatter.format(discountValue)} (Desc)</span>}
                   {freightValue > 0 && <span className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded-md border border-blue-200">+ {currencyFormatter.format(freightValue)} (Frete)</span>}
                 </div>
               )}
@@ -453,10 +453,10 @@ const POS = () => {
                 </button>
               </div>
               <Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}>
-                <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
+                <SelectTrigger className="bg-apple-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
                   <SelectValue placeholder="Selecione o cliente..." />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-apple-border text-apple-black">
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                   {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -465,10 +465,10 @@ const POS = () => {
             <div className="space-y-2">
               <Label className="flex items-center gap-2"><Contact size={14} className="text-blue-500" /> Vendedor (Opcional)</Label>
               <Select value={checkoutData.sellerId} onValueChange={v => setCheckoutData({...checkoutData, sellerId: v})}>
-                <SelectTrigger className="bg-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
+                <SelectTrigger className="bg-apple-white border-apple-border h-12 rounded-xl focus:ring-orange-500">
                   <SelectValue placeholder="Selecione quem realizou a venda..." />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-apple-border text-apple-black">
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
                   <SelectItem value="none">Nenhum (Venda Direta)</SelectItem>
                   {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
                 </SelectContent>
@@ -490,7 +490,7 @@ const POS = () => {
                       "flex flex-col items-center justify-center p-4 rounded-xl border transition-all gap-2",
                       checkoutData.method === method.id 
                         ? "bg-orange-50 border-orange-500 text-orange-600 shadow-sm" 
-                        : "bg-white border-apple-border text-apple-muted hover:border-apple-dark hover:text-apple-dark"
+                        : "bg-apple-white border-apple-border text-apple-muted hover:border-apple-dark hover:text-apple-dark"
                     )}
                   >
                     <method.icon size={24} />
