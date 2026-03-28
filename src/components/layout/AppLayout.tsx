@@ -21,7 +21,6 @@ import {
   Factory,
   Zap,
   GraduationCap,
-  Briefcase,
   XCircle,
   ShieldCheck
 } from 'lucide-react';
@@ -191,19 +190,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const visibleMenus = menuStructure.filter(menu => menu.roles.includes(systemRole));
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
-      <aside className="w-[280px] border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-xl shrink-0">
+    <div className="flex h-screen bg-apple-light text-apple-black overflow-hidden font-sans">
+      {/* Sidebar Branca ao estilo Apple */}
+      <aside className="w-[280px] border-r border-apple-border flex flex-col bg-apple-white shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-3">
             <img src="/logo-swipy.png" alt="Swipy Logo" className="w-8 h-8 object-contain" />
-            <span className="text-2xl font-bold tracking-tighter">Swipy</span>
+            <span className="text-2xl font-bold tracking-tighter text-apple-black">Swipy</span>
           </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-6">
           <div className="space-y-6">
             <nav className="space-y-1">
-              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-3">Menu Principal</p>
+              <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
               
               {visibleMenus.map((item) => {
                 const isActive = item.path ? location.pathname === item.path : false;
@@ -217,39 +217,39 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                       <button
                         onClick={() => toggleMenu(item.title)}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                          "w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
                           isChildActive || isOpen
-                            ? "text-zinc-100 bg-zinc-800/30" 
-                            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                            ? "text-apple-black bg-apple-offWhite font-semibold" 
+                            : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite"
                         )}
                       >
                         <div className="flex items-center gap-3">
                           <item.icon size={18} className={cn(
-                            isChildActive || isOpen ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
+                            isChildActive || isOpen ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark"
                           )} />
                           {item.title}
                         </div>
-                        {isOpen ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
+                        {isOpen ? <ChevronDown size={14} className="text-apple-muted" /> : <ChevronRight size={14} className="text-apple-muted" />}
                       </button>
                     ) : (
                       <Link
                         to={item.path!}
                         className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                          "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
                           isActive 
-                            ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
-                            : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                            ? "bg-orange-500/10 text-orange-600 font-semibold" 
+                            : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite"
                         )}
                       >
                         <item.icon size={18} className={cn(
-                          isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
+                          isActive ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark"
                         )} />
                         {item.title}
                       </Link>
                     )}
 
                     {hasSubmenus && isOpen && (
-                      <div className="mt-1 mb-2 ml-4 pl-4 border-l border-zinc-800 space-y-1">
+                      <div className="mt-1 mb-2 ml-4 pl-4 border-l border-apple-border space-y-1">
                         {item.submenus!.map(sub => {
                           const isSubActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + '/');
                           return (
@@ -259,8 +259,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                               className={cn(
                                 "block px-3 py-2 rounded-lg text-xs font-medium transition-all",
                                 isSubActive
-                                  ? "bg-orange-500/10 text-orange-400"
-                                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                                  ? "bg-orange-500/10 text-orange-600 font-semibold"
+                                  : "text-apple-muted hover:text-apple-black hover:bg-apple-light"
                               )}
                             >
                               {sub.label}
@@ -274,19 +274,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               })}
 
               {['Admin', 'Financeiro', 'Contador'].includes(systemRole) && (
-                <div className="pt-4 mt-4 border-t border-zinc-800/50">
-                  <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Fintech</p>
+                <div className="pt-4 mt-4 border-t border-apple-border">
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest px-3 mb-2">Fintech</p>
                   <Link
                     to="/conta-swipy"
                     className={cn(
                       "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border",
                       location.pathname === "/conta-swipy"
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
+                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold"
+                        : "bg-apple-offWhite border-apple-border text-apple-dark hover:bg-apple-light"
                     )}
                   >
                     <Wallet size={18} className="text-emerald-500" />
-                    <span className="font-bold">Swipy Conta</span>
+                    <span>Swipy Conta</span>
                   </Link>
                 </div>
               )}
@@ -294,8 +294,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </nav>
 
             {isAdmin && (
-              <nav className="space-y-1 pt-4 border-t border-zinc-800/50">
-                <p className="text-[10px] font-bold text-orange-500/50 uppercase tracking-widest px-3 mb-2">Administração Global</p>
+              <nav className="space-y-1 pt-4 border-t border-apple-border">
+                <p className="text-[10px] font-bold text-orange-500/70 uppercase tracking-widest px-3 mb-2">Administração Global</p>
                 {adminItems.map((item) => {
                   const isActive = location.pathname === item.path;
                   return (
@@ -303,13 +303,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                       key={item.path}
                       to={item.path}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
                         isActive 
-                          ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
-                          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                          ? "bg-orange-500/10 text-orange-600 font-semibold" 
+                          : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite"
                       )}
                     >
-                      <item.icon size={18} className={isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"} />
+                      <item.icon size={18} className={isActive ? "text-orange-500" : "text-apple-muted group-hover:text-apple-dark"} />
                       {item.label}
                     </Link>
                   );
@@ -319,40 +319,40 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </div>
 
-        <div className="mt-auto p-4 border-t border-zinc-800">
+        <div className="mt-auto p-4 border-t border-apple-border bg-apple-offWhite">
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors w-full group"
+            className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors w-full group"
           >
-            <LogOut size={18} className="text-zinc-500 group-hover:text-red-400" />
+            <LogOut size={18} className="text-apple-muted group-hover:text-red-500" />
             Sair
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden bg-apple-light">
         {activeMerchant && (
-           <div className="bg-orange-500 px-8 py-2.5 flex items-center justify-between shadow-lg z-50">
+           <div className="bg-orange-500 px-8 py-2.5 flex items-center justify-between shadow-sm z-50">
               <div className="flex items-center gap-3">
-                 <ShieldCheck className="text-zinc-950" size={18} />
-                 <p className="text-zinc-950 text-xs font-black uppercase tracking-widest">
-                   Modo de Visualização: <span className="underline">{activeMerchant.company || activeMerchant.full_name}</span>
+                 <ShieldCheck className="text-white" size={18} />
+                 <p className="text-white text-xs font-bold uppercase tracking-widest">
+                   Visualizando: <span className="underline">{activeMerchant.company || activeMerchant.full_name}</span>
                  </p>
               </div>
               <button 
                 onClick={() => { setActiveMerchant(null); navigate('/contador'); }}
-                className="flex items-center gap-2 bg-zinc-950 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-zinc-800 transition-all uppercase tracking-tighter"
+                className="flex items-center gap-2 bg-white/20 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-white/30 transition-all uppercase tracking-tighter"
               >
-                <XCircle size={14} /> Sair do ERP do Cliente
+                <XCircle size={14} /> Sair
               </button>
            </div>
         )}
 
-        <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-900/30 shrink-0">
+        <header className="h-16 border-b border-apple-border flex items-center justify-between px-8 bg-apple-white/70 backdrop-blur-md shrink-0">
           <div className="flex items-center gap-4">
-            <h1 className="text-sm font-medium text-zinc-400">
-              Olá, <span className="text-zinc-100 font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span>
-              <span className="ml-3 text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">
+            <h1 className="text-sm font-medium text-apple-muted">
+              Olá, <span className="text-apple-black font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span>
+              <span className="ml-3 text-[10px] bg-apple-offWhite border border-apple-border text-apple-dark px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">
                 {systemRole}
               </span>
             </h1>
@@ -360,31 +360,31 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center gap-4">
             <DropdownMenu onOpenChange={(open) => open && setHasNew(false)}>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative focus:outline-none bg-zinc-900 rounded-full border border-zinc-800">
+                <button className="p-2 text-apple-muted hover:text-orange-500 transition-colors relative focus:outline-none bg-apple-white rounded-full border border-apple-border shadow-sm">
                   <Bell size={18} />
-                  {hasNew && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-zinc-900 animate-pulse"></span>}
+                  {hasNew && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 bg-zinc-900 border-zinc-800 text-zinc-100 p-2">
-                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-widest text-zinc-500 px-2 py-3">Notificações</DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-zinc-800" />
+              <DropdownMenuContent align="end" className="w-80 bg-apple-white border-apple-border text-apple-black p-2 shadow-lg rounded-2xl">
+                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-widest text-apple-muted px-2 py-3">Notificações</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-apple-border" />
                 {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-zinc-600 italic">Nenhuma notificação recente.</div>
+                  <div className="p-8 text-center text-xs text-apple-muted italic">Nenhuma notificação recente.</div>
                 ) : (
                   notifications.map(n => (
-                    <DropdownMenuItem key={n.id} className="focus:bg-zinc-800 rounded-lg p-3 flex items-start gap-3">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0"><CheckCircle2 size={16} /></div>
+                    <DropdownMenuItem key={n.id} className="focus:bg-apple-light rounded-xl p-3 flex items-start gap-3 cursor-pointer">
+                      <div className="mt-1 w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0"><CheckCircle2 size={16} /></div>
                       <div className="flex-1 overflow-hidden">
-                        <p className="text-sm font-bold text-zinc-100">{n.title}</p>
-                        <p className="text-xs text-zinc-400 leading-snug">{n.message}</p>
-                        <p className="text-[10px] text-zinc-600 mt-1 font-mono">{n.time}</p>
+                        <p className="text-sm font-bold text-apple-black">{n.title}</p>
+                        <p className="text-xs text-apple-muted leading-snug">{n.message}</p>
+                        <p className="text-[10px] text-apple-muted mt-1 font-mono">{n.time}</p>
                       </div>
                     </DropdownMenuItem>
                   ))
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <div className="w-9 h-9 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center overflow-hidden shadow-inner">
+            <div className="w-9 h-9 rounded-full bg-apple-light border border-apple-border flex items-center justify-center overflow-hidden shadow-sm">
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
             </div>
           </div>
