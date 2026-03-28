@@ -14,6 +14,18 @@ const Checkout = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewLogged, setViewLogged] = useState(false);
 
+  // Função para detectar dispositivo
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    let device = "Desktop";
+    if (/Android/i.test(ua)) device = "Android";
+    else if (/iPhone|iPad|iPod/i.test(ua)) device = "iOS (Apple)";
+    else if (/Mobile/i.test(ua)) device = "Mobile (Outro)";
+
+    const browser = /Chrome/i.test(ua) ? "Chrome" : /Safari/i.test(ua) ? "Safari" : /Firefox/i.test(ua) ? "Firefox" : "Navegador";
+    return `${device} via ${browser}`;
+  };
+
   useEffect(() => {
     const fetchCharge = async () => {
       if (!id) return;
@@ -47,15 +59,16 @@ const Checkout = () => {
           setCharge((prev: any) => ({ ...prev, merchant: profileData }));
         }
 
-        // Registrar visualização
+        // Registrar visualização com DETALHES DO DISPOSITIVO (RASTREIO 3)
         if (!viewLogged && data.status !== 'pago') {
+          const deviceInfo = getDeviceInfo();
           fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/log-charge-event`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chargeId: id,
               type: 'viewed',
-              message: 'O cliente visualizou a fatura no navegador.'
+              message: `Acessou a fatura usando ${deviceInfo}.`
             })
           });
           setViewLogged(true);
@@ -89,10 +102,24 @@ const Checkout = () => {
     return () => { supabase.removeChannel(channel); };
   }, [id, viewLogged]);
 
-  const copyPix = () => {
+  const copyPix = async () => {
     if (charge?.pix_qr_code) {
       navigator.clipboard.writeText(charge.pix_qr_code);
       showSuccess("Código PIX copiado!");
+
+      // Registrar Cópia do PIX (Intenção)
+      try {
+        const deviceInfo = getDeviceInfo();
+        await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/log-charge-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chargeId: id,
+            type: 'interaction',
+            message: `Copiou o PIX pelo ${deviceInfo}.`
+          })
+        });
+      } catch (e) { console.error("Erro ao logar interação:", e); }
     }
   };
 

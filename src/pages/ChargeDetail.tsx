@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -70,12 +70,25 @@ const ChargeDetail = () => {
       if (!response.ok) throw new Error(result.error);
       
       showSuccess("Cobrança reenviada via WhatsApp!");
-      fetchDetails(); // Atualiza para puxar o log de envio
+      fetchDetails(); 
     } catch (err: any) {
       showError(err.message);
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const getLogIcon = (log: any) => {
+    if (log.type === 'payment') return <CheckCircle2 size={16} className="text-emerald-500" />;
+    if (log.type === 'whatsapp') return <Send size={16} className="text-blue-500" />;
+    
+    // Ícones dinâmicos baseados no dispositivo rastreado
+    const msg = log.message.toLowerCase();
+    if (msg.includes('ios') || msg.includes('iphone')) return <Smartphone size={16} className="text-orange-500" />;
+    if (msg.includes('android')) return <Smartphone size={16} className="text-emerald-500" />;
+    if (msg.includes('desktop')) return <Monitor size={16} className="text-blue-400" />;
+    
+    return <FileText size={16} className="text-orange-500" />;
   };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -114,15 +127,13 @@ const ChargeDetail = () => {
                <h3 className="text-xs font-black text-apple-black uppercase tracking-[0.2em] mb-8 flex items-center gap-2"><Clock size={16} className="text-orange-500" /> Histórico de Eventos</h3>
                <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                   {logs.map(log => (
-                    <div key={log.id} className="flex gap-4 p-5 bg-apple-offWhite border border-apple-border rounded-2xl">
+                    <div key={log.id} className="flex gap-4 p-5 bg-apple-offWhite border border-apple-border rounded-2xl group hover:border-orange-500/30 transition-all">
                        <div className="mt-1">
-                         {log.type === 'payment' ? <CheckCircle2 size={16} className="text-emerald-500" /> : 
-                          log.type === 'whatsapp' ? <Send size={16} className="text-blue-500" /> :
-                          <FileText size={16} className="text-orange-500" />}
+                         {getLogIcon(log)}
                        </div>
                        <div>
                          <p className={cn("text-sm font-bold", log.status === 'error' ? "text-red-500" : "text-apple-dark")}>{log.message}</p>
-                         <p className="text-[10px] text-apple-muted font-medium mt-1">{new Date(log.created_at).toLocaleString('pt-BR')}</p>
+                         <p className="text-[10px] text-apple-muted font-medium mt-1 uppercase tracking-widest">{new Date(log.created_at).toLocaleString('pt-BR')}</p>
                        </div>
                     </div>
                   ))}
