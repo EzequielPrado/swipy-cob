@@ -22,7 +22,8 @@ import {
   Phone,
   MessageSquare,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -46,8 +47,7 @@ const UserManagement = () => {
     full_name: '',
     status: '',
     woovi_api_key: '',
-    plan_id: 'none',
-    phone: ''
+    plan_id: 'none'
   });
 
   const fetchData = async () => {
@@ -66,7 +66,6 @@ const UserManagement = () => {
       // 2. Busca Sumário de Cobranças (TPV) e Clientes para os lojistas
       const { data: charges } = await supabase.from('charges').select('user_id, amount, status');
       const { data: customers } = await supabase.from('customers').select('user_id');
-
       const { data: plansData } = await supabase.from('system_plans').select('*').eq('is_active', true);
 
       if (profiles) {
@@ -118,8 +117,7 @@ const UserManagement = () => {
       full_name: user.full_name || '',
       status: user.status || 'pending',
       woovi_api_key: user.woovi_api_key || '',
-      plan_id: user.plan_id || 'none',
-      phone: user.phone || ''
+      plan_id: user.plan_id || 'none'
     });
     setIsEditModalOpen(true);
   };
@@ -139,7 +137,7 @@ const UserManagement = () => {
         .eq('id', selectedUser.id);
 
       if (error) throw error;
-      showSuccess("Lojista atualizado!");
+      showSuccess("Lojista atualizado com sucesso!");
       setIsEditModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -198,7 +196,10 @@ const UserManagement = () => {
            </div>
            <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="bg-zinc-900 border-zinc-800 h-14 w-48 rounded-2xl">
-                 <div className="flex items-center gap-2"><Filter size={16} /> <SelectValue placeholder="Status" /></div>
+                 <div className="flex items-center gap-2">
+                    <Filter size={16} /> 
+                    <SelectValue placeholder="Status" />
+                 </div>
               </SelectTrigger>
               <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                  <SelectItem value="all">Todos os Status</SelectItem>
@@ -285,7 +286,9 @@ const UserManagement = () => {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px] p-0 rounded-[2.5rem] overflow-hidden">
            <DialogHeader className="p-8 border-b border-zinc-800 bg-zinc-950/30">
-              <DialogTitle className="text-xl font-black flex items-center gap-3"><Settings2 className="text-orange-500" /> Governança da Conta</DialogTitle>
+              <DialogTitle className="text-xl font-black flex items-center gap-3">
+                <Settings2 className="text-orange-500" /> Governança da Conta
+              </DialogTitle>
            </DialogHeader>
            <div className="p-8 space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -302,13 +305,17 @@ const UserManagement = () => {
               {!selectedUser?.merchant_id && (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-2"><Key size={12} className="text-orange-500" /> Woovi AppID (Produção)</Label>
+                    <Label className="text-[10px] uppercase font-bold text-zinc-500 flex items-center gap-2">
+                      <Key size={12} className="text-orange-500" /> Woovi AppID (Produção)
+                    </Label>
                     <Input value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-mono text-xs" placeholder="app_xxxxxxxxxxxx" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-zinc-500">Plano de Assinatura</Label>
                     <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
-                      <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectValue>
+                      <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                        <SelectValue placeholder="Selecione o plano" />
+                      </SelectTrigger>
                       <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                         <SelectItem value="none">Padrão (Básico)</SelectItem>
                         {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name} - {currency.format(p.price)}</SelectItem>)}
@@ -321,11 +328,13 @@ const UserManagement = () => {
               <div className="space-y-2 pt-4 border-t border-zinc-800">
                  <Label className="text-[10px] uppercase font-bold text-zinc-500">Controle de Acesso</Label>
                  <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
-                    <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                       <SelectItem value="active">Ativo (Acesso Liberado)</SelectItem>
                       <SelectItem value="pending">Pendente (Verificação)</SelectItem>
-                      <SelectItem value="suspended">Suspenso (Inadimplência/Bloqueio)</SelectItem>
+                      <SelectItem value="suspended">Suspenso (Bloqueio)</SelectItem>
                     </SelectContent>
                  </Select>
               </div>
