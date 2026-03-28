@@ -48,7 +48,6 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     try {
       const priceNum = parseFloat(formData.price.replace(',', '.'));
       const costNum = parseFloat(formData.costPrice.replace(',', '.') || '0');
-      const taxNum = parseFloat(formData.taxPercentage.replace(',', '.') || '0');
       
       if (isNaN(priceNum)) throw new Error("Preço de venda inválido");
 
@@ -56,13 +55,13 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
       const stockQty = itemType === 'service' ? 0 : (parseInt(formData.stock_quantity) || 0);
       const isProduced = itemType === 'service' ? false : formData.is_produced;
 
+      // REMOVIDO: tax_percentage do insert para evitar erro de coluna inexistente
       const { data: product, error } = await supabase.from('products').insert({
         user_id: user.id,
         name: formData.name,
         description: formData.description,
         price: priceNum,
         cost_price: costNum,
-        tax_percentage: taxNum,
         sku: finalSku,
         category: formData.category || (itemType === 'service' ? 'Serviços' : 'Geral'),
         stock_quantity: stockQty,
