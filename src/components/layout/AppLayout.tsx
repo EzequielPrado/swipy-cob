@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText, Globe
+  Moon, Sun, Menu, X, FileText, Globe, History, Activity
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -12,7 +12,6 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { showSuccess } from '@/utils/toast';
 import { useTheme } from 'next-themes';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const menuStructure = [
   { title: 'Visão Geral', icon: LayoutDashboard, path: '/', roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] },
@@ -31,9 +30,11 @@ const menuStructure = [
     requireSuperAdmin: true,
     submenus: [
       { label: 'Visão Global', path: '/admin/dashboard' }, 
+      { label: 'Benchmarks de Rede', path: '/admin/benchmarks' },
       { label: 'Lojistas', path: '/admin/usuarios' }, 
-      { label: 'Planos', path: '/admin/planos' }, 
       { label: 'CRM Global Master', path: '/admin/crm' },
+      { label: 'Linha do Tempo (Auditoria)', path: '/admin/auditoria' },
+      { label: 'Planos & Ofertas', path: '/admin/planos' }, 
       { label: 'Automação Global', path: '/admin/automacao' }
     ] 
   }
@@ -74,13 +75,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="flex h-screen w-full bg-apple-light text-apple-black overflow-hidden relative font-sans">
-      
-      {/* OVERLAY MOBILE */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] lg:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      {/* SIDEBAR */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-[110] w-72 border-r border-apple-border flex flex-col bg-apple-white transition-transform duration-300 lg:relative lg:translate-x-0",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -133,9 +131,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </aside>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden relative w-full h-full">
-        {/* Banner de Contador Ativo */}
         {activeMerchant && (
            <div className="bg-orange-500 px-6 py-2 flex items-center justify-between z-[60] shrink-0">
               <div className="flex items-center gap-2">
@@ -148,7 +144,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
            </div>
         )}
 
-        {/* Header fixo no topo */}
         <header className="h-16 border-b border-apple-border flex items-center justify-between px-4 md:px-8 bg-apple-white/80 backdrop-blur-md shrink-0 z-40">
           <div className="flex items-center gap-3 overflow-hidden">
             <button className="lg:hidden p-2 text-apple-muted -ml-2" onClick={() => setIsMobileMenuOpen(true)}>
@@ -170,14 +165,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </header>
 
-        {/* Área de Conteúdo */}
         <section className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 lg:pb-8 custom-scrollbar">
           <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
         </section>
 
-        {/* BOTTOM NAVIGATION (MOBILE) */}
         <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/95 backdrop-blur-2xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
            <Link to="/" className={cn("flex flex-col items-center gap-1.5", location.pathname === "/" ? "text-orange-500" : "text-apple-muted")}>
               <LayoutDashboard size={22} />

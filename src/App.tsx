@@ -60,6 +60,8 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import GlobalAutomation from "./pages/admin/GlobalAutomation";
 import PlanManagement from "./pages/admin/PlanManagement";
 import GlobalCRM from "./pages/admin/GlobalCRM";
+import AuditLogs from "./pages/admin/AuditLogs";
+import Benchmarks from "./pages/admin/Benchmarks";
 
 const queryClient = new QueryClient();
 
@@ -133,6 +135,8 @@ const App = () => (
               <Route path="/admin/automacao" element={<ProtectedRoute><GlobalAutomation /></ProtectedRoute>} />
               <Route path="/admin/planos" element={<ProtectedRoute><PlanManagement /></ProtectedRoute>} />
               <Route path="/admin/crm" element={<ProtectedRoute><GlobalCRM /></ProtectedRoute>} />
+              <Route path="/admin/auditoria" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
+              <Route path="/admin/benchmarks" element={<ProtectedRoute><Benchmarks /></ProtectedRoute>} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
