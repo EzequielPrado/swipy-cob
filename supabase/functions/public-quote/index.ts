@@ -10,7 +10,6 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    // Usamos a chave de serviço (Service Role) para ignorar o RLS de usuários não logados
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -22,70 +21,63 @@ serve(async (req) => {
     if (!quoteId) throw new Error("ID do orçamento não informado")
 
     if (req.method === 'GET') {
-      // 1. Busca Orçamento e Cliente
       const { data: quote, error: quoteError } = await supabaseAdmin
         .from('quotes')
         .select('*, customers(name, email, phone, tax_id)')
         .eq('id', quoteId)
         .single()
 
-      if (quoteError) {
-        console.error("[public-quote] Erro ao buscar orçamento:", quoteError.message);
-        throw new Error("Erro ao consultar o banco de dados.");
-      }
-      
-      if (!quote) throw new Error("Orçamento não encontrado ou expirado");
+      if (quoteError || !quote) throw new Error("Orçamento não encontrado");
 
-      // 2. Busca o Perfil do Lojista separadamente (resolve o problema de Join)
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('company, full_name, logo_url, primary_color')
-        .eq('id', quote.user_id)
-        .single()
-
+      const { data: profile } = await supabaseAdmin.from('profiles').select('company, full_name, logo_url, primary_color').eq('id', quote.user_id).single()
       quote.profiles = profile;
 
-      // 3. Busca os Itens do Orçamento
-      const { data: items } = await supabaseAdmin
-        .from('quote_items')
-        .select('*, products(name, description, sku)')
-        .eq('quote_id', quoteId)
+      const { data: items } = await supabaseAdmin.from('quote_items').select('*, products(name, description, sku, is_produced)').eq('quote_id', quoteId)
 
-      return new Response(JSON.stringify({ quote, items }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      return new Response(JSON.stringify({ quote, items }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (req.method === 'POST') {
       const { action } = await req.json()
       
       if (action === 'approve') {
-        // 1. Marca o orçamento como aprovado
+        // 1. Buscar os itens para saber se precisa de produção
+        const { data: items } = await supabaseAdmin.from('quote_items').select('*, products(is_produced)').eq('quote_id', quoteId)
+        
+        const hasProduction = items?.some(item => item.products?.is_produced === true);
+        const nextStatus = hasProduction ? 'production' : 'approved';
+
+        // 2. Atualizar status do Orçamento
         const { data: quote, error } = await supabaseAdmin
           .from('quotes')
-          .update({ status: 'approved' })
+          .update({ status: nextStatus })
           .eq('id', quoteId)
           .select()
           .single()
 
         if (error) throw error
 
-        // 2. Dá baixa no estoque dos produtos do orçamento
-        const { data: items } = await supabaseAdmin.from('quote_items').select('*').eq('quote_id', quoteId)
-        if (items) {
-          for (const item of items) {
-            if (!item.product_id) continue;
-            const { data: p } = await supabaseAdmin.from('products').select('stock_quantity').eq('id', item.product_id).single()
-            if (p) {
-              await supabaseAdmin
-                .from('products')
-                .update({ stock_quantity: Math.max(0, p.stock_quantity - item.quantity) })
-                .eq('id', item.product_id)
-            }
+        // 3. Se houver itens de produção, criar as Ordens de Produção
+        if (hasProduction && items) {
+          const productionEntries = items
+            .filter(i => i.products?.is_produced === true)
+            .map(i => ({
+              user_id: quote.user_id,
+              product_id: i.product_id,
+              quote_id: quoteId,
+              quantity: i.quantity,
+              status: 'pending'
+            }));
+          
+          if (productionEntries.length > 0) {
+            await supabaseAdmin.from('production_orders').insert(productionEntries);
           }
         }
 
-        return new Response(JSON.stringify({ success: true, quote }), {
+        // NOTA: A baixa do estoque NÃO acontece aqui mais. 
+        // Ela acontecerá apenas no módulo de EXPEDIÇÃO ao confirmar a saída.
+
+        return new Response(JSON.stringify({ success: true, quote, redirectedToProduction: hasProduction }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }

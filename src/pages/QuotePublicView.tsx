@@ -2,10 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle2, AlertTriangle, FileText, Download, ArrowRight, ShieldCheck, Mail, Phone, MapPin } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertTriangle, FileText, Download, ArrowRight, ShieldCheck, Mail, Phone, MapPin, Factory, Truck } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { cn } from "@/lib/utils";
 
 const QuotePublicView = () => {
@@ -38,20 +36,36 @@ const QuotePublicView = () => {
   const handleApprove = async () => {
     setApproving(true);
     try {
+      // 1. Aprovar Orçamento (Cria produção se necessário)
       const res = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/public-quote?id=${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'approve' })
       });
+      const approvalData = await res.json();
       if (!res.ok) throw new Error("Falha ao aprovar.");
+
+      // 2. Criar Cobrança Pix para o cliente pagar agora
       const chargeRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: quote.customer_id, amount: quote.total_amount, description: `Orçamento Aprovado #${quote.id.split('-')[0].toUpperCase()}`, method: 'pix', dueDate: new Date().toISOString().split('T')[0], userId: quote.user_id, origin: window.location.origin })
+        body: JSON.stringify({ 
+          customerId: quote.customer_id, 
+          amount: quote.total_amount, 
+          description: `Orçamento Aprovado #${quote.id.split('-')[0].toUpperCase()}`, 
+          method: 'pix', 
+          dueDate: new Date().toISOString().split('T')[0], 
+          userId: quote.user_id, 
+          origin: window.location.origin 
+        })
       });
       const chargeData = await chargeRes.json();
       if (!chargeRes.ok) throw new Error(chargeData.error);
-      showSuccess("Orçamento aprovado! Redirecionando...");
+
+      showSuccess(approvalData.redirectedToProduction 
+        ? "Proposta aceita! Seu pedido entrou em linha de produção." 
+        : "Proposta aceita! Redirecionando para pagamento...");
+      
       navigate(`/pagar/${chargeData.id}`);
     } catch (err: any) {
       showError(err.message);
@@ -77,6 +91,8 @@ const QuotePublicView = () => {
   const merchantName = merchant?.company || merchant?.full_name || "Nossa Empresa";
   const primaryColor = merchant?.primary_color || '#f97316';
   const logoUrl = merchant?.logo_url;
+
+  const isApproved = quote.status !== 'draft';
 
   return (
     <div className="min-h-screen bg-apple-light text-apple-black py-12 px-4 flex justify-center items-start font-sans">
@@ -105,7 +121,12 @@ const QuotePublicView = () => {
                  <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-4">Validade & Status</p>
                  <p className="text-sm font-bold text-apple-dark">Emissão: {new Date(quote.created_at).toLocaleDateString('pt-BR')}</p>
                  <p className="text-sm font-bold text-apple-black mt-1">Expira em: <span className="text-orange-500">{new Date(quote.expires_at).toLocaleDateString('pt-BR')}</span></p>
-                 <span className={cn("inline-flex mt-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", quote.status === 'approved' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-light text-apple-muted border-apple-border")}>{quote.status === 'approved' ? 'Aprovado e Fechado' : 'Aguardando sua Aprovação'}</span>
+                 <span className={cn(
+                   "inline-flex mt-6 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", 
+                   isApproved ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-light text-apple-muted border-apple-border"
+                 )}>
+                   {isApproved ? 'Aprovado e Fechado' : 'Aguardando sua Aprovação'}
+                 </span>
               </div>
             </div>
 
@@ -116,7 +137,19 @@ const QuotePublicView = () => {
                 </thead>
                 <tbody className="divide-y divide-apple-border">
                   {items.map((item) => (
-                    <tr key={item.id} className="bg-apple-white"><td className="px-8 py-5"><p className="font-bold text-apple-black">{item.products?.name || "Item"}</p><p className="text-xs text-apple-muted font-medium mt-1">{item.products?.description || '-'}</p></td><td className="px-8 py-5 text-center text-apple-dark font-black">{item.quantity}</td><td className="px-8 py-5 text-right font-black text-apple-black">{currencyFormatter.format(item.total_price)}</td></tr>
+                    <tr key={item.id} className="bg-apple-white">
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-3">
+                          {item.products?.is_produced ? <Factory size={14} className="text-orange-500" /> : <Package size={14} className="text-blue-500" />}
+                          <div>
+                            <p className="font-bold text-apple-black">{item.products?.name || "Item"}</p>
+                            <p className="text-[10px] text-apple-muted font-medium mt-0.5">{item.products?.description || '-'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5 text-center text-apple-dark font-black">{item.quantity}</td>
+                      <td className="px-8 py-5 text-right font-black text-apple-black">{currencyFormatter.format(item.total_price)}</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -125,18 +158,27 @@ const QuotePublicView = () => {
               </div>
             </div>
 
-            {quote.status !== 'approved' && (
+            {!isApproved && (
               <div className="bg-apple-offWhite border border-apple-border rounded-[2.5rem] p-10 text-center space-y-8 shadow-inner">
                 <h4 className="text-xl font-black text-apple-black">Tudo certo com a proposta?</h4>
-                <p className="text-apple-muted font-medium text-sm max-w-sm mx-auto">Ao aprovar, o estoque será reservado e você será direcionado para o pagamento seguro via PIX.</p>
+                <p className="text-apple-muted font-medium text-sm max-w-sm mx-auto">Ao aceitar, daremos início ao processo logístico ou de fabricação e você será direcionado para o pagamento Pix.</p>
                 <button onClick={handleApprove} disabled={approving} className="w-full md:w-auto px-16 py-6 rounded-3xl font-black text-white flex items-center justify-center gap-3 transition-all hover:scale-105 shadow-xl disabled:opacity-50" style={{ backgroundColor: primaryColor }}>
-                  {approving ? <Loader2 className="animate-spin" size={24} /> : <><CheckCircle2 size={24} /> APROVAR E PAGAR</>}
+                  {approving ? <Loader2 className="animate-spin" size={24} /> : <><CheckCircle2 size={24} /> ACEITAR PROPOSTA</>}
                 </button>
+              </div>
+            )}
+            
+            {isApproved && (
+              <div className="flex flex-col items-center gap-4 py-8 bg-emerald-50 rounded-[2rem] border border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-600 font-black uppercase text-sm tracking-widest">
+                  <Truck size={20} /> Pedido em Processamento
+                </div>
+                <p className="text-emerald-700 text-xs text-center px-8 font-medium">Estamos preparando seus itens. Acompanhe pelo link de pagamento enviado ao seu e-mail/WhatsApp.</p>
               </div>
             )}
           </div>
         </div>
-        <div className="mt-12 text-center opacity-40"><p className="text-[10px] font-bold uppercase tracking-[0.3em] text-apple-muted">Swipy Fintech LTDA • Pagamentos Seguros</p></div>
+        <div className="mt-12 text-center opacity-40"><p className="text-[10px] font-bold uppercase tracking-[0.3em] text-apple-muted">Swipy Fintech LTDA • Processamento Logístico Integrado</p></div>
       </div>
     </div>
   );
