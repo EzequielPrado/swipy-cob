@@ -47,7 +47,9 @@ const Login = () => {
             <div className="space-y-2">
               <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">E-mail</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+                   <Mail size={18} />
+                </div>
                 <input 
                   type="email" 
                   required
@@ -61,10 +63,12 @@ const Login = () => {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">Senha</label>
-                <a href="#" className="text-xs text-orange-500 hover:text-orange-400 transition-colors">Esqueceu a senha?</a>
+                <Link to="/recuperar-senha" className="text-xs text-orange-500 hover:text-orange-400 transition-colors">Esqueceu a senha?</Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+                  <Lock size={18} />
+                </div>
                 <input 
                   type="password" 
                   required

@@ -6,11 +6,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 
-// ... outros imports
 import OverviewDashboard from "./pages/OverviewDashboard";
 import AccountantDashboard from "./pages/AccountantDashboard"; 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Checkout from "./pages/Checkout";
 import ClientPortal from "./pages/ClientPortal";
 import NotFound from "./pages/NotFound";
@@ -77,6 +78,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
+            <Route path="/recuperar-senha" element={<ForgotPassword />} />
+            <Route path="/resetar-senha" element={<ResetPassword />} />
             
             <Route path="/pagar/:id" element={<Checkout />} />
             <Route path="/meu-painel" element={<ClientPortal />} />
