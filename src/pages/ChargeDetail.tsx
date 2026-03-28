@@ -51,6 +51,33 @@ const ChargeDetail = () => {
     } catch (err: any) { showError(err.message); } finally { setActionLoading(null); }
   };
 
+  const handleResendWhatsApp = async () => {
+    setActionLoading('resend');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/resend-charge-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({
+          chargeId: id,
+          origin: window.location.origin
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      showSuccess("Cobrança reenviada via WhatsApp!");
+      fetchDetails(); // Atualiza para puxar o log de envio
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   if (loading) return <AppLayout><div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div></AppLayout>;
@@ -85,11 +112,18 @@ const ChargeDetail = () => {
 
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
                <h3 className="text-xs font-black text-apple-black uppercase tracking-[0.2em] mb-8 flex items-center gap-2"><Clock size={16} className="text-orange-500" /> Histórico de Eventos</h3>
-               <div className="space-y-4">
+               <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
                   {logs.map(log => (
                     <div key={log.id} className="flex gap-4 p-5 bg-apple-offWhite border border-apple-border rounded-2xl">
-                       <div className="mt-1">{log.type === 'payment' ? <CheckCircle2 size={16} className="text-emerald-500" /> : <FileText size={16} className="text-orange-500" />}</div>
-                       <div><p className="text-sm font-bold text-apple-dark">{log.message}</p><p className="text-[10px] text-apple-muted font-medium mt-1">{new Date(log.created_at).toLocaleString('pt-BR')}</p></div>
+                       <div className="mt-1">
+                         {log.type === 'payment' ? <CheckCircle2 size={16} className="text-emerald-500" /> : 
+                          log.type === 'whatsapp' ? <Send size={16} className="text-blue-500" /> :
+                          <FileText size={16} className="text-orange-500" />}
+                       </div>
+                       <div>
+                         <p className={cn("text-sm font-bold", log.status === 'error' ? "text-red-500" : "text-apple-dark")}>{log.message}</p>
+                         <p className="text-[10px] text-apple-muted font-medium mt-1">{new Date(log.created_at).toLocaleString('pt-BR')}</p>
+                       </div>
                     </div>
                   ))}
                </div>
@@ -103,8 +137,24 @@ const ChargeDetail = () => {
                    <div className="bg-apple-offWhite p-4 rounded-2xl border border-apple-border"><p className="text-[9px] font-bold text-apple-muted uppercase mb-1">Nome</p><p className="text-sm font-bold text-apple-black">{charge.customers.name}</p></div>
                    <div className="bg-apple-offWhite p-4 rounded-2xl border border-apple-border"><p className="text-[9px] font-bold text-apple-muted uppercase mb-1">E-mail</p><p className="text-sm font-bold text-apple-black truncate">{charge.customers.email}</p></div>
                 </div>
-                <div className="mt-8 pt-8 border-t border-apple-border">
-                   <button onClick={() => setIsPayModalOpen(true)} disabled={charge.status === 'pago'} className={cn("w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-xl", charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 cursor-not-allowed" : "bg-apple-black text-white hover:bg-zinc-800")}>
+                
+                <div className="mt-8 pt-8 border-t border-apple-border space-y-3">
+                   {charge.method !== 'manual' && charge.status !== 'pago' && (
+                     <button 
+                       onClick={handleResendWhatsApp} 
+                       disabled={!!actionLoading}
+                       className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-sm bg-apple-offWhite text-apple-dark border border-apple-border hover:bg-apple-light flex items-center justify-center gap-2"
+                     >
+                       {actionLoading === 'resend' ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                       REENVIAR WHATSAPP
+                     </button>
+                   )}
+
+                   <button 
+                     onClick={() => setIsPayModalOpen(true)} 
+                     disabled={charge.status === 'pago'} 
+                     className={cn("w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 shadow-xl", charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 cursor-not-allowed" : "bg-apple-black text-white hover:bg-zinc-800")}
+                   >
                      {charge.status === 'pago' ? "RECEBIMENTO CONCLUÍDO" : "BAIXAR MANUALMENTE"}
                    </button>
                 </div>
