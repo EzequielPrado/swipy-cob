@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles
+  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -18,12 +18,6 @@ const menuStructure = [
     icon: LayoutDashboard, 
     path: '/', 
     roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] 
-  },
-  { 
-    title: 'Minha Carteira', 
-    icon: GraduationCap, 
-    path: '/contador', 
-    roles: ['Contador'] 
   },
   { 
     title: 'Vendas', 
@@ -89,6 +83,12 @@ const menuStructure = [
     roles: ['Admin', 'Financeiro', 'Contador'] 
   },
   { 
+    title: 'Personalização', 
+    icon: Palette, 
+    path: '/configuracoes', 
+    roles: ['Admin'] 
+  },
+  { 
     title: 'Cadastros', 
     icon: Contact, 
     roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'], 
@@ -98,10 +98,10 @@ const menuStructure = [
     ] 
   },
   { 
-    title: 'Personalização', 
-    icon: Palette, 
-    path: '/configuracoes', 
-    roles: ['Admin'] 
+    title: 'Minha Carteira', 
+    icon: GraduationCap, 
+    path: '/contador', 
+    roles: ['Contador'] 
   },
   { 
     title: 'Administração SaaS', 
@@ -146,17 +146,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
 
   const visibleMenus = menuStructure.filter(menu => {
-    // 1. Se exige Super Admin (Dono do SaaS) e o usuário não é, oculta.
     if (menu.requireSuperAdmin && !isAdmin) return false;
-    
-    // 2. Se o cargo (Role) do usuário não está na lista permitida do menu, oculta.
     if (!menu.roles.includes(systemRole)) return false;
-    
-    // 3. Se for um módulo opcional (moduleId) e o usuário não for Super Admin, verifica se o plano permite.
     if (menu.moduleId && !isAdmin) {
        if (!activePlanFeatures.includes(menu.moduleId)) return false;
     }
-    
     return true;
   });
 
@@ -259,28 +253,30 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </section>
 
+        {/* MENU INFERIOR MOBILE */}
         <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/95 backdrop-blur-2xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
            <Link to="/" className={cn("flex flex-col items-center gap-1.5", location.pathname === "/" ? "text-orange-500" : "text-apple-muted")}>
-              <LayoutDashboard size={22} />
+              <LayoutDashboard size={20} />
               <span className="text-[9px] font-black uppercase">Início</span>
            </Link>
            <Link to="/vendas/orcamentos" className={cn("flex flex-col items-center gap-1.5", location.pathname.includes("orcamentos") ? "text-orange-500" : "text-apple-muted")}>
-              <FileText size={22} />
-              <span className="text-[9px] font-black uppercase">Propostas</span>
+              <FileText size={20} />
+              <span className="text-[9px] font-black uppercase">Proposta</span>
            </Link>
            
-           <Link to="/vendas/pdv" className="relative -top-7 w-16 h-16 bg-orange-500 rounded-3xl flex items-center justify-center text-white shadow-[0_10px_25px_rgba(249,115,22,0.4)] border-4 border-apple-white active:scale-90 transition-all rotate-45">
+           <Link to="/conta-swipy" className="relative -top-7 w-16 h-16 bg-orange-500 rounded-3xl flex items-center justify-center text-white shadow-[0_10px_25px_rgba(249,115,22,0.4)] border-4 border-apple-white active:scale-90 transition-all rotate-45">
               <div className="-rotate-45">
-                <Zap size={28} fill="currentColor" />
+                <Wallet size={28} />
               </div>
            </Link>
 
-           <Link to="/clientes" className={cn("flex flex-col items-center gap-1.5", location.pathname.includes("clientes") ? "text-orange-500" : "text-apple-muted")}>
-              <Users size={22} />
-              <span className="text-[9px] font-black uppercase">Clientes</span>
+           <Link to="/financeiro/dre" className={cn("flex flex-col items-center gap-1.5", location.pathname.includes("dre") ? "text-orange-500" : "text-apple-muted")}>
+              <FileDown size={20} />
+              <span className="text-[9px] font-black uppercase">PDF</span>
            </Link>
+           
            <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center gap-1.5 text-apple-muted">
-              <Menu size={22} />
+              <Menu size={20} />
               <span className="text-[9px] font-black uppercase">Menu</span>
            </button>
         </nav>
