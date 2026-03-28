@@ -19,19 +19,19 @@ import {
   AlertCircle,
   TrendingUp,
   Mail,
-  Phone,
-  MessageSquare,
   DollarSign,
   AlertTriangle,
-  ExternalLink
+  Lock
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from '@/integrations/supabase/auth';
 
 const UserManagement = () => {
+  const { profile: myProfile } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,35 +53,37 @@ const UserManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Busca perfis e planos
-      const { data: profiles } = await supabase
+      // 1. Busca perfis de forma simples para evitar erros de join
+      const { data: profiles, error: profError } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          system_plans(*),
-          merchant:merchant_id(company, full_name)
-        `)
+        .select(`*`)
         .order('created_at', { ascending: false });
 
-      // 2. Busca Sumário de Cobranças (TPV) e Clientes para os lojistas
-      const { data: charges } = await supabase.from('charges').select('user_id, amount, status');
-      const { data: customers } = await supabase.from('customers').select('user_id');
-      const { data: plansData } = await supabase.from('system_plans').select('*').eq('is_active', true);
+      if (profError) throw profError;
+
+      // 2. Busca dados complementares
+      const [chargesRes, customersRes, plansRes] = await Promise.all([
+        supabase.from('charges').select('user_id, amount, status'),
+        supabase.from('customers').select('user_id'),
+        supabase.from('system_plans').select('*')
+      ]);
 
       if (profiles) {
         const enrichedUsers = profiles.map(u => {
-          const userCharges = charges?.filter(c => c.user_id === u.id) || [];
+          const userCharges = chargesRes.data?.filter(c => c.user_id === u.id) || [];
           const tpv = userCharges.filter(c => c.status === 'pago').reduce((acc, curr) => acc + Number(curr.amount), 0);
-          const clientCount = customers?.filter(c => c.user_id === u.id).length || 0;
+          const clientCount = customersRes.data?.filter(c => c.user_id === u.id).length || 0;
+          const plan = plansRes.data?.find(p => p.id === u.plan_id);
           
-          return { ...u, tpv, clientCount };
+          return { ...u, tpv, clientCount, plan_name: plan?.name || 'Básico' };
         });
         setUsers(enrichedUsers);
       }
       
-      if (plansData) setPlans(plansData);
-    } catch (err) {
-      console.error(err);
+      if (plansRes.data) setPlans(plansRes.data);
+    } catch (err: any) {
+      console.error("Erro Admin:", err.message);
+      showError("Erro ao carregar dados. Verifique se você é um Administrador.");
     } finally {
       setLoading(false);
     }
@@ -97,14 +99,14 @@ const UserManagement = () => {
       totalMerchants: merchants.length,
       pending: merchants.filter(u => u.status === 'pending').length,
       totalTpv: merchants.reduce((acc, curr) => acc + (curr.tpv || 0), 0),
-      activeSubs: merchants.filter(u => u.plan_id).length
     };
   }, [users]);
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const matchesSearch = (u.company?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                            (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+                            (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                            (u.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === 'all' ? true : u.status === filterStatus;
       return matchesSearch && matchesStatus;
     });
@@ -149,6 +151,21 @@ const UserManagement = () => {
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Se não for admin, mostra aviso
+  if (!loading && !myProfile?.is_admin) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+           <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
+              <Lock size={40} className="text-red-500" />
+           </div>
+           <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
+           <p className="text-zinc-500 max-w-sm">Apenas usuários com permissão de Super Admin podem visualizar a lista global de empresas.</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
@@ -156,30 +173,26 @@ const UserManagement = () => {
           <div>
             <h2 className="text-3xl font-black tracking-tight flex items-center gap-3">
                <ShieldCheck className="text-orange-500" size={32} />
-               Centro de Monitoramento
+               Monitoramento Global
             </h2>
-            <p className="text-zinc-500 font-medium">Controle transacional e governança de lojistas Swipy.</p>
+            <p className="text-zinc-500 font-medium">Controle de lojistas e governança Swipy.</p>
           </div>
           <button onClick={fetchData} className="p-3 bg-zinc-900 border border-zinc-800 rounded-2xl text-zinc-500 hover:text-white transition-all">
             <Loader2 className={cn(loading && "animate-spin")} size={20} />
           </button>
         </div>
 
-        {/* MÉTRICAS GLOBAIS */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden group">
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><Building2 size={80} /></div>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Empresas Ativas</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Total de Lojistas</p>
               <h3 className="text-4xl font-black text-zinc-100">{stats.totalMerchants}</h3>
            </div>
-           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden group">
-              <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform"><AlertCircle size={80} className="text-orange-500" /></div>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Pendentes de KYC</p>
+           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Aguardando KYC</p>
               <h3 className="text-4xl font-black text-orange-500">{stats.pending}</h3>
            </div>
-           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden group md:col-span-2">
-              <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={120} className="text-emerald-500" /></div>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Volume Total Transacionado (TPV Global)</p>
+           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-[2rem] shadow-xl relative overflow-hidden">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">TPV Global Liquidado</p>
               <h3 className="text-4xl font-black text-emerald-500">{currency.format(stats.totalTpv)}</h3>
            </div>
         </div>
@@ -188,7 +201,7 @@ const UserManagement = () => {
            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
               <Input 
-                placeholder="Pesquisar por Lojista, Empresa ou Token..." 
+                placeholder="Pesquisar por empresa ou nome..." 
                 className="bg-zinc-900 border-zinc-800 pl-11 h-14 rounded-2xl text-base shadow-xl"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -209,68 +222,62 @@ const UserManagement = () => {
            </Select>
         </div>
 
-        {/* TABELA DE PERFORMANCE */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
           <table className="w-full text-left">
             <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em] border-b border-zinc-800">
               <tr>
-                <th className="px-8 py-6">Lojista / Empresa</th>
-                <th className="px-8 py-6">Saúde / Integração</th>
-                <th className="px-8 py-6">TPV Acumulado</th>
-                <th className="px-8 py-6">Base Clientes</th>
-                <th className="px-8 py-6 text-right">Suporte & Gestão</th>
+                <th className="px-8 py-6">Empresa / Proprietário</th>
+                <th className="px-8 py-6">Integração / Plano</th>
+                <th className="px-8 py-6">TPV</th>
+                <th className="px-8 py-6">Base</th>
+                <th className="px-8 py-6 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
               {loading ? (
                 <tr><td colSpan={5} className="px-8 py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={32} /></td></tr>
+              ) : filteredUsers.length === 0 ? (
+                <tr><td colSpan={5} className="px-8 py-20 text-center text-zinc-500 italic">Nenhuma empresa encontrada ou você não tem permissão para vê-las.</td></tr>
               ) : filteredUsers.map((u) => (
                 <tr key={u.id} className="hover:bg-zinc-800/20 transition-all group">
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className={cn(
                         "w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border",
-                        u.merchant_id ? "bg-zinc-950 border-zinc-800 text-zinc-700" : "bg-orange-500/10 border-orange-500/20 text-orange-500 shadow-lg shadow-orange-500/5"
+                        u.merchant_id ? "bg-zinc-950 border-zinc-800 text-zinc-700" : "bg-orange-500/10 border-orange-500/20 text-orange-500 shadow-lg"
                       )}>
                         {u.merchant_id ? <Users size={18} /> : <Building2 size={22} />}
                       </div>
                       <div className="overflow-hidden">
-                        <p className="text-sm font-black text-zinc-100 truncate">{u.company || 'Pessoa Física'}</p>
+                        <p className="text-sm font-black text-zinc-100 truncate">{u.company || 'Sem Nome de Empresa'}</p>
                         <p className="text-[11px] text-zinc-500 truncate flex items-center gap-1.5 font-medium"><User size={10} /> {u.full_name}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                     {!u.merchant_id && (
+                     {!u.merchant_id ? (
                         <div className="flex items-center gap-3">
                            {u.woovi_api_key ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                 <CheckCircle2 size={10} /> Woovi Online
+                                 <CheckCircle2 size={10} /> Woovi On
                               </span>
                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/20">
                                  <AlertTriangle size={10} /> Sem Token
                               </span>
                            )}
-                           <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{u.system_plans?.name || 'Standard'}</span>
+                           <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{u.plan_name}</span>
                         </div>
-                     )}
-                     {u.merchant_id && <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest bg-zinc-950 px-2 py-1 rounded border border-zinc-800">Colaborador</span>}
+                     ) : <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Colaborador</span>}
                   </td>
                   <td className="px-8 py-5 font-mono text-sm font-black text-zinc-100">
                     {u.merchant_id ? '---' : currency.format(u.tpv || 0)}
                   </td>
                   <td className="px-8 py-5">
-                    <div className="flex items-center gap-2">
-                       <Users size={14} className="text-zinc-600" />
-                       <span className="text-xs font-bold text-zinc-400">{u.merchant_id ? '---' : `${u.clientCount} clientes`}</span>
-                    </div>
+                    <span className="text-xs font-bold text-zinc-400">{u.merchant_id ? '---' : `${u.clientCount} clientes`}</span>
                   </td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <a href={`mailto:${u.email}`} className="p-2.5 bg-zinc-800 hover:bg-blue-500/10 hover:text-blue-400 rounded-xl text-zinc-500 transition-all border border-zinc-700">
-                         <Mail size={16} />
-                      </a>
                       <button onClick={() => handleOpenEdit(u)} className="p-2.5 bg-zinc-800 hover:bg-orange-500 hover:text-zinc-950 rounded-xl text-zinc-400 transition-all border border-zinc-700">
                         <Settings2 size={16} />
                       </button>
