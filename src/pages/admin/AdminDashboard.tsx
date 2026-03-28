@@ -30,6 +30,7 @@ import { showError, showSuccess } from '@/utils/toast';
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
     totalUsers: 0,
+    totalCharges: 0,
     activeSubs: 0,
     overdueAmount: 0,
     totalVolumePaid: 0,
