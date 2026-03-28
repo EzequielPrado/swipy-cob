@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Building2, ArrowRight, Loader2, Phone, FileText, Globe, Store } from 'lucide-react';
+import { Mail, Lock, User, Building2, ArrowRight, Loader2, Phone, Globe, Instagram } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +19,7 @@ const Register = () => {
     company: '',
     tradeName: '',
     website: '',
+    instagram: '',
     password: ''
   });
 
@@ -40,7 +41,8 @@ const Register = () => {
           cpf: formData.cpf,
           phone: formData.phone,
           trade_name: formData.tradeName,
-          website: formData.website
+          website: formData.website,
+          instagram: formData.instagram
         },
       },
     });
@@ -130,8 +132,8 @@ const Register = () => {
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2">
                   <Building2 size={12} /> Dados da Empresa
                 </p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
                     <label className="text-xs font-bold text-zinc-500 ml-1">Razão Social</label>
                     <input 
                       name="company"
@@ -142,7 +144,7 @@ const Register = () => {
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <label className="text-xs font-bold text-zinc-500 ml-1">Nome Fantasia</label>
                     <input 
                       name="tradeName"
@@ -154,12 +156,22 @@ const Register = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-zinc-500 ml-1">Site (Opcional)</label>
+                    <label className="text-xs font-bold text-zinc-500 ml-1 flex items-center gap-1.5"><Globe size={12}/> Site (Opcional)</label>
                     <input 
                       name="website"
                       value={formData.website}
                       onChange={handleChange}
-                      placeholder="https://www.suaempresa.com.br" 
+                      placeholder="www.empresa.com.br" 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-zinc-500 ml-1 flex items-center gap-1.5"><Instagram size={12}/> Instagram (Opcional)</label>
+                    <input 
+                      name="instagram"
+                      value={formData.instagram}
+                      onChange={handleChange}
+                      placeholder="@suaempresa" 
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
                     />
                   </div>
