@@ -4,7 +4,6 @@ import autoTable from "jspdf-autotable";
 export const exportToCSV = (data: any[], filename: string) => {
   if (data.length === 0) return;
 
-  // Extrair apenas campos relevantes para o CSV
   const exportData = data.map(item => ({
     Nome: item.name,
     Email: item.email,
@@ -19,7 +18,7 @@ export const exportToCSV = (data: any[], filename: string) => {
     Object.values(item).map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")
   );
 
-  const csvContent = "\uFEFF" + [headers, ...rows].join("\n"); // Adiciona BOM para Excel ler acentos
+  const csvContent = "\uFEFF" + [headers, ...rows].join("\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
@@ -35,45 +34,59 @@ export const exportToCSV = (data: any[], filename: string) => {
 export const exportToPDF = (data: any[], title: string, filename: string) => {
   const doc = new jsPDF();
   
-  // Cabeçalho do PDF
-  doc.setFontSize(18);
-  doc.setTextColor(33, 33, 33);
-  doc.text(title, 14, 22);
+  // Design de Cabeçalho Superior
+  doc.setFillColor(249, 115, 22); // Swipy Orange
+  doc.rect(0, 0, 210, 45, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont("helvetica", "bold");
+  doc.text("Swipy ERP", 14, 22);
   
   doc.setFontSize(10);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Relatório gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
+  doc.setFont("helvetica", "normal");
+  doc.text(title.toUpperCase(), 14, 32);
+  doc.text(`GERADO EM: ${new Date().toLocaleString('pt-BR')}`, 14, 38);
 
-  // Mapear dados para a tabela
-  const tableColumn = ["Nome", "E-mail", "WhatsApp", "CPF/CNPJ", "Status"];
+  const tableColumn = ["Nome do Cliente", "E-mail de Contato", "CPF / CNPJ", "Situação"];
   const tableRows = data.map(item => [
     item.name,
     item.email,
-    item.phone || '---',
     item.tax_id,
-    item.status?.toUpperCase() || '---'
+    item.status?.toUpperCase() || 'N/A'
   ]);
 
-  // Usando a função autoTable diretamente conforme padrão ESM
   autoTable(doc, {
     head: [tableColumn],
     body: tableRows,
-    startY: 35,
+    startY: 55,
     theme: 'striped',
     headStyles: { 
-      fillColor: [249, 115, 22], // Laranja Swipy
+      fillColor: [29, 29, 31], // Apple Black para contraste
       textColor: 255,
       fontSize: 10,
-      fontStyle: 'bold'
+      fontStyle: 'bold',
+      cellPadding: 5
     },
     alternateRowStyles: {
-      fillColor: [250, 250, 250]
+      fillColor: [250, 250, 252]
     },
     styles: { 
       fontSize: 9,
-      cellPadding: 3
-    }
+      cellPadding: 4,
+      valign: 'middle'
+    },
+    margin: { left: 14, right: 14 }
   });
+
+  // Rodapé
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Página ${i} de ${pageCount} - Swipy Fintech LTDA`, 105, 285, { align: 'center' });
+  }
 
   doc.save(`${filename}.pdf`);
 };

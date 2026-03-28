@@ -4,12 +4,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
-import { FileSpreadsheet, Loader2, CalendarDays, FileDown, Info } from 'lucide-react';
+import { FileSpreadsheet, Loader2, CalendarDays, FileDown, Info, TrendingUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { showSuccess } from '@/utils/toast';
 
 const DRE = () => {
   const { user, profile } = useAuth();
@@ -75,20 +74,44 @@ const DRE = () => {
   const handleExportPDF = () => {
     const doc = new jsPDF();
     const companyName = profile?.company || profile?.full_name || 'Nossa Empresa';
-    doc.setFontSize(18); doc.text("Demonstrativo de Resultado (DRE)", 14, 20);
+    const period = monthOptions.find(o => o.value === selectedMonth)?.label;
+
+    // Cabeçalho Premium
+    doc.setFillColor(29, 29, 31); // Apple Black
+    doc.rect(0, 0, 210, 50, 'F');
+    
+    doc.setTextColor(249, 115, 22); // Swipy Orange
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("DRE GERENCIAL", 14, 22);
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`EMPRESA: ${companyName.toUpperCase()}`, 14, 32);
+    doc.text(`PERÍODO: ${period?.toUpperCase()}`, 14, 38);
+    doc.text(`EMISSÃO: ${new Date().toLocaleDateString('pt-BR')}`, 14, 44);
+
     autoTable(doc, {
       body: [
-        ["RECEITA OPERACIONAL BRUTA", currency.format(dreData.receitaBruta)],
-        ["(-) DEDUÇÕES E TAXAS", currency.format(-dreData.deducoes)],
-        ["= RECEITA LÍQUIDA", currency.format(receitaLiquida)],
-        ["(-) CUSTO DAS VENDAS (CPV)", currency.format(-dreData.cpv)],
-        ["= RESULTADO BRUTO", currency.format(resultadoBruto)],
-        ["(-) DESPESAS OPERACIONAIS", currency.format(-(dreData.despesasVendas + dreData.despesasAdms + dreData.outrasDespesas))],
-        ["(=) LUCRO LÍQUIDO DO PERÍODO", currency.format(resultadoFinal)]
+        [{ content: "RECEITA OPERACIONAL BRUTA", styles: { fontStyle: 'bold' } }, currency.format(dreData.receitaBruta)],
+        ["(-) Deduções de Vendas e Impostos", currency.format(-dreData.deducoes)],
+        [{ content: "RECEITA OPERACIONAL LÍQUIDA", styles: { fontStyle: 'bold', fillColor: [245, 245, 247] } }, currency.format(receitaLiquida)],
+        ["(-) Custo das Mercadorias / Serv. (CPV)", currency.format(-dreData.cpv)],
+        [{ content: "RESULTADO OPERACIONAL BRUTO", styles: { fontStyle: 'bold', fillColor: [245, 245, 247] } }, currency.format(resultadoBruto)],
+        ["(-) Despesas Comerciais / Marketing", currency.format(-dreData.despesasVendas)],
+        ["(-) Despesas Administrativas / Pessoal", currency.format(-dreData.despesasAdms)],
+        ["(-) Outras Despesas Variáveis", currency.format(-dreData.outrasDespesas)],
+        ["(-) Retirada Pró-labore", currency.format(-dreData.proLabore)],
+        [{ content: "LUCRO LÍQUIDO DO PERÍODO", styles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: [249, 115, 22] } }, { content: currency.format(resultadoFinal), styles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: [249, 115, 22] } }]
       ],
-      startY: 35, theme: 'plain', styles: { fontSize: 10, cellPadding: 4 }
+      startY: 60,
+      theme: 'plain',
+      styles: { fontSize: 11, cellPadding: 5, textColor: [51, 51, 51] },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
     });
-    doc.save(`DRE_${companyName}.pdf`);
+
+    doc.save(`DRE_${companyName.replace(/\s+/g, '_')}_${selectedMonth}.pdf`);
   };
 
   const DRERow = ({ label, value, isTotal = false, negative = false }: any) => (
@@ -113,7 +136,7 @@ const DRE = () => {
               <SelectTrigger className="w-[200px] h-12 rounded-xl bg-apple-white border-apple-border font-bold text-orange-500"><SelectValue /></SelectTrigger>
               <SelectContent className="bg-apple-white border-apple-border">{monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
             </Select>
-            <button onClick={handleExportPDF} className="bg-apple-black text-white px-6 h-12 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-xl"><FileDown size={18} /> PDF</button>
+            <button onClick={handleExportPDF} className="bg-apple-black text-white px-6 h-12 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-xl hover:scale-105 transition-all"><FileDown size={18} /> PDF EXECUTIVO</button>
           </div>
         </div>
 
@@ -130,7 +153,12 @@ const DRE = () => {
               <DRERow label="(-) Outras Despesas Variáveis" value={dreData.outrasDespesas} negative />
               <DRERow label="(-) Retirada Pró-labore" value={dreData.proLabore} negative />
               <div className="bg-orange-500 p-10 flex items-center justify-between text-white shadow-2xl">
-                <div><h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-1">Lucro Líquido do Exercício</h4><p className="text-orange-100 text-xs font-medium">Após todas as deduções de custo e fixas.</p></div>
+                <div>
+                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-1 flex items-center gap-2">
+                     <TrendingUp size={14} /> Lucro Líquido do Exercício
+                   </h4>
+                   <p className="text-orange-100 text-xs font-medium">Após todas as deduções de custo e fixas.</p>
+                </div>
                 <p className="text-5xl font-black tracking-tighter">{currency.format(resultadoFinal)}</p>
               </div>
             </>
