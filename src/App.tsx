@@ -84,7 +84,7 @@ const App = () => (
               <Route path="/resetar-senha" element={<ResetPassword />} />
               
               <Route path="/pagar/:id" element={<Checkout />} />
-              <Route path="/meu-painel" element={<ClientPortal />} />
+              <Route path="/regularizar" element={<ClientPortal />} />
               <Route path="/orcamento/:id" element={<QuotePublicView />} />
               
               <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
