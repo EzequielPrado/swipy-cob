@@ -15,7 +15,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Pegamos a URL base do sistema
     const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
 
     const { data: rules } = await supabaseClient
@@ -37,7 +36,7 @@ serve(async (req) => {
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
 
-      const { data: charges } = await supabase
+      const { data: charges } = await supabaseClient
         .from('charges')
         .select('*, customers(*), profiles:user_id(company, full_name)')
         .eq('status', 'pendente')
@@ -47,8 +46,6 @@ serve(async (req) => {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
-            
-            // LINK INTERNO DO SISTEMA
             const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
             const variables = rule.mapping.map((key: string) => {
@@ -57,12 +54,17 @@ serve(async (req) => {
               if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(charge.amount);
               if (key === 'due_date') return new Date(charge.due_date).toLocaleDateString('pt-BR');
               if (key === 'payment_id') return charge.id;
-              if (key === 'payment_link') return internalCheckoutUrl; // Usando checkout interno
+              if (key === 'payment_link') return internalCheckoutUrl;
               return '---';
             });
 
-            // Se o botão espera o link, mandamos o interno. Se espera só o ID, mandamos o ID.
-            const buttonVariable = rule.button_link_variable === 'payment_link' ? internalCheckoutUrl : charge.id;
+            // Correção 1: Imagem do QR Code baseada no payload PIX do BD
+            const qrImageUrl = charge.pix_qr_code 
+              ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`
+              : rule.image_url;
+
+            // Correção 2: Passamos apenas o ID da cobrança para o botão da Meta
+            const buttonVariable = charge.id;
 
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
               method: 'POST',
@@ -74,9 +76,9 @@ serve(async (req) => {
                 to: charge.customers.phone,
                 templateName: rule.name,
                 language: rule.language || 'pt_BR',
-                imageUrl: rule.image_url,
+                imageUrl: qrImageUrl, // QR Code
                 variables: variables,
-                buttonVariable: buttonVariable
+                buttonVariable: buttonVariable // Apenas o Sufixo
               })
             });
 
@@ -84,7 +86,7 @@ serve(async (req) => {
               charge_id: charge.id,
               type: 'whatsapp',
               status: waRes.ok ? 'success' : 'error',
-              message: waRes.ok ? `Régua Automática: ${rule.label} enviada (Link Interno)` : `Falha no envio da régua: ${rule.label}`
+              message: waRes.ok ? `Régua Automática: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
             });
 
             totalProcessed++;

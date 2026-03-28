@@ -91,8 +91,13 @@ serve(async (req) => {
           return '---';
         });
 
-        // O sufixo do botão é determinado pela regra
-        const buttonVariable = creationRule.button_link_variable === 'payment_link' ? systemCheckoutUrl : charge.id;
+        // Correção 1: Gerar a imagem do QR Code dinamicamente baseada no código copia-e-cola do Pix
+        const qrImageUrl = charge.pix_qr_code 
+          ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`
+          : creationRule.image_url;
+
+        // Correção 2: Na API da Meta, o botão dinâmico espera apenas o SUFIXO da URL (o ID), não a URL completa
+        const buttonVariable = charge.id;
 
         const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
           method: 'POST',
@@ -104,9 +109,9 @@ serve(async (req) => {
             to: customer.phone,
             templateName: creationRule.name,
             language: creationRule.language || 'en',
-            imageUrl: creationRule.image_url,
+            imageUrl: qrImageUrl, // Enviando a imagem do QR Code
             variables: variables,
-            buttonVariable: buttonVariable
+            buttonVariable: buttonVariable // Enviando apenas o ID
           })
         });
 
@@ -116,8 +121,8 @@ serve(async (req) => {
           status: waRes.ok ? 'success' : 'error',
           message: waRes.ok ? 'WhatsApp de criação enviado' : 'Falha ao enviar WhatsApp de criação'
         });
-      } catch (waErr) {
-        console.error("Erro WA:", waErr.message);
+      } catch (waErr: any) {
+        console.error("[create-woovi-charge] Erro WA:", waErr.message);
       }
     }
 
