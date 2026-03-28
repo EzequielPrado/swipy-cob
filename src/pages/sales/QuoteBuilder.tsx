@@ -9,6 +9,7 @@ import { showError, showSuccess } from '@/utils/toast';
 import { ArrowLeft, Plus, Trash2, Save, Calculator, Loader2, Tag, Truck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import AddProductModal from '@/components/inventory/AddProductModal';
 
 const QuoteBuilder = () => {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ const QuoteBuilder = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
 
   const [customerId, setCustomerId] = useState('');
   const [expiresAt, setExpiresAt] = useState(() => {
@@ -31,51 +33,50 @@ const QuoteBuilder = () => {
   const [discount, setDiscount] = useState('');
   const [freight, setFreight] = useState('');
 
-  useEffect(() => {
+  const loadInitialData = async () => {
     if (!user) return;
-    
-    const loadInitialData = async () => {
-      setDataLoading(true);
-      const [custRes, prodRes] = await Promise.all([
-        supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
-        supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name')
-      ]);
+    setDataLoading(true);
+    const [custRes, prodRes] = await Promise.all([
+      supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
+      supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name')
+    ]);
 
-      if (custRes.data) setCustomers(custRes.data);
-      if (prodRes.data) setProducts(prodRes.data);
+    if (custRes.data) setCustomers(custRes.data);
+    if (prodRes.data) setProducts(prodRes.data);
 
-      if (id) {
-        const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).single();
-        const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id);
+    if (id && !customerId) { // Apenas carregar quote no primeiro load
+      const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).single();
+      const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id);
 
-        if (quote) {
-          setCustomerId(quote.customer_id);
-          setExpiresAt(quote.expires_at ? quote.expires_at.split('T')[0] : '');
+      if (quote) {
+        setCustomerId(quote.customer_id);
+        setExpiresAt(quote.expires_at ? quote.expires_at.split('T')[0] : '');
 
-          if (itemsData && itemsData.length > 0) {
-            const mappedItems = itemsData.map((i: any) => ({
-              productId: i.product_id,
-              quantity: i.quantity,
-              unitPrice: i.unit_price,
-            }));
-            setItems(mappedItems);
+        if (itemsData && itemsData.length > 0) {
+          const mappedItems = itemsData.map((i: any) => ({
+            productId: i.product_id,
+            quantity: i.quantity,
+            unitPrice: i.unit_price,
+          }));
+          setItems(mappedItems);
 
-            const subtotal = mappedItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
-            const diff = quote.total_amount - subtotal;
-            
-            if (diff < 0) {
-              setDiscount(Math.abs(diff).toFixed(2).replace('.', ','));
-              setFreight('');
-            } else if (diff > 0) {
-              setFreight(diff.toFixed(2).replace('.', ','));
-              setDiscount('');
-            }
+          const subtotal = mappedItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
+          const diff = quote.total_amount - subtotal;
+          
+          if (diff < 0) {
+            setDiscount(Math.abs(diff).toFixed(2).replace('.', ','));
+            setFreight('');
+          } else if (diff > 0) {
+            setFreight(diff.toFixed(2).replace('.', ','));
+            setDiscount('');
           }
         }
       }
-      setDataLoading(false);
-    };
+    }
+    setDataLoading(false);
+  };
 
+  useEffect(() => {
     loadInitialData();
   }, [user, id]);
 
@@ -176,9 +177,17 @@ const QuoteBuilder = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
-              <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                <Calculator size={16} className="text-orange-500" /> Detalhamento de Itens
-              </h3>
+              <div className="flex items-center justify-between mb-8">
+                 <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Calculator size={16} className="text-orange-500" /> Detalhamento de Itens
+                 </h3>
+                 <button 
+                   onClick={() => setIsAddItemModalOpen(true)}
+                   className="text-[10px] font-black text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 hover:bg-orange-100 transition-all flex items-center gap-1.5"
+                 >
+                    <Plus size={12} /> CADASTRAR NOVO ITEM
+                 </button>
+              </div>
               
               <div className="space-y-4">
                 {items.map((item, index) => (
@@ -225,7 +234,7 @@ const QuoteBuilder = () => {
                 onClick={addItemRow}
                 className="mt-6 w-full py-5 border-2 border-dashed border-apple-border rounded-[1.5rem] text-apple-muted hover:border-orange-500/50 hover:text-orange-600 font-bold transition-all flex items-center justify-center gap-2 group"
               >
-                <Plus size={18} className="group-hover:scale-110 transition-transform" /> ADICIONAR NOVO ITEM
+                <Plus size={18} className="group-hover:scale-110 transition-transform" /> ADICIONAR LINHA
               </button>
             </div>
           </div>
@@ -280,6 +289,12 @@ const QuoteBuilder = () => {
           </div>
         </div>
       </div>
+
+      <AddProductModal 
+        isOpen={isAddItemModalOpen}
+        onClose={() => setIsAddItemModalOpen(false)}
+        onSuccess={loadInitialData}
+      />
     </AppLayout>
   );
 };

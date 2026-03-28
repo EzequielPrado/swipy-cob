@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useNavigate } from 'react-router-dom';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
+import AddProductModal from '@/components/inventory/AddProductModal';
 
 const POS = () => {
   const { user } = useAuth();
@@ -26,15 +27,15 @@ const POS = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // Estado do Carrinho
   const [cart, setCart] = useState<any[]>([]);
   const [discount, setDiscount] = useState('');
   const [freight, setFreight] = useState('');
   
-  // Checkout
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  
   const [checkoutData, setCheckoutData] = useState({
     customerId: '',
     sellerId: 'none',
@@ -45,35 +46,32 @@ const POS = () => {
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const fetchData = async () => {
+    if (!user) return;
+    setLoading(true);
+    const [prodRes, custRes, empRes] = await Promise.all([
+      supabase.from('products').select('*').eq('user_id', user.id).order('name'),
+      supabase.from('customers').select('id, name, tax_id').eq('user_id', user.id).order('name'),
+      supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
+    ]);
+    if (prodRes.data) setProducts(prodRes.data);
+    if (custRes.data) setCustomers(custRes.data);
+    if (empRes.data) setEmployees(empRes.data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user) return;
-      setLoading(true);
-      const [prodRes, custRes, empRes] = await Promise.all([
-        supabase.from('products').select('*').eq('user_id', user.id).order('name'),
-        supabase.from('customers').select('id, name, tax_id').eq('user_id', user.id).order('name'),
-        supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
-      ]);
-      if (prodRes.data) setProducts(prodRes.data);
-      if (custRes.data) setCustomers(custRes.data);
-      if (empRes.data) setEmployees(empRes.data);
-      setLoading(false);
-    };
     fetchData();
   }, [user]);
 
-  // Lógica de Verificação de Risco (Simulada Global)
   const checkGlobalRisk = async (customerId: string) => {
     if (!customerId) { setCustomerRisk(null); return; }
     const selected = customers.find(c => c.id === customerId);
     if (!selected) return;
-
     const cleanTaxId = selected.tax_id.replace(/\D/g, '');
     const { data: globalCharges } = await supabase.from('charges').select('status, customers!inner(tax_id)');
-    
     const clientCharges = globalCharges?.filter((c: any) => c.customers.tax_id.replace(/\D/g, '') === cleanTaxId) || [];
     const overdue = clientCharges.filter(c => c.status === 'atrasado').length;
-    
     setCustomerRisk(overdue > 0 ? 'high' : 'low');
   };
 
@@ -137,11 +135,19 @@ const POS = () => {
       <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-8rem)] gap-6">
         <div className="flex-1 flex flex-col bg-apple-white border border-apple-border rounded-3xl overflow-hidden shadow-sm relative">
           <div className="p-6 border-b border-apple-border bg-apple-offWhite flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0 z-10">
-            <div className="relative w-full sm:w-96"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar produto..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black shadow-sm" /></div>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+               <div className="relative w-full sm:w-80">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+                 <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar produto..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all text-apple-black shadow-sm" />
+               </div>
+               <button onClick={() => setIsAddItemModalOpen(true)} className="p-3 bg-orange-500 text-white rounded-2xl shadow-lg shadow-orange-500/10 hover:bg-orange-600 transition-all active:scale-95" title="Novo Item">
+                 <Plus size={20} />
+               </button>
+            </div>
             <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">{categories.map(cat => (<button key={cat} onClick={() => setCategoryFilter(cat)} className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border", categoryFilter === cat ? "bg-orange-500 text-white" : "bg-apple-white text-apple-muted")}>{cat}</button>))}</div>
           </div>
           <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map(prod => (<button key={prod.id} onClick={() => addToCart(prod)} className="bg-apple-white border border-apple-border p-4 rounded-2xl hover:border-orange-500 transition-all text-left flex flex-col group relative active:scale-95"><div className="flex justify-between items-start mb-4"><div className="w-10 h-10 rounded-full bg-apple-offWhite border border-apple-border flex items-center justify-center text-apple-muted group-hover:text-orange-500 transition-colors">{prod.name.charAt(0).toUpperCase()}</div><span className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">{prod.stock_quantity} un</span></div><p className="font-bold text-apple-black line-clamp-2 mb-1 group-hover:text-orange-500 transition-colors">{prod.name}</p><p className="text-lg font-black text-apple-dark mt-auto">{currencyFormatter.format(prod.price)}</p></button>))}
+            {filteredProducts.map(prod => (<button key={prod.id} onClick={() => addToCart(prod)} className="bg-apple-white border border-apple-border p-4 rounded-2xl hover:border-orange-500 transition-all text-left flex flex-col group relative active:scale-95"><div className="flex justify-between items-start mb-4"><div className="w-10 h-10 rounded-full bg-apple-offWhite border border-apple-border flex items-center justify-center text-apple-muted group-hover:text-orange-500 transition-colors">{prod.name.charAt(0).toUpperCase()}</div>{prod.stock_quantity > 0 && <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">{prod.stock_quantity} un</span>}</div><p className="font-bold text-apple-black line-clamp-2 mb-1 group-hover:text-orange-500 transition-colors">{prod.name}</p><p className="text-lg font-black text-apple-dark mt-auto">{currencyFormatter.format(prod.price)}</p></button>))}
           </div>
         </div>
 
@@ -160,44 +166,20 @@ const POS = () => {
           <DialogHeader><DialogTitle className="text-xl">Finalizar Venda</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="bg-apple-offWhite border border-apple-border rounded-2xl p-6 text-center"><p className="text-[10px] text-apple-muted uppercase tracking-widest font-bold mb-2">Valor a Cobrar</p><p className="text-4xl font-black text-orange-500">{currencyFormatter.format(totalAmount)}</p></div>
-            
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2"><User size={14} className="text-orange-500" /> Cliente</Label>
-              <Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}>
-                <SelectTrigger className="bg-apple-white border-apple-border h-12 rounded-xl"><SelectValue placeholder="Selecione o cliente..." /></SelectTrigger>
-                <SelectContent className="bg-apple-white border-apple-border">{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-              
-              {/* ALERTA DE INTELIGÊNCIA GLOBAL */}
-              {customerRisk === 'high' && (
-                <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in duration-300">
-                   <AlertTriangle className="text-red-500 shrink-0" size={18} />
-                   <div>
-                      <p className="text-xs font-black text-red-600 uppercase tracking-widest">Alerta de Inadimplência na Rede</p>
-                      <p className="text-[10px] text-red-500 font-medium mt-1 leading-tight">Este CPF possui faturas vencidas em outros estabelecimentos da plataforma. Recomenda-se pagamento via PIX ou Dinheiro.</p>
-                   </div>
-                </div>
-              )}
-              {customerRisk === 'low' && checkoutData.customerId && (
-                <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-2xl flex items-center gap-2">
-                   <ShieldCheck className="text-emerald-500" size={16} />
-                   <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Cliente Verificado e Pontual</p>
-                </div>
-              )}
+            <div className="space-y-2"><Label className="flex items-center gap-2"><User size={14} className="text-orange-500" /> Cliente</Label><Select value={checkoutData.customerId} onValueChange={v => setCheckoutData({...checkoutData, customerId: v})}><SelectTrigger className="bg-apple-white border-apple-border h-12 rounded-xl"><SelectValue placeholder="Selecione o cliente..." /></SelectTrigger><SelectContent className="bg-apple-white border-apple-border">{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select>
+              {customerRisk === 'high' && (<div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in duration-300"><AlertTriangle className="text-red-500 shrink-0" size={18} /><div><p className="text-xs font-black text-red-600 uppercase tracking-widest">Alerta de Inadimplência na Rede</p><p className="text-[10px] text-red-500 font-medium mt-1 leading-tight">Este CPF possui faturas vencidas em outros estabelecimentos da plataforma.</p></div></div>)}
             </div>
-
-            <div className="space-y-3">
-              <Label className="text-xs uppercase text-apple-muted font-bold tracking-widest">Método</Label>
-              <div className="grid grid-cols-3 gap-3">
-                {[{id:'pix', icon:QrCode, label:'PIX'}, {id:'cartao', icon:CreditCard, label:'Cartão'}, {id:'dinheiro', icon:Banknote, label:'Dinheiro'}].map(m => (
-                  <button key={m.id} onClick={() => setCheckoutData({...checkoutData, method: m.id})} className={cn("flex flex-col items-center p-4 rounded-xl border transition-all gap-2", checkoutData.method === m.id ? "bg-orange-50 border-orange-500 text-orange-600" : "bg-apple-white border-apple-border text-apple-muted")}><m.icon size={24} /><span className="text-[10px] font-bold">{m.label}</span></button>
-                ))}
-              </div>
-            </div>
+            <div className="space-y-3"><Label className="text-xs uppercase text-apple-muted font-bold tracking-widest">Método</Label><div className="grid grid-cols-3 gap-3">{[{id:'pix', icon:QrCode, label:'PIX'}, {id:'cartao', icon:CreditCard, label:'Cartão'}, {id:'dinheiro', icon:Banknote, label:'Dinheiro'}].map(m => (<button key={m.id} onClick={() => setCheckoutData({...checkoutData, method: m.id})} className={cn("flex flex-col items-center p-4 rounded-xl border transition-all gap-2", checkoutData.method === m.id ? "bg-orange-50 border-orange-500 text-orange-600" : "bg-apple-white border-apple-border text-apple-muted")}><m.icon size={24} /><span className="text-[10px] font-bold">{m.label}</span></button>))}</div></div>
           </div>
           <DialogFooter><button onClick={handleCheckout} disabled={processing || !checkoutData.customerId} className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm">{processing ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />} Confirmar Pagamento</button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AddProductModal 
+        isOpen={isAddItemModalOpen}
+        onClose={() => setIsAddItemModalOpen(false)}
+        onSuccess={fetchData}
+      />
     </AppLayout>
   );
 };
