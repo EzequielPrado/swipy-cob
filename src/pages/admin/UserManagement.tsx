@@ -13,14 +13,14 @@ import {
   Settings2,
   Users,
   ArrowRight,
-  Save // Adicionado o import que faltava
+  Save,
+  Key
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 const UserManagement = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -98,7 +98,7 @@ const UserManagement = () => {
         .eq('id', selectedUser.id);
 
       if (error) throw error;
-      showSuccess("Dados atualizados!");
+      showSuccess("Usuário atualizado com sucesso!");
       setIsEditModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -114,12 +114,12 @@ const UserManagement = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Gestão de Empresas & Usuários</h2>
-            <p className="text-zinc-400 mt-1">Monitore lojistas e seus respectivos colaboradores.</p>
+            <p className="text-zinc-400 mt-1">Configure tokens, planos e acessos dos lojistas.</p>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <Input 
-              placeholder="Buscar..." 
+              placeholder="Buscar por nome ou empresa..." 
               className="bg-zinc-900 border-zinc-800 pl-10 h-11 rounded-xl"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -135,7 +135,7 @@ const UserManagement = () => {
               <thead className="bg-zinc-950/50 text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em] border-b border-zinc-800">
                 <tr>
                   <th className="px-6 py-5">Usuário / Empresa</th>
-                  <th className="px-6 py-5">Tipo de Conta</th>
+                  <th className="px-6 py-5">Assinatura / Plano</th>
                   <th className="px-6 py-5">Status</th>
                   <th className="px-6 py-5 text-right">Ações</th>
                 </tr>
@@ -153,7 +153,7 @@ const UserManagement = () => {
                         </div>
                         <div className="overflow-hidden">
                           <p className="text-sm font-bold text-zinc-100 truncate">{u.full_name}</p>
-                          <p className="text-[10px] text-zinc-500 truncate uppercase font-mono">{u.company || 'Pessoa Física'}</p>
+                          <p className="text-[10px] text-zinc-500 truncate uppercase font-mono">{u.company || 'PJ não informada'}</p>
                         </div>
                       </div>
                     </td>
@@ -161,14 +161,12 @@ const UserManagement = () => {
                       {u.merchant_id ? (
                         <div className="flex flex-col gap-1">
                            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest bg-zinc-800 px-2 py-0.5 rounded w-fit">Colaborador</span>
-                           <p className="text-[10px] text-zinc-400 flex items-center gap-1">
-                              vinculado à <span className="text-orange-500 font-bold">{u.merchant?.company || u.merchant?.full_name}</span>
-                           </p>
+                           <p className="text-[10px] text-zinc-400">Vinculado a <span className="text-orange-500">{u.merchant?.company || u.merchant?.full_name}</span></p>
                         </div>
                       ) : (
                         <div className="flex flex-col gap-1">
                            <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest bg-orange-500/10 px-2 py-0.5 rounded w-fit">Lojista (Dono)</span>
-                           <p className="text-[10px] text-zinc-500 font-bold">{u.system_plans?.name || 'Sem Plano'}</p>
+                           <p className="text-[10px] text-zinc-500 font-bold">{u.system_plans?.name || 'Aguardando Plano'}</p>
                         </div>
                       )}
                     </td>
@@ -194,46 +192,62 @@ const UserManagement = () => {
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px] p-0 rounded-[2rem] overflow-hidden">
            <DialogHeader className="p-8 border-b border-zinc-800 bg-zinc-950/30">
-              <DialogTitle className="text-xl font-black">Editar Perfil de Usuário</DialogTitle>
+              <DialogTitle className="text-xl font-black">Configurações do Cliente</DialogTitle>
            </DialogHeader>
            <div className="p-8 space-y-6">
-              <div className="space-y-2">
-                <Label>Nome do Usuário</Label>
-                <Input value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" />
-              </div>
-              <div className="space-y-2">
-                <Label>Empresa Exibida</Label>
-                <Input value={editData.company} onChange={e => setEditData({...editData, company: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-zinc-500 uppercase text-[10px] font-bold">Responsável</Label>
+                  <Input value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-zinc-500 uppercase text-[10px] font-bold">Empresa (Branding)</Label>
+                  <Input value={editData.company} onChange={e => setEditData({...editData, company: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" />
+                </div>
               </div>
               
               {!selectedUser?.merchant_id && (
-                <div className="space-y-2">
-                  <Label>Plano de Assinatura</Label>
-                  <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
-                    <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                      <SelectItem value="none">Nenhum / Básico</SelectItem>
-                      {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-500 uppercase text-[10px] font-bold flex items-center gap-2">
+                      <Key size={12} className="text-orange-500" /> Token Woovi (AppID)
+                    </Label>
+                    <Input 
+                      value={editData.woovi_api_key} 
+                      onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} 
+                      placeholder="Ex: app_xxxxxxxxxxxx"
+                      className="bg-zinc-950 border-zinc-800 h-12 rounded-xl font-mono text-xs" 
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-zinc-500 uppercase text-[10px] font-bold">Plano de Assinatura</Label>
+                    <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
+                      <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                        <SelectItem value="none">Sem Plano Ativo</SelectItem>
+                        {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name} (R$ {p.price})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               <div className="space-y-2 pt-4 border-t border-zinc-800">
-                 <Label>Status de Acesso</Label>
+                 <Label className="text-zinc-500 uppercase text-[10px] font-bold">Status da Conta</Label>
                  <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
                     <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                      <SelectItem value="active">Ativo</SelectItem>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="suspended">Suspenso</SelectItem>
+                      <SelectItem value="active">Ativo (Liberado)</SelectItem>
+                      <SelectItem value="pending">Pendente (Aguardando)</SelectItem>
+                      <SelectItem value="suspended">Suspenso (Bloqueado)</SelectItem>
                     </SelectContent>
                  </Select>
               </div>
            </div>
-           <DialogFooter className="p-8 border-t border-zinc-800 bg-zinc-950/30">
-              <button disabled={updating} onClick={handleSaveUser} className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2">
-                {updating ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} SALVAR
+           <DialogFooter className="p-8 border-t border-zinc-800 bg-zinc-950/50">
+              <button disabled={updating} onClick={handleSaveUser} className="w-full bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10">
+                {updating ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} SALVAR CONFIGURAÇÕES
               </button>
            </DialogFooter>
         </DialogContent>
