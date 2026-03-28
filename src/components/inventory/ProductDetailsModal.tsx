@@ -40,9 +40,9 @@ const ProductDetailsModal = ({ isOpen, onClose, product }: ProductDetailsModalPr
 
   const cost = Number(product.cost_price || 0);
   const price = Number(product.price || 0);
+  // Campo opcional para evitar erro se a coluna não existir no banco
   const taxPercent = Number(product.tax_percentage || 0);
   
-  // Cálculo de Margem Real (Preço - Custo - Imposto)
   const taxAmount = price * (taxPercent / 100);
   const netRevenue = price - taxAmount;
   const margin = netRevenue - cost;

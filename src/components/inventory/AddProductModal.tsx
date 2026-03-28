@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Package, DollarSign, Wand2, Factory, Hammer, Percent } from 'lucide-react';
+import { Loader2, Package, DollarSign, Wand2, Factory, Hammer } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface AddProductModalProps {
@@ -27,7 +27,6 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     description: '',
     price: '',
     costPrice: '',
-    tax_percentage: '0', // Novo campo
     sku: '',
     category: '',
     stock_quantity: '0',
@@ -48,7 +47,6 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
     try {
       const priceNum = parseFloat(formData.price.replace(',', '.'));
       const costNum = parseFloat(formData.costPrice.replace(',', '.') || '0');
-      const taxNum = parseFloat(formData.tax_percentage.replace(',', '.') || '0');
       
       if (isNaN(priceNum)) throw new Error("Preço de venda inválido");
 
@@ -62,7 +60,6 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
         description: formData.description,
         price: priceNum,
         cost_price: costNum,
-        tax_percentage: taxNum, // Salvando o imposto
         sku: finalSku,
         category: formData.category || (itemType === 'service' ? 'Serviços' : 'Geral'),
         stock_quantity: stockQty,
@@ -86,7 +83,7 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
       onClose();
       
       setFormData({ 
-        name: '', description: '', price: '', costPrice: '', tax_percentage: '0', sku: '', 
+        name: '', description: '', price: '', costPrice: '', sku: '', 
         category: '', stock_quantity: '0', is_produced: false 
       });
     } catch (err: any) {
@@ -151,11 +148,8 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
             </div>
             
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-apple-dark">Imposto Estimado (%)</Label>
-              <div className="relative">
-                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                <Input placeholder="0,00" className="bg-apple-offWhite border-apple-border h-12 pl-10 rounded-xl font-black text-apple-black" value={formData.tax_percentage} onChange={(e) => setFormData({...formData, tax_percentage: e.target.value})} />
-              </div>
+              <Label className="text-xs font-bold text-apple-dark">Preço de Custo (Opcional)</Label>
+              <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.costPrice} onChange={(e) => setFormData({...formData, costPrice: e.target.value})} placeholder="0,00" />
             </div>
           </div>
 
@@ -171,10 +165,6 @@ const AddProductModal = ({ isOpen, onClose, onSuccess }: AddProductModalProps) =
                 <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.category} onChange={(e) => setFormData({...formData, category: e.target.value})} placeholder="Ex: Manutenção, Consultoria..." />
               </div>
             )}
-            <div className="space-y-2">
-                <Label className="text-xs font-bold text-apple-dark">Preço de Custo (Opcional)</Label>
-                <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.costPrice} onChange={(e) => setFormData({...formData, costPrice: e.target.value})} placeholder="0,00" />
-            </div>
           </div>
 
           {itemType === 'product' && (
