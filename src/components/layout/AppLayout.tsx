@@ -19,8 +19,9 @@ import {
   ChevronRight,
   Wallet,
   Factory,
-  FileSpreadsheet,
-  Zap
+  Zap,
+  GraduationCap,
+  Briefcase
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -44,9 +45,15 @@ const menuStructure = [
     roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque']
   },
   {
+    title: 'Minha Carteira',
+    icon: GraduationCap,
+    path: '/contador',
+    roles: ['Contador']
+  },
+  {
     title: 'Vendas',
     icon: ShoppingCart,
-    roles: ['Admin', 'Vendas'],
+    roles: ['Admin', 'Vendas', 'Contador'],
     submenus: [
       { label: 'Dashboard de Vendas', path: '/vendas/dashboard' },
       { label: 'Gestão de Vendas', path: '/vendas/lista' },
@@ -65,7 +72,7 @@ const menuStructure = [
   {
     title: 'Estoque',
     icon: Package,
-    roles: ['Admin', 'Estoque', 'Vendas'],
+    roles: ['Admin', 'Estoque', 'Vendas', 'Contador'],
     submenus: [
       { label: 'Produtos', path: '/estoque/produtos' },
       { label: 'Movimentações', path: '/estoque/movimentacoes' },
@@ -74,7 +81,7 @@ const menuStructure = [
   {
     title: 'Financeiro',
     icon: Landmark,
-    roles: ['Admin', 'Financeiro'],
+    roles: ['Admin', 'Financeiro', 'Contador'],
     submenus: [
       { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
@@ -88,17 +95,16 @@ const menuStructure = [
   {
     title: 'Gente e Gestão',
     icon: Users,
-    roles: ['Admin', 'RH'],
+    roles: ['Admin', 'RH', 'Contador'],
     submenus: [
       { label: 'Colaboradores', path: '/rh/colaboradores' },
       { label: 'Folha Gerencial', path: '/rh/folha' },
-      { label: 'Metas e Comissões', path: '/rh/metas' },
     ]
   },
   {
     title: 'Cadastros',
     icon: Contact,
-    roles: ['Admin', 'Vendas', 'Financeiro', 'RH'],
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Contador'],
     submenus: [
       { label: 'Clientes', path: '/clientes' },
       { label: 'Fornecedores', path: '/fornecedores' },
@@ -114,7 +120,7 @@ const menuStructure = [
 
 const adminItems = [
   { icon: BarChart3, label: 'Visão Global', path: '/admin/dashboard' },
-  { icon: UserCog, label: 'Gerenciar Usuários', path: '/admin/usuarios' },
+  { icon: UserCog, label: 'Monitoramento de Usuários', path: '/admin/usuarios' },
   { icon: Zap, label: 'Gestão de Planos', path: '/admin/planos' },
   { icon: MessagesSquare, label: 'Régua Global', path: '/admin/automacao' },
 ];
@@ -137,9 +143,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         }
       }
     });
-    if (currentOpen.length !== openMenus.length) {
-      setOpenMenus(currentOpen);
-    }
+    setOpenMenus(currentOpen);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -155,14 +159,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           (payload) => {
             if (payload.new.status === 'pago' && payload.old.status !== 'pago') {
               const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload.new.amount);
-              
               const newNotification = {
                 id: Date.now(),
                 title: 'Pagamento Confirmado!',
                 message: `Recebemos o pagamento de ${amount}.`,
                 time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
               };
-
               setNotifications(prev => [newNotification, ...prev].slice(0, 5));
               setHasNew(true);
               showSuccess(`💰 Pagamento de ${amount} confirmado agora!`);
@@ -187,7 +189,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const visibleMenus = menuStructure.filter(menu => menu.roles.includes(systemRole));
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
       <aside className="w-[280px] border-r border-zinc-800 flex flex-col bg-zinc-900/50 backdrop-blur-xl shrink-0">
         <div className="p-6">
           <Link to="/" className="flex items-center gap-3">
@@ -199,7 +201,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-6">
           <div className="space-y-6">
             <nav className="space-y-1">
-              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-3">Soluções Corporativas</p>
+              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-3 mb-3">Menu Principal</p>
               
               {visibleMenus.map((item) => {
                 const isActive = item.path ? location.pathname === item.path : false;
@@ -269,22 +271,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 );
               })}
 
-              {['Admin', 'Financeiro'].includes(systemRole) && (
+              {['Admin', 'Financeiro', 'Contador'].includes(systemRole) && (
                 <div className="pt-4 mt-4 border-t border-zinc-800/50">
-                  <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Plataforma Fintech</p>
+                  <p className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest px-3 mb-2">Fintech</p>
                   <Link
                     to="/conta-swipy"
                     className={cn(
                       "flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all group border",
                       location.pathname === "/conta-swipy"
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5"
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
                     )}
                   >
-                    <Wallet size={18} className={cn(
-                      location.pathname === "/conta-swipy" ? "text-emerald-400" : "text-emerald-500 group-hover:text-emerald-400"
-                    )} />
-                    <span className="font-bold tracking-wide">Swipy Conta</span>
+                    <Wallet size={18} className="text-emerald-500" />
+                    <span className="font-bold">Swipy Conta</span>
                   </Link>
                 </div>
               )}
@@ -305,9 +305,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                         : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
                     )}
                   >
-                    <item.icon size={18} className={cn(
-                      location.pathname === item.path ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"
-                    )} />
+                    <item.icon size={18} className={isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"} />
                     {item.label}
                   </Link>
                 ))}
@@ -317,15 +315,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         <div className="mt-auto p-4 border-t border-zinc-800">
-          <div className="px-3 mb-4">
-             <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.2em]">Swipy Fintech LTDA</p>
-          </div>
           <button 
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors w-full group"
           >
             <LogOut size={18} className="text-zinc-500 group-hover:text-red-400" />
-            Sair da conta
+            Sair
           </button>
         </div>
       </aside>
@@ -335,7 +330,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center gap-4">
             <h1 className="text-sm font-medium text-zinc-400">
               Olá, <span className="text-zinc-100 font-semibold">{profile?.company || profile?.full_name || 'Usuário'}</span>
-              <span className="ml-3 text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-0.5 rounded-full font-bold tracking-widest uppercase">
+              <span className="ml-3 text-[10px] bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest">
                 {systemRole}
               </span>
             </h1>
@@ -345,9 +340,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <DropdownMenuTrigger asChild>
                 <button className="p-2 text-zinc-400 hover:text-orange-400 transition-colors relative focus:outline-none bg-zinc-900 rounded-full border border-zinc-800">
                   <Bell size={18} />
-                  {hasNew && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-zinc-900 animate-pulse"></span>
-                  )}
+                  {hasNew && <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-zinc-900 animate-pulse"></span>}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80 bg-zinc-900 border-zinc-800 text-zinc-100 p-2">
@@ -357,10 +350,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   <div className="p-8 text-center text-xs text-zinc-600 italic">Nenhuma notificação recente.</div>
                 ) : (
                   notifications.map(n => (
-                    <DropdownMenuItem key={n.id} className="focus:bg-zinc-800 rounded-lg p-3 cursor-default flex items-start gap-3">
-                      <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
-                        <CheckCircle2 size={16} />
-                      </div>
+                    <DropdownMenuItem key={n.id} className="focus:bg-zinc-800 rounded-lg p-3 flex items-start gap-3">
+                      <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0"><CheckCircle2 size={16} /></div>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-bold text-zinc-100">{n.title}</p>
                         <p className="text-xs text-zinc-400 leading-snug">{n.message}</p>
@@ -371,7 +362,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            
             <div className="w-9 h-9 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center overflow-hidden shadow-inner">
               <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`} alt="Avatar" />
             </div>
