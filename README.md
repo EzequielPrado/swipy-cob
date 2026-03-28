@@ -1,4 +1,4 @@
-# 🚀 Swipy Cob - Automação de Cobrança White-label
+# 🚀 Swipy Fintech LTDA - Automação de Cobrança White-label
 
 Sistema completo para gestão de cobranças via Pix (Woovi), assinaturas recorrentes e automação de notificações via WhatsApp (Meta API).
 

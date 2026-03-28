@@ -70,7 +70,7 @@ const ClientPortal = () => {
         <div className="text-center mb-16">
           <div className="inline-flex items-center gap-3 mb-6">
              <div className="w-14 h-14 bg-orange-500 rounded-[1.2rem] flex items-center justify-center font-bold text-zinc-950 text-3xl shadow-2xl shadow-orange-500/20">S</div>
-             <span className="text-4xl font-bold tracking-tighter">Swipy <span className="text-orange-500">Cob</span></span>
+             <span className="text-4xl font-bold tracking-tighter">Swipy <span className="text-orange-500">Fintech LTDA</span></span>
           </div>
           <h1 className="text-5xl font-extrabold mb-4 tracking-tighter">Faturas em Aberto</h1>
           <p className="text-zinc-500 text-lg">Consulte e pague seus débitos pendentes via PIX.</p>
@@ -172,7 +172,7 @@ const ClientPortal = () => {
 
         <div className="mt-24 flex flex-col items-center gap-4 opacity-30">
           <div className="flex items-center text-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 max-w-md">
-            <ShieldCheck size={16} className="shrink-0" /> Pagamento 100% seguro por Swipy e Woovi Instituição de Pagamento LTDA.
+            <ShieldCheck size={16} className="shrink-0" /> Pagamento 100% seguro por Swipy Fintech LTDA e Woovi Instituição de Pagamento.
           </div>
         </div>
       </div>

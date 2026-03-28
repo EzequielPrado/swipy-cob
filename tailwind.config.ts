@@ -18,7 +18,27 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+      },
       colors: {
+        // Redefinindo o laranja principal para aplicar em toda a aplicação instantaneamente
+        orange: {
+          400: '#FFA061',
+          500: '#FF8C42', // Laranja Swipy
+          600: '#E07534', // Laranja Hover
+        },
+        // Cores de Superfícies e Textos (Padrão Apple)
+        apple: {
+          black: '#1d1d1f',
+          dark: '#333336',
+          muted: '#86868b',
+          light: '#f5f5f7',
+          white: '#ffffff',
+          offWhite: '#fafafa',
+          border: '#d2d2d7',
+          borderTranslucent: 'rgba(0, 0, 0, 0.08)'
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

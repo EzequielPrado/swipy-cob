@@ -59,7 +59,7 @@ const Customers = () => {
 
   const handleExportPDF = () => {
     if (filteredCustomers.length === 0) return showError("Nada para exportar");
-    exportToPDF(filteredCustomers, "Relatório de Clientes - Swipy Cob", `clientes-${new Date().toISOString().split('T')[0]}`);
+    exportToPDF(filteredCustomers, "Relatório de Clientes - Swipy Fintech LTDA", `clientes-${new Date().toISOString().split('T')[0]}`);
     showSuccess("PDF gerado com sucesso!");
   };
 
@@ -120,7 +120,7 @@ const Customers = () => {
         },
         body: JSON.stringify({
           to: customer.email,
-          subject: 'Atualização de Cadastro - Swipy Cob',
+          subject: 'Atualização de Cadastro - Swipy Fintech LTDA',
           html: `<h1>Olá, ${customer.name}!</h1><p>Confirmamos que seus dados foram atualizados em nosso sistema.</p>`
         }),
         signal: controller.signal

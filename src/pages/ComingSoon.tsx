@@ -13,7 +13,7 @@ const ComingSoon = () => {
         </div>
         <h2 className="text-3xl font-bold tracking-tight mb-4">Módulo em Desenvolvimento</h2>
         <p className="text-zinc-400 max-w-md mx-auto leading-relaxed">
-          Estamos trabalhando intensamente para transformar o Swipy Cob no seu ERP completo. 
+          Estamos trabalhando intensamente para transformar a Swipy Fintech LTDA no seu ERP completo. 
           Esta área de gestão estará disponível nas próximas atualizações.
         </p>
       </div>
