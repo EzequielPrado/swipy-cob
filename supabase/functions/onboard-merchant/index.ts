@@ -17,13 +17,11 @@ serve(async (req) => {
 
     const { userId, planId } = await req.json()
 
-    // 1. Buscar dados do novo lojista e do plano
     const { data: merchant } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).single()
     const { data: plan } = await supabaseAdmin.from('system_plans').select('*').eq('id', planId).single()
     
     if (!merchant || !plan) throw new Error("Dados insuficientes para onboarding")
 
-    // 2. Localizar o Administrador Master do Sistema (quem vai receber o pagamento)
     const { data: admin } = await supabaseAdmin
       .from('profiles')
       .select('id, woovi_api_key, company')
@@ -34,15 +32,17 @@ serve(async (req) => {
 
     if (!admin?.woovi_api_key) throw new Error("Administrador do sistema não configurado.")
 
-    console.log(`[onboard] Cadastrando ${merchant.full_name} como cliente de ${admin.company}`);
+    console.log(`[onboard-merchant] Cadastrando ${merchant.full_name} como cliente de ${admin.company}`);
 
-    // 3. Cadastrar o lojista como CLIENTE do Admin na Woovi
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const userEmail = authData?.user?.email || merchant.email || `${merchant.cpf || userId}@swipy.com`;
+
     const customerRes = await fetch('https://api.woovi.com/api/v1/customer', {
       method: 'POST',
       headers: { 'Authorization': admin.woovi_api_key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: merchant.company || merchant.full_name,
-        email: merchant.email, // Supondo que temos o email no profile
+        email: userEmail,
         taxID: merchant.cpf?.replace(/\D/g, ''),
         phone: merchant.phone,
         correlationID: `cust_${userId}`
@@ -52,18 +52,16 @@ serve(async (req) => {
     const customerData = await customerRes.json()
     const wooviCustomerId = customerData.customer?.identifier
 
-    // 4. Salvar este lojista na tabela de 'customers' do Admin
     const { data: dbCustomer } = await supabaseAdmin.from('customers').insert({
-      user_id: admin.id, // O dono do cliente é o admin
+      user_id: admin.id,
       name: merchant.company || merchant.full_name,
-      email: merchant.email,
+      email: userEmail,
       tax_id: merchant.cpf,
       phone: merchant.phone,
       woovi_id: wooviCustomerId,
       status: 'em dia'
     }).select().single()
 
-    // 5. Se o plano for pago (> 0), gerar a cobrança Pix
     let chargeId = null;
     if (plan.price > 0 && dbCustomer) {
       const chargeRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/create-woovi-charge`, {
@@ -74,13 +72,62 @@ serve(async (req) => {
           amount: plan.price,
           method: 'pix',
           dueDate: new Date().toISOString().split('T')[0],
-          userId: admin.id, // Cobrança em nome do Admin
+          userId: admin.id,
           description: `Assinatura Plano ${plan.name} - Swipy`,
-          origin: "https://swipy.com" // Placeholder
+          origin: "https://swipy.com" 
         })
       })
       const chargeData = await chargeRes.json()
       chargeId = chargeData.id
+    }
+
+    try {
+      const cleanTaxId = merchant.cpf?.replace(/\D/g, '') || '';
+      const taxType = cleanTaxId.length > 11 ? 'BR:CNPJ' : 'BR:CPF';
+
+      const [firstName, ...lastNameParts] = (merchant.full_name || '').split(' ');
+      const lastName = lastNameParts.join(' ') || firstName; 
+
+      const partnerPayload = {
+        preRegistration: {
+          name: merchant.company || merchant.full_name,
+          website: merchant.website || 'https://swipy.com',
+          taxID: {
+            taxID: cleanTaxId,
+            type: taxType
+          }
+        },
+        user: {
+          firstName: firstName || 'Admin',
+          lastName: lastName || 'Swipy',
+          email: userEmail,
+          phone: merchant.phone?.replace(/\D/g, '') || '',
+          taxID: {
+            taxID: cleanTaxId,
+            type: taxType
+          }
+        }
+      };
+
+      console.log(`[onboard-merchant] Chamando API Partner Woovi para registrar empresa...`);
+      const partnerRes = await fetch('https://api.woovi.com/api/v1/partner/company', {
+        method: 'POST',
+        headers: { 
+          'Authorization': admin.woovi_api_key, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(partnerPayload)
+      });
+
+      if (!partnerRes.ok) {
+        const partnerError = await partnerRes.text();
+        console.error(`[onboard-merchant] Falha ao criar Partner na Woovi:`, partnerError);
+      } else {
+        const partnerData = await partnerRes.json();
+        console.log(`[onboard-merchant] Conta Partner criada com sucesso na Woovi.`);
+      }
+    } catch (partnerErr: any) {
+      console.error(`[onboard-merchant] Erro ao executar API Partner:`, partnerErr.message);
     }
 
     return new Response(JSON.stringify({ success: true, chargeId }), {

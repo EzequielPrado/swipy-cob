@@ -46,25 +46,16 @@ const Register = () => {
       if (formData.password.length < 6) return showError("A senha deve ter pelo menos 6 caracteres.");
       if (formData.password !== formData.confirmPassword) return showError("As senhas não conferem.");
     }
-    setStep(step + 1);
+    if (step < 4) setStep(step + 1);
   };
 
-  // Função para lidar com o envio do formulário
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Bloqueio Crítico: Se não for o passo 4, apenas avança (se possível) ou ignora
-    if (step < 4) {
-      nextStep();
-      return;
-    }
-
+  const handleFormSubmit = async () => {
+    if (step !== 4) return;
     if (!formData.planId) return showError("Selecione um plano antes de finalizar.");
 
     setLoading(true);
 
     try {
-      // 1. Criar Usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -85,8 +76,6 @@ const Register = () => {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Não foi possível criar o usuário. Tente outro e-mail.");
 
-      // 2. Chamar a automação de Onboarding (Backend)
-      // Esta função cria o registro do lojista como cliente do Admin e gera a cobrança do plano
       const onboardRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/onboard-merchant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,18 +86,26 @@ const Register = () => {
       
       showSuccess('Cadastro finalizado com sucesso!');
 
-      // 3. Lógica de Redirecionamento
-      // Se for um plano pago e gerou cobrança, vai para o checkout da Swipy
       if (onboardData.chargeId) {
         navigate(`/pagar/${onboardData.chargeId}`);
       } else {
-        // Se for plano gratuito, vai para o login
         navigate('/login');
       }
 
     } catch (err: any) {
       showError(err.message);
       setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (step < 4) {
+        nextStep();
+      } else {
+        handleFormSubmit();
+      }
     }
   };
 
@@ -133,7 +130,7 @@ const Register = () => {
         </div>
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] shadow-2xl overflow-hidden">
-          <form onSubmit={handleFormSubmit} className="p-8 space-y-6">
+          <form onKeyDown={handleKeyDown} onSubmit={(e) => e.preventDefault()} className="p-8 space-y-6">
             
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -260,7 +257,8 @@ const Register = () => {
                 </button>
               ) : (
                 <button 
-                  type="submit" 
+                  type="button" 
+                  onClick={handleFormSubmit}
                   disabled={loading || plans.length === 0} 
                   className="flex-[3] bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 disabled:opacity-50 transition-all"
                 >
