@@ -53,33 +53,28 @@ const UserManagement = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    console.log("[Admin] Iniciando busca de dados globais...");
-    
     try {
-      // Buscamos os dados separadamente para evitar que um erro de permissão em uma tabela trave tudo
-      const results = await Promise.allSettled([
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+      // 1. Busca perfis ordenando por updated_at já que created_at não existe
+      const { data: profiles, error: profError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (profError) throw profError;
+
+      // 2. Busca dados complementares
+      const [chargesRes, customersRes, plansRes] = await Promise.all([
         supabase.from('charges').select('user_id, amount, status'),
         supabase.from('customers').select('user_id'),
         supabase.from('system_plans').select('*')
       ]);
 
-      const profilesRes = results[0].status === 'fulfilled' ? results[0].value : { data: [], error: results[0].reason };
-      const chargesRes = results[1].status === 'fulfilled' ? results[1].value : { data: [], error: results[1].reason };
-      const customersRes = results[2].status === 'fulfilled' ? results[2].value : { data: [], error: results[2].reason };
-      const plansRes = results[3].status === 'fulfilled' ? results[3].value : { data: [], error: results[3].reason };
-
-      if (profilesRes.error) {
-        console.error("Erro ao carregar Perfis:", profilesRes.error);
-        showError("Sem permissão para listar usuários. Verifique se você é Admin.");
-      }
-
-      if (profilesRes.data) {
-        const enrichedUsers = profilesRes.data.map(u => {
-          const userCharges = chargesRes.data?.filter((c: any) => c.user_id === u.id) || [];
-          const tpv = userCharges.filter((c: any) => c.status === 'pago').reduce((acc, curr: any) => acc + Number(curr.amount), 0);
-          const clientCount = customersRes.data?.filter((c: any) => c.user_id === u.id).length || 0;
-          const plan = plansRes.data?.find((p: any) => p.id === u.plan_id);
+      if (profiles) {
+        const enrichedUsers = profiles.map(u => {
+          const userCharges = chargesRes.data?.filter(c => c.user_id === u.id) || [];
+          const tpv = userCharges.filter(c => c.status === 'pago').reduce((acc, curr) => acc + Number(curr.amount), 0);
+          const clientCount = customersRes.data?.filter(c => c.user_id === u.id).length || 0;
+          const plan = plansRes.data?.find(p => p.id === u.plan_id);
           
           return { ...u, tpv, clientCount, plan_name: plan?.name || 'Básico' };
         });
@@ -89,8 +84,8 @@ const UserManagement = () => {
       if (plansRes.data) setPlans(plansRes.data);
       
     } catch (err: any) {
-      console.error("Erro Crítico Admin:", err);
-      showError("Erro inesperado ao carregar painel admin.");
+      console.error("Erro Admin:", err.message);
+      showError("Erro ao carregar dados. Verifique se você é um Administrador.");
     } finally {
       setLoading(false);
     }
@@ -141,7 +136,8 @@ const UserManagement = () => {
           full_name: editData.full_name,
           status: editData.status,
           woovi_api_key: editData.woovi_api_key,
-          plan_id: editData.plan_id === 'none' ? null : editData.plan_id
+          plan_id: editData.plan_id === 'none' ? null : editData.plan_id,
+          updated_at: new Date().toISOString()
         })
         .eq('id', selectedUser.id);
 
@@ -158,7 +154,6 @@ const UserManagement = () => {
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // Se o carregamento terminou e o perfil ainda diz que não é admin
   if (!loading && !myProfile?.is_admin) {
     return (
       <AppLayout>

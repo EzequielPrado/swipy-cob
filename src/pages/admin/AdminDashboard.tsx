@@ -30,8 +30,6 @@ import { showError, showSuccess } from '@/utils/toast';
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
     totalUsers: 0,
-    newUsers30d: 0,
-    totalCharges: 0,
     activeSubs: 0,
     overdueAmount: 0,
     totalVolumePaid: 0,
@@ -47,11 +45,8 @@ const AdminDashboard = () => {
   const fetchGlobalData = async () => {
     setLoading(true);
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
       const [profilesRes, chargesRes, subsRes, productsRes, productionRes] = await Promise.all([
-        supabase.from('profiles').select('id, created_at'),
+        supabase.from('profiles').select('id'),
         supabase.from('charges').select('amount, status'),
         supabase.from('subscriptions').select('amount').eq('status', 'active'),
         supabase.from('products').select('id', { count: 'exact', head: true }),
@@ -59,7 +54,6 @@ const AdminDashboard = () => {
       ]);
 
       const totalUsers = profilesRes.data?.length || 0;
-      const newUsers = profilesRes.data?.filter(p => p.created_at && new Date(p.created_at) >= thirtyDaysAgo).length || 0;
       
       const paidCharges = chargesRes.data?.filter(c => c.status === 'pago') || [];
       const totalPaid = paidCharges.reduce((acc, curr) => acc + Number(curr.amount), 0);
@@ -70,7 +64,6 @@ const AdminDashboard = () => {
 
       setStats({
         totalUsers,
-        newUsers30d: newUsers,
         totalCharges: chargesRes.data?.length || 0,
         activeSubs: subsRes.data?.length || 0,
         overdueAmount: overdue,
@@ -148,7 +141,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* 1. SEÇÃO DE GATILHOS DE AUTOMAÇÃO (DESTAQUE) */}
         <div className="bg-gradient-to-br from-orange-500/10 to-zinc-900 border border-orange-500/20 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
            <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none"><Zap size={140} /></div>
            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
@@ -158,8 +150,7 @@ const AdminDashboard = () => {
                     Comandos de Automação Global
                  </h3>
                  <p className="text-sm text-zinc-400 max-w-lg leading-relaxed">
-                    Execute manualmente os processos do sistema para todos os clientes ativos. 
-                    Útil para processamentos emergenciais ou disparos de cobrança fora do horário agendado.
+                    Execute manualmente os processos do sistema para todos os clientes ativos.
                  </p>
               </div>
               <div className="flex flex-wrap gap-4 shrink-0">
@@ -183,24 +174,19 @@ const AdminDashboard = () => {
            </div>
         </div>
 
-        {/* 2. KPIs DE NEGÓCIO */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] shadow-2xl group hover:border-orange-500/30 transition-all">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
               <Users size={14} className="text-orange-500" /> Base de Lojistas
             </h3>
             <p className="text-4xl font-black text-zinc-100">{stats.totalUsers}</p>
-            <p className="text-[10px] text-emerald-500 mt-3 font-bold flex items-center gap-1">
-               <ArrowUpRight size={12} /> +{stats.newUsers30d} novos (30 dias)
-            </p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] shadow-2xl group hover:border-blue-500/30 transition-all">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <TrendingUp size={14} className="text-blue-500" /> ARPU (Receita SaaS)
+              <TrendingUp size={14} className="text-blue-500" /> ARPU (SaaS)
             </h3>
             <p className="text-4xl font-black text-zinc-100">{currency.format(stats.arpu)}</p>
-            <p className="text-[10px] text-zinc-500 mt-3 italic">Média de recorrência por conta</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] shadow-2xl group hover:border-emerald-500/30 transition-all">
@@ -208,19 +194,16 @@ const AdminDashboard = () => {
               <DollarSign size={14} className="text-emerald-500" /> TPV Acumulado
             </h3>
             <p className="text-4xl font-black text-emerald-400">{currency.format(stats.totalVolumePaid)}</p>
-            <p className="text-[10px] text-zinc-500 mt-3 font-bold">Total processado e liquidado</p>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] shadow-2xl group hover:border-red-500/30 transition-all">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <AlertTriangle size={14} className="text-red-500" /> Risco de Inadimplência
+              <AlertTriangle size={14} className="text-red-500" /> Risco (Atrasos)
             </h3>
             <p className="text-4xl font-black text-zinc-100">{currency.format(stats.overdueAmount)}</p>
-            <p className="text-[10px] text-red-400 mt-3 font-bold uppercase tracking-tighter">Volume total em atraso</p>
           </div>
         </div>
 
-        {/* 3. FLUXO E ENGAGEMENT */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 space-y-8">
               <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
@@ -228,13 +211,12 @@ const AdminDashboard = () => {
                    <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-widest flex items-center gap-2">
                      <Activity size={16} className="text-orange-500" /> Fluxo de Transações Global
                    </h3>
-                   <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Tempo Real</span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-zinc-950/50 text-zinc-500 text-[9px] font-bold uppercase tracking-[0.2em]">
                       <tr>
-                        <th className="px-8 py-5">Lojista (Tenant)</th>
+                        <th className="px-8 py-5">Lojista</th>
                         <th className="px-8 py-5">Cliente Final</th>
                         <th className="px-8 py-5">Valor</th>
                         <th className="px-8 py-5">Status</th>
@@ -250,7 +232,6 @@ const AdminDashboard = () => {
                                </div>
                                <div>
                                   <p className="text-xs font-black text-zinc-100">{charge.profiles?.company || charge.profiles?.full_name}</p>
-                                  <p className="text-[10px] text-zinc-600 font-mono mt-0.5">#{charge.user_id.split('-')[0].toUpperCase()}</p>
                                </div>
                             </div>
                           </td>
@@ -278,13 +259,12 @@ const AdminDashboard = () => {
 
            <div className="space-y-8">
               <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                 <div className="absolute -right-6 -bottom-6 opacity-5"><Activity size={120} /></div>
-                 <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-widest mb-6">Métricas de Engajamento</h3>
+                 <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-widest mb-6">Engajamento</h3>
                  <div className="space-y-6">
                     <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-2xl border border-zinc-800">
                        <div className="flex items-center gap-3">
                           <Package size={16} className="text-orange-500" />
-                          <span className="text-xs text-zinc-400 font-bold">Itens Cadastrados</span>
+                          <span className="text-xs text-zinc-400 font-bold">Itens Totais</span>
                        </div>
                        <span className="text-sm font-black text-zinc-100">{stats.systemProducts}</span>
                     </div>
@@ -295,26 +275,7 @@ const AdminDashboard = () => {
                        </div>
                        <span className="text-sm font-black text-zinc-100">{stats.systemProduction}</span>
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-zinc-950 rounded-2xl border border-zinc-800">
-                       <div className="flex items-center gap-3">
-                          <TrendingUp size={16} className="text-emerald-500" />
-                          <span className="text-xs text-zinc-400 font-bold">Conversão Média</span>
-                       </div>
-                       <span className="text-sm font-black text-emerald-500">84%</span>
-                    </div>
                  </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
-                 <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><Globe size={100} /></div>
-                 <h4 className="font-black text-white mb-2 uppercase tracking-widest text-xs">Gestão de Usuários</h4>
-                 <p className="text-sm text-blue-100 font-medium mb-6">Aprove novos lojistas, configure chaves API e gerencie permissões de acesso.</p>
-                 <button 
-                  onClick={() => window.location.href = '/admin/usuarios'}
-                  className="w-full bg-white text-blue-700 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:bg-zinc-100 transition-all active:scale-95"
-                 >
-                   ACESSAR LISTA DE CLIENTES
-                 </button>
               </div>
            </div>
         </div>
