@@ -21,7 +21,8 @@ import {
   Mail,
   DollarSign,
   AlertTriangle,
-  Lock
+  Lock,
+  RefreshCw
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -31,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from '@/integrations/supabase/auth';
 
 const UserManagement = () => {
-  const { profile: myProfile } = useAuth();
+  const { profile: myProfile, refreshProfile } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,28 +53,33 @@ const UserManagement = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    console.log("[Admin] Iniciando busca de dados globais...");
+    
     try {
-      // 1. Busca perfis de forma simples para evitar erros de join
-      const { data: profiles, error: profError } = await supabase
-        .from('profiles')
-        .select(`*`)
-        .order('created_at', { ascending: false });
-
-      if (profError) throw profError;
-
-      // 2. Busca dados complementares
-      const [chargesRes, customersRes, plansRes] = await Promise.all([
+      // Buscamos os dados separadamente para evitar que um erro de permissão em uma tabela trave tudo
+      const results = await Promise.allSettled([
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('charges').select('user_id, amount, status'),
         supabase.from('customers').select('user_id'),
         supabase.from('system_plans').select('*')
       ]);
 
-      if (profiles) {
-        const enrichedUsers = profiles.map(u => {
-          const userCharges = chargesRes.data?.filter(c => c.user_id === u.id) || [];
-          const tpv = userCharges.filter(c => c.status === 'pago').reduce((acc, curr) => acc + Number(curr.amount), 0);
-          const clientCount = customersRes.data?.filter(c => c.user_id === u.id).length || 0;
-          const plan = plansRes.data?.find(p => p.id === u.plan_id);
+      const profilesRes = results[0].status === 'fulfilled' ? results[0].value : { data: [], error: results[0].reason };
+      const chargesRes = results[1].status === 'fulfilled' ? results[1].value : { data: [], error: results[1].reason };
+      const customersRes = results[2].status === 'fulfilled' ? results[2].value : { data: [], error: results[2].reason };
+      const plansRes = results[3].status === 'fulfilled' ? results[3].value : { data: [], error: results[3].reason };
+
+      if (profilesRes.error) {
+        console.error("Erro ao carregar Perfis:", profilesRes.error);
+        showError("Sem permissão para listar usuários. Verifique se você é Admin.");
+      }
+
+      if (profilesRes.data) {
+        const enrichedUsers = profilesRes.data.map(u => {
+          const userCharges = chargesRes.data?.filter((c: any) => c.user_id === u.id) || [];
+          const tpv = userCharges.filter((c: any) => c.status === 'pago').reduce((acc, curr: any) => acc + Number(curr.amount), 0);
+          const clientCount = customersRes.data?.filter((c: any) => c.user_id === u.id).length || 0;
+          const plan = plansRes.data?.find((p: any) => p.id === u.plan_id);
           
           return { ...u, tpv, clientCount, plan_name: plan?.name || 'Básico' };
         });
@@ -81,9 +87,10 @@ const UserManagement = () => {
       }
       
       if (plansRes.data) setPlans(plansRes.data);
+      
     } catch (err: any) {
-      console.error("Erro Admin:", err.message);
-      showError("Erro ao carregar dados. Verifique se você é um Administrador.");
+      console.error("Erro Crítico Admin:", err);
+      showError("Erro inesperado ao carregar painel admin.");
     } finally {
       setLoading(false);
     }
@@ -151,16 +158,32 @@ const UserManagement = () => {
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // Se não for admin, mostra aviso
+  // Se o carregamento terminou e o perfil ainda diz que não é admin
   if (!loading && !myProfile?.is_admin) {
     return (
       <AppLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-           <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
+           <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/20">
               <Lock size={40} className="text-red-500" />
            </div>
-           <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
-           <p className="text-zinc-500 max-w-sm">Apenas usuários com permissão de Super Admin podem visualizar a lista global de empresas.</p>
+           <div>
+              <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
+              <p className="text-zinc-500 max-w-sm">Você está logado, mas seu perfil não tem permissão de Super Admin.</p>
+           </div>
+           <div className="flex gap-4">
+              <button 
+                onClick={() => { refreshProfile(); fetchData(); }}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold transition-all"
+              >
+                <RefreshCw size={18} /> Forçar Atualização
+              </button>
+              <button 
+                onClick={() => window.location.href = '/'}
+                className="bg-orange-500 text-zinc-950 px-6 py-3 rounded-xl font-bold"
+              >
+                Voltar ao Início
+              </button>
+           </div>
         </div>
       </AppLayout>
     );
