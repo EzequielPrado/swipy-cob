@@ -11,6 +11,9 @@ interface AuthContextType {
   isAdmin: boolean;
   systemRole: string;
   loading: boolean;
+  activeMerchant: any | null; // O cliente que o contador está visualizando
+  setActiveMerchant: (merchant: any | null) => void;
+  effectiveUserId: string | undefined; // ID usado para filtros (seja do contador ou do cliente selecionado)
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -22,6 +25,9 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   systemRole: 'Admin',
   loading: true,
+  activeMerchant: null,
+  setActiveMerchant: () => {},
+  effectiveUserId: undefined,
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -30,10 +36,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
+  const [activeMerchant, setActiveMerchantState] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Recuperar cliente ativo do localStorage para persistir entre F5
+  useEffect(() => {
+    const saved = localStorage.getItem('swipy_active_merchant');
+    if (saved) {
+      try { setActiveMerchantState(JSON.parse(saved)); } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  const setActiveMerchant = (merchant: any | null) => {
+    setActiveMerchantState(merchant);
+    if (merchant) localStorage.setItem('swipy_active_merchant', JSON.stringify(merchant));
+    else localStorage.removeItem('swipy_active_merchant');
+  };
+
   const fetchProfile = async (userId: string) => {
-    // Busca o perfil e faz o join com a tabela de planos
     const { data } = await supabase
       .from('profiles')
       .select('*, system_plans(*)')
@@ -57,7 +77,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      else {
+        setProfile(null);
+        setActiveMerchant(null);
+      }
       setLoading(false);
     });
 
@@ -65,6 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
+    localStorage.removeItem('swipy_active_merchant');
     await supabase.auth.signOut();
   };
 
@@ -80,6 +104,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isAdmin: profile?.is_admin || false, 
       systemRole: profile?.system_role || 'Admin',
       loading, 
+      activeMerchant,
+      setActiveMerchant,
+      effectiveUserId: activeMerchant?.id || user?.id,
       signOut,
       refreshProfile
     }}>

@@ -25,7 +25,7 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { cn } from "@/lib/utils";
 
 const OverviewDashboard = () => {
-  const { user } = useAuth();
+  const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     mrr: 0,
@@ -45,7 +45,7 @@ const OverviewDashboard = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user) return;
+      if (!effectiveUserId) return;
       setLoading(true);
       
       try {
@@ -53,23 +53,21 @@ const OverviewDashboard = () => {
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString().split('T')[0];
 
-        // 1. Métricas Financeiras e Vendas
+        // Usamos effectiveUserId que alterna entre o contador e o lojista selecionado
         const [subsRes, salesRes, productsRes, expensesRes, accountsRes, ordersRes, employeesRes] = await Promise.all([
-          supabase.from('subscriptions').select('amount').eq('user_id', user.id).eq('status', 'active'),
-          supabase.from('quotes').select('*, customers(name)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
-          supabase.from('products').select('*').eq('user_id', user.id),
-          supabase.from('expenses').select('amount').eq('user_id', user.id).eq('due_date', todayStr).neq('status', 'pago'),
-          supabase.from('bank_accounts').select('balance').eq('user_id', user.id),
-          supabase.from('production_orders').select('*, products(name)').eq('user_id', user.id).order('created_at', { ascending: false }),
-          supabase.from('employees').select('id').eq('user_id', user.id).eq('status', 'Ativo')
+          supabase.from('subscriptions').select('amount').eq('user_id', effectiveUserId).eq('status', 'active'),
+          supabase.from('quotes').select('*, customers(name)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }).limit(20),
+          supabase.from('products').select('*').eq('user_id', effectiveUserId),
+          supabase.from('expenses').select('amount').eq('user_id', effectiveUserId).eq('due_date', todayStr).neq('status', 'pago'),
+          supabase.from('bank_accounts').select('balance').eq('user_id', effectiveUserId),
+          supabase.from('production_orders').select('*, products(name)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }),
+          supabase.from('employees').select('id').eq('user_id', effectiveUserId).eq('status', 'Ativo')
         ]);
 
-        // Processamento Vendas
         const totalMrr = subsRes.data?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
         const salesToday = salesRes.data?.filter(s => new Date(s.created_at) >= today) || [];
         const totalSalesToday = salesToday.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0) || 0;
 
-        // Processamento Estoque
         let totalStockValue = 0;
         let lowStock: any[] = [];
         if (productsRes.data) {
@@ -77,7 +75,6 @@ const OverviewDashboard = () => {
           lowStock = productsRes.data.filter(p => (p.stock_quantity || 0) <= 5).sort((a, b) => a.stock_quantity - b.stock_quantity).slice(0, 4);
         }
 
-        // Processamento Indústria
         const pendingProd = ordersRes.data?.filter(o => o.status === 'pending').length || 0;
         const activeProd = ordersRes.data?.filter(o => o.status === 'in_progress').length || 0;
 
@@ -104,7 +101,7 @@ const OverviewDashboard = () => {
     };
     
     fetchDashboardData();
-  }, [user]);
+  }, [effectiveUserId]);
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -122,7 +119,7 @@ const OverviewDashboard = () => {
           </div>
         </div>
 
-        {/* 1. KPIs FINANCEIROS */}
+        {/* KPIs FINANCEIROS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-zinc-900 border border-zinc-800 p-7 rounded-[2.5rem] shadow-xl relative overflow-hidden group hover:border-orange-500/30 transition-all">
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><ShoppingCart size={80} /></div>
@@ -181,11 +178,10 @@ const OverviewDashboard = () => {
           </div>
         </div>
 
-        {/* 2. OPERAÇÕES E LISTAS RECENTES */}
+        {/* OPERAÇÕES E LISTAS RECENTES */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           <div className="lg:col-span-2 space-y-8">
-            {/* LINHA DE PRODUÇÃO E ESTOQUE */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] overflow-hidden flex flex-col md:flex-row shadow-2xl">
               <div className="p-8 flex-1 border-b md:border-b-0 md:border-r border-zinc-800 bg-zinc-950/20">
                 <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -230,7 +226,6 @@ const OverviewDashboard = () => {
               </div>
             </div>
 
-            {/* LISTA DE VENDAS RECENTES */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 shadow-2xl">
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xs font-bold text-zinc-100 uppercase tracking-widest flex items-center gap-2">
@@ -265,9 +260,7 @@ const OverviewDashboard = () => {
             </div>
           </div>
 
-          {/* COLUNA LATERAL: STATUS E ALERTAS */}
           <div className="space-y-8">
-            {/* ESTOQUE CRÍTICO */}
             <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-xl">
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-8 flex items-center gap-2">
                 <AlertTriangle size={16} className="text-red-500" /> Alertas de Reposição
@@ -304,7 +297,6 @@ const OverviewDashboard = () => {
               </div>
             </div>
 
-            {/* ORDENS DE PRODUÇÃO EM CURSO */}
             <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] shadow-xl">
               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-8 flex items-center gap-2">
                 <Clock size={16} className="text-blue-500" /> Pipeline Industrial
@@ -333,7 +325,6 @@ const OverviewDashboard = () => {
               </div>
             </div>
 
-            {/* CARD RH RÁPIDO */}
             <div className="bg-gradient-to-br from-zinc-800 to-zinc-950 p-8 rounded-[2.5rem] border border-zinc-800 shadow-2xl relative overflow-hidden group">
                <div className="absolute -right-6 -bottom-6 opacity-5 group-hover:scale-110 transition-transform duration-700">
                   <Users size={120} />

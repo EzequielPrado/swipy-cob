@@ -21,7 +21,8 @@ import {
   Factory,
   Zap,
   GraduationCap,
-  Briefcase
+  Briefcase,
+  XCircle
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -42,7 +43,7 @@ const menuStructure = [
     title: 'Visão Geral',
     icon: LayoutDashboard,
     path: '/',
-    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque']
+    roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador']
   },
   {
     title: 'Minha Carteira',
@@ -128,7 +129,7 @@ const adminItems = [
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, isAdmin } = useAuth();
+  const { user, signOut, systemRole, isAdmin, activeMerchant, setActiveMerchant } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [hasNew, setHasNew] = useState(false);
@@ -329,6 +330,23 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
+        {activeMerchant && (
+           <div className="bg-orange-500 px-8 py-2.5 flex items-center justify-between shadow-lg z-50">
+              <div className="flex items-center gap-3">
+                 <ShieldCheck className="text-zinc-950" size={18} />
+                 <p className="text-zinc-950 text-xs font-black uppercase tracking-widest">
+                   Modo de Visualização: <span className="underline">{activeMerchant.company || activeMerchant.full_name}</span>
+                 </p>
+              </div>
+              <button 
+                onClick={() => { setActiveMerchant(null); navigate('/contador'); }}
+                className="flex items-center gap-2 bg-zinc-950 text-white px-3 py-1 rounded-full text-[10px] font-bold hover:bg-zinc-800 transition-all uppercase tracking-tighter"
+              >
+                <XCircle size={14} /> Sair do ERP do Cliente
+              </button>
+           </div>
+        )}
+
         <header className="h-16 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-900/30 shrink-0">
           <div className="flex items-center gap-4">
             <h1 className="text-sm font-medium text-zinc-400">
