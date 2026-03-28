@@ -21,27 +21,46 @@ const AdminDashboard = () => {
     setLoading(true);
     try {
       const [profilesRes, chargesRes, subsRes, custRes] = await Promise.all([
-        supabase.from('profiles').select('id'),
-        supabase.from('charges').select('amount, status'),
+        supabase.from('profiles').select('id, company, full_name'),
+        supabase.from('charges').select('amount, status, user_id, customer_id, customers(name)'),
         supabase.from('subscriptions').select('id').eq('status', 'active'),
-        supabase.from('customers').select('*, profiles:user_id(company, full_name)').order('created_at', { ascending: false }).limit(20)
+        supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20)
       ]);
 
-      const totalPaid = chargesRes.data?.filter(c => c.status === 'pago').reduce((acc, c) => acc + Number(c.amount), 0) || 0;
+      const allProfiles = profilesRes.data || [];
+      const totalPaid = (chargesRes.data || []).filter(c => c.status === 'pago').reduce((acc, c) => acc + Number(c.amount), 0);
       
       setStats({ 
-        totalUsers: profilesRes.data?.length || 0, 
+        totalUsers: allProfiles.length, 
         totalCharges: chargesRes.data?.length || 0, 
         activeSubs: subsRes.data?.length || 0, 
         totalVolumePaid: totalPaid,
         totalCustomers: custRes.data?.length || 0
       });
 
-      const { data: charges } = await supabase.from('charges').select('*, customers(name), profiles:user_id(company, full_name)').order('created_at', { ascending: false }).limit(10);
-      if (charges) setRecentCharges(charges);
-      if (custRes.data) setGlobalCustomers(custRes.data);
+      // Mapear cobranças recentes com o nome do lojista
+      if (chargesRes.data) {
+        const enrichedCharges = chargesRes.data.slice(0, 10).map(c => ({
+          ...c,
+          merchant: allProfiles.find(p => p.id === c.user_id)
+        }));
+        setRecentCharges(enrichedCharges);
+      }
 
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      // Mapear clientes globais com o nome do lojista (Corrigindo o "não puxou")
+      if (custRes.data) {
+        const enrichedCustomers = custRes.data.map(cust => ({
+          ...cust,
+          merchant: allProfiles.find(p => p.id === cust.user_id)
+        }));
+        setGlobalCustomers(enrichedCustomers);
+      }
+
+    } catch (err) { 
+      console.error("[AdminDashboard] Erro ao carregar dados:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchGlobalData(); }, []);
@@ -174,7 +193,7 @@ const AdminDashboard = () => {
                 {recentCharges.map((c) => (
                   <tr key={c.id} className="hover:bg-apple-light transition-colors">
                     <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-apple-black truncate max-w-[150px]">{c.profiles?.company || 'Pessoa Física'}</p>
+                      <p className="text-sm font-bold text-apple-black truncate max-w-[150px]">{c.merchant?.company || c.merchant?.full_name || 'Lojista Master'}</p>
                       <p className="text-[9px] text-apple-muted uppercase font-bold">Cliente: {c.customers?.name}</p>
                     </td>
                     <td className="px-8 py-5 text-right font-black text-apple-black">{currency.format(c.amount)}</td>
@@ -207,17 +226,23 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
-                {globalCustomers.map((cust) => (
-                  <tr key={cust.id} className="hover:bg-apple-light transition-colors">
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-apple-black">{cust.name}</p>
-                      <p className="text-[9px] text-apple-muted font-bold font-mono">{cust.tax_id}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                       <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{cust.profiles?.company || 'Lojista Master'}</p>
-                    </td>
-                  </tr>
-                ))}
+                {loading ? (
+                   <tr><td colSpan={2} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
+                ) : globalCustomers.length === 0 ? (
+                  <tr><td colSpan={2} className="py-20 text-center text-apple-muted italic">Nenhum cliente na base global.</td></tr>
+                ) : (
+                  globalCustomers.map((cust) => (
+                    <tr key={cust.id} className="hover:bg-apple-light transition-colors">
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-apple-black">{cust.name}</p>
+                        <p className="text-[9px] text-apple-muted font-bold font-mono">{cust.tax_id}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                         <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">{cust.merchant?.company || cust.merchant?.full_name || 'Lojista Master'}</p>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
             <div className="p-4 bg-apple-offWhite text-center border-t border-apple-border">
