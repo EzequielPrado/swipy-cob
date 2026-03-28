@@ -46,90 +46,93 @@ const Movements = () => {
   return (
     <AppLayout>
       <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Movimentações</h2>
-            <p className="text-zinc-400 mt-1">Histórico completo de entradas e saídas de produtos do estoque.</p>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black">Movimentações</h2>
+            <p className="text-apple-muted mt-1 font-medium">Histórico completo de entradas e saídas de produtos.</p>
           </div>
           <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-zinc-950 font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-orange-500/20"
+            className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 active:scale-95"
           >
-            <ArrowRightLeft size={18} /> Novo Lançamento
+            <ArrowRightLeft size={18} /> NOVO LANÇAMENTO
           </button>
         </div>
 
         <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
           <input 
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por produto, SKU ou observação..." 
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+            placeholder="Produto, SKU ou observação..." 
+            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all shadow-sm text-apple-black"
           />
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden min-h-[400px] shadow-xl">
+        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="animate-spin text-orange-500" size={32} />
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-orange-500">
+              <Loader2 className="animate-spin" size={40} />
+              <p className="text-[10px] font-black uppercase tracking-widest">Sincronizando log...</p>
             </div>
           ) : filteredMovements.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-zinc-500">
+            <div className="flex flex-col items-center justify-center h-64 text-apple-muted opacity-60 italic">
               <History size={48} className="mb-4 opacity-20" />
               <p>Nenhuma movimentação encontrada.</p>
             </div>
           ) : (
-            <table className="w-full text-left">
-              <thead className="bg-zinc-950/50 text-zinc-400 text-[10px] uppercase tracking-[0.2em] border-b border-zinc-800">
-                <tr>
-                  <th className="px-8 py-5">Data / Hora</th>
-                  <th className="px-8 py-5">Produto</th>
-                  <th className="px-8 py-5">Tipo</th>
-                  <th className="px-8 py-5">Quantidade</th>
-                  <th className="px-8 py-5">Observação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-800/50">
-                {filteredMovements.map((mov) => (
-                  <tr key={mov.id} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-200">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</p>
-                      <p className="text-xs text-zinc-500 font-mono mt-0.5">{new Date(mov.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-zinc-100">{mov.products?.name || 'Produto Removido'}</p>
-                      <p className="text-xs text-zinc-500 font-mono mt-0.5">{mov.products?.sku}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                        mov.type === 'in' 
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                          : "bg-red-500/10 text-red-400 border-red-500/20"
-                      )}>
-                        {mov.type === 'in' ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
-                        {mov.type === 'in' ? 'Entrada' : 'Saída'}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className={cn(
-                        "text-sm font-bold",
-                        mov.type === 'in' ? "text-emerald-400" : "text-red-400"
-                      )}>
-                        {mov.type === 'in' ? '+' : '-'}{mov.quantity} un
-                      </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <p className="text-xs text-zinc-400 max-w-xs truncate" title={mov.notes}>
-                        {mov.notes || '---'}
-                      </p>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                  <tr>
+                    <th className="px-8 py-6">Data / Hora</th>
+                    <th className="px-8 py-6">Produto</th>
+                    <th className="px-8 py-6">Tipo</th>
+                    <th className="px-8 py-6">Quantidade</th>
+                    <th className="px-8 py-6">Observação</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {filteredMovements.map((mov) => (
+                    <tr key={mov.id} className="hover:bg-apple-light transition-colors group">
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-black text-apple-black">{new Date(mov.created_at).toLocaleDateString('pt-BR')}</p>
+                        <p className="text-[10px] text-apple-muted font-bold mt-0.5">{new Date(mov.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-black text-apple-black group-hover:text-orange-500 transition-colors">{mov.products?.name || 'Produto Removido'}</p>
+                        <p className="text-[10px] text-apple-muted font-mono mt-0.5 font-bold uppercase">SKU: {mov.products?.sku}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
+                          mov.type === 'in' 
+                            ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
+                            : "bg-red-50 text-red-600 border-red-100"
+                        )}>
+                          {mov.type === 'in' ? <ArrowDownToLine size={12} /> : <ArrowUpFromLine size={12} />}
+                          {mov.type === 'in' ? 'Entrada' : 'Saída'}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={cn(
+                          "text-base font-black",
+                          mov.type === 'in' ? "text-emerald-600" : "text-red-600"
+                        )}>
+                          {mov.type === 'in' ? '+' : '-'}{mov.quantity} <span className="text-[10px] uppercase font-bold text-apple-muted">un.</span>
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <p className="text-xs text-apple-muted font-medium max-w-xs truncate italic" title={mov.notes}>
+                          {mov.notes || '---'}
+                        </p>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
