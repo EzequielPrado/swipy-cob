@@ -294,21 +294,24 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             {isAdmin && (
               <nav className="space-y-1 pt-4 border-t border-zinc-800/50">
                 <p className="text-[10px] font-bold text-orange-500/50 uppercase tracking-widest px-3 mb-2">Administração Global</p>
-                {adminItems.map((item) => (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                      location.pathname === item.path 
-                        ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
-                        : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
-                    )}
-                  >
-                    <item.icon size={18} className={isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"} />
-                    {item.label}
-                  </Link>
-                ))}
+                {adminItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                        isActive 
+                          ? "bg-orange-500/10 text-orange-400 border border-orange-500/20" 
+                          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                      )}
+                    >
+                      <item.icon size={18} className={isActive ? "text-orange-400" : "text-zinc-500 group-hover:text-zinc-300"} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </nav>
             )}
           </div>
