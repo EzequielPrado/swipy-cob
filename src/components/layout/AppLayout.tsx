@@ -20,12 +20,6 @@ const menuStructure = [
     roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] 
   },
   { 
-    title: 'Swipy Conta', 
-    icon: Wallet, 
-    path: '/conta-swipy', 
-    roles: ['Admin', 'Financeiro', 'Contador'] 
-  },
-  { 
     title: 'Minha Carteira', 
     icon: GraduationCap, 
     path: '/contador', 
@@ -41,6 +35,22 @@ const menuStructure = [
       { label: 'Gestão de Vendas', path: '/vendas/lista' }, 
       { label: 'Orçamentos', path: '/vendas/orcamentos' }, 
       { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }
+    ] 
+  },
+  { 
+    title: 'Financeiro', 
+    moduleId: 'financeiro', 
+    icon: Landmark, 
+    roles: ['Admin', 'Financeiro', 'Contador'], 
+    submenus: [
+      { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
+      { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
+      { label: 'Assinaturas', path: '/financeiro/assinaturas' },
+      { label: 'Contas a Pagar', path: '/financeiro/pagar' },
+      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
+      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
+      { label: 'Agenda Financeira', path: '/financeiro/calendario' },
+      { label: 'Raio-X de Performance', path: '/financeiro/performance' }
     ] 
   },
   { 
@@ -63,22 +73,6 @@ const menuStructure = [
     ] 
   },
   { 
-    title: 'Financeiro', 
-    moduleId: 'financeiro', 
-    icon: Landmark, 
-    roles: ['Admin', 'Financeiro', 'Contador'], 
-    submenus: [
-      { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
-      { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
-      { label: 'Assinaturas', path: '/financeiro/assinaturas' },
-      { label: 'Contas a Pagar', path: '/financeiro/pagar' },
-      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
-      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
-      { label: 'Agenda Financeira', path: '/financeiro/calendario' },
-      { label: 'Raio-X de Performance', path: '/financeiro/performance' }
-    ] 
-  },
-  { 
     title: 'Gente e Gestão', 
     moduleId: 'rh', 
     icon: Users, 
@@ -87,6 +81,12 @@ const menuStructure = [
       { label: 'Colaboradores', path: '/rh/colaboradores' }, 
       { label: 'Folha Gerencial', path: '/rh/folha' }
     ] 
+  },
+  { 
+    title: 'Swipy Conta', 
+    icon: Wallet, 
+    path: '/conta-swipy', 
+    roles: ['Admin', 'Financeiro', 'Contador'] 
   },
   { 
     title: 'Cadastros', 
