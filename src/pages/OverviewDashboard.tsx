@@ -53,20 +53,31 @@ const OverviewDashboard = () => {
         today.setHours(0, 0, 0, 0);
         const todayStr = today.toISOString().split('T')[0];
 
-        const [subsRes, salesRes, productsRes, expensesRes, accountsRes, ordersRes, employeesRes] = await Promise.all([
+        // 1. Buscar Sessão para API Woovi
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // 2. Buscar Dados em paralelo
+        const [subsRes, salesRes, productsRes, expensesRes, accountsRes, ordersRes, employeesRes, wooviRes] = await Promise.all([
           supabase.from('subscriptions').select('amount').eq('user_id', effectiveUserId).eq('status', 'active'),
           supabase.from('quotes').select('*, customers(name)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }).limit(20),
           supabase.from('products').select('*').eq('user_id', effectiveUserId),
           supabase.from('expenses').select('amount').eq('user_id', effectiveUserId).eq('due_date', todayStr).neq('status', 'pago'),
-          supabase.from('bank_accounts').select('balance').eq('user_id', effectiveUserId),
+          supabase.from('bank_accounts').select('balance, type').eq('user_id', effectiveUserId),
           supabase.from('production_orders').select('*, products(name)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }),
-          supabase.from('employees').select('id').eq('user_id', effectiveUserId).eq('status', 'Ativo')
+          supabase.from('employees').select('id').eq('user_id', effectiveUserId).eq('status', 'Ativo'),
+          fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+            headers: { 'Authorization': `Bearer ${session?.access_token}` }
+          }).then(res => res.json()).catch(() => ({ balance: { total: 0 } }))
         ]);
 
+        // MRR
         const totalMrr = subsRes.data?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
+        
+        // Vendas Hoje
         const salesToday = salesRes.data?.filter(s => new Date(s.created_at) >= today) || [];
         const totalSalesToday = salesToday.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0) || 0;
 
+        // Estoque
         let totalStockValue = 0;
         let lowStock: any[] = [];
         if (productsRes.data) {
@@ -74,8 +85,15 @@ const OverviewDashboard = () => {
           lowStock = productsRes.data.filter(p => (p.stock_quantity || 0) <= 5).sort((a, b) => a.stock_quantity - b.stock_quantity).slice(0, 4);
         }
 
+        // Produção
         const pendingProd = ordersRes.data?.filter(o => o.status === 'pending').length || 0;
         const activeProd = ordersRes.data?.filter(o => o.status === 'in_progress').length || 0;
+
+        // CÁLCULO DO SALDO CONSOLIDADO (API Woovi + Bancos Manuais)
+        // Ignoramos o valor no DB para contas do tipo 'swipy' pois o valor real vem da API
+        const swipyApiBalance = (wooviRes?.balance?.total || 0) / 100;
+        const manualBanksBalance = accountsRes.data?.filter(acc => acc.type !== 'swipy').reduce((acc, curr) => acc + Number(curr.balance || 0), 0) || 0;
+        const consolidatedTotal = swipyApiBalance + manualBanksBalance;
 
         setStats({
           mrr: totalMrr,
@@ -85,7 +103,7 @@ const OverviewDashboard = () => {
           lowStockItems: lowStock,
           expensesTodayCount: expensesRes.data?.length || 0,
           expensesTodayAmount: expensesRes.data?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0,
-          totalBalance: accountsRes.data?.reduce((acc, curr) => acc + Number(curr.balance || 0), 0) || 0,
+          totalBalance: consolidatedTotal,
           pendingProduction: pendingProd,
           activeProduction: activeProd,
           activeEmployees: employeesRes.data?.length || 0,
