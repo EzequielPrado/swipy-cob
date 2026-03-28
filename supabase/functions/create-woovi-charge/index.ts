@@ -69,6 +69,7 @@ serve(async (req) => {
 
     if (chargeError) throw chargeError
 
+    // Gatilho imediato (Criada)
     const { data: creationRule } = await supabaseClient
       .from('billing_rules')
       .select('*')
@@ -81,6 +82,7 @@ serve(async (req) => {
         const merchantName = profile.company || profile.full_name || "Nossa Empresa";
         const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
         
+        // Mapeamento dinâmico das variáveis do corpo {{1}}, {{2}}...
         const variables = creationRule.mapping.map((key: string) => {
           if (key === 'customer_name') return customer.name;
           if (key === 'merchant_name') return merchantName;
@@ -91,13 +93,21 @@ serve(async (req) => {
           return '---';
         });
 
-        // Correção 1: Gerar a imagem do QR Code dinamicamente baseada no código copia-e-cola do Pix
-        const qrImageUrl = charge.pix_qr_code 
-          ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`
-          : creationRule.image_url;
+        // Resolve dinamicamente a Imagem
+        let qrImageUrl = null;
+        if (creationRule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
+          qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
+        } else if (creationRule.image_url && creationRule.image_url !== '{{qr_code}}') {
+          qrImageUrl = creationRule.image_url;
+        }
 
-        // Correção 2: Na API da Meta, o botão dinâmico espera apenas o SUFIXO da URL (o ID), não a URL completa
-        const buttonVariable = charge.id;
+        // Resolve dinamicamente o Link do Botão
+        let buttonVariable = null;
+        if (creationRule.button_link_variable === 'payment_id') {
+          buttonVariable = charge.id;
+        } else if (creationRule.button_link_variable === 'payment_link') {
+          buttonVariable = systemCheckoutUrl;
+        }
 
         const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
           method: 'POST',
@@ -108,10 +118,10 @@ serve(async (req) => {
           body: JSON.stringify({
             to: customer.phone,
             templateName: creationRule.name,
-            language: creationRule.language || 'en',
-            imageUrl: qrImageUrl, // Enviando a imagem do QR Code
+            language: creationRule.language || 'pt_BR',
+            imageUrl: qrImageUrl,
             variables: variables,
-            buttonVariable: buttonVariable // Enviando apenas o ID
+            buttonVariable: buttonVariable
           })
         });
 

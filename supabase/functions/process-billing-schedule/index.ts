@@ -46,7 +46,7 @@ serve(async (req) => {
         for (const charge of charges) {
           try {
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
-            const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
+            const systemCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
             const variables = rule.mapping.map((key: string) => {
               if (key === 'customer_name') return charge.customers.name;
@@ -54,17 +54,25 @@ serve(async (req) => {
               if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(charge.amount);
               if (key === 'due_date') return new Date(charge.due_date).toLocaleDateString('pt-BR');
               if (key === 'payment_id') return charge.id;
-              if (key === 'payment_link') return internalCheckoutUrl;
+              if (key === 'payment_link') return systemCheckoutUrl;
               return '---';
             });
 
-            // Correção 1: Imagem do QR Code baseada no payload PIX do BD
-            const qrImageUrl = charge.pix_qr_code 
-              ? `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`
-              : rule.image_url;
+            // Resolve dinamicamente a Imagem
+            let qrImageUrl = null;
+            if (rule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
+              qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&.png`;
+            } else if (rule.image_url && rule.image_url !== '{{qr_code}}') {
+              qrImageUrl = rule.image_url;
+            }
 
-            // Correção 2: Passamos apenas o ID da cobrança para o botão da Meta
-            const buttonVariable = charge.id;
+            // Resolve dinamicamente o Link do Botão
+            let buttonVariable = null;
+            if (rule.button_link_variable === 'payment_id') {
+              buttonVariable = charge.id;
+            } else if (rule.button_link_variable === 'payment_link') {
+              buttonVariable = systemCheckoutUrl;
+            }
 
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
               method: 'POST',
@@ -76,9 +84,9 @@ serve(async (req) => {
                 to: charge.customers.phone,
                 templateName: rule.name,
                 language: rule.language || 'pt_BR',
-                imageUrl: qrImageUrl, // QR Code
+                imageUrl: qrImageUrl, 
                 variables: variables,
-                buttonVariable: buttonVariable // Apenas o Sufixo
+                buttonVariable: buttonVariable 
               })
             });
 
