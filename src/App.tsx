@@ -62,6 +62,7 @@ import PlanManagement from "./pages/admin/PlanManagement";
 import GlobalCRM from "./pages/admin/GlobalCRM";
 import AuditLogs from "./pages/admin/AuditLogs";
 import Benchmarks from "./pages/admin/Benchmarks";
+import BroadcastCenter from "./pages/admin/BroadcastCenter";
 
 const queryClient = new QueryClient();
 
@@ -135,6 +136,7 @@ const App = () => (
               <Route path="/admin/automacao" element={<ProtectedRoute><GlobalAutomation /></ProtectedRoute>} />
               <Route path="/admin/planos" element={<ProtectedRoute><PlanManagement /></ProtectedRoute>} />
               <Route path="/admin/crm" element={<ProtectedRoute><GlobalCRM /></ProtectedRoute>} />
+              <Route path="/admin/comunicacao" element={<ProtectedRoute><BroadcastCenter /></ProtectedRoute>} />
               <Route path="/admin/auditoria" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
               <Route path="/admin/benchmarks" element={<ProtectedRoute><Benchmarks /></ProtectedRoute>} />
 

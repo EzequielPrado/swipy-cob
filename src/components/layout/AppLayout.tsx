@@ -4,14 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText, Globe, History, Activity
+  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/integrations/supabase/auth';
-import { supabase } from '@/integrations/supabase/client';
-import { showSuccess } from '@/utils/toast';
 import { useTheme } from 'next-themes';
+import NotificationBell from './NotificationBell';
 
 const menuStructure = [
   { title: 'Visão Geral', icon: LayoutDashboard, path: '/', roles: ['Admin', 'Vendas', 'Financeiro', 'RH', 'Estoque', 'Contador'] },
@@ -33,6 +32,7 @@ const menuStructure = [
       { label: 'Benchmarks de Rede', path: '/admin/benchmarks' },
       { label: 'Lojistas', path: '/admin/usuarios' }, 
       { label: 'CRM Global Master', path: '/admin/crm' },
+      { label: 'Comunicação Global', path: '/admin/comunicacao' },
       { label: 'Linha do Tempo (Auditoria)', path: '/admin/auditoria' },
       { label: 'Planos & Ofertas', path: '/admin/planos' }, 
       { label: 'Automação Global', path: '/admin/automacao' }
@@ -154,6 +154,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             {mounted && (
               <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted bg-apple-offWhite rounded-xl border border-apple-border shadow-sm hover:bg-apple-light transition-all">
                 {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
