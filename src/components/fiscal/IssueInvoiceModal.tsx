@@ -41,7 +41,6 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
           if (data) setCustomers(data);
         });
 
-      // Se houver dados padrão (vindos de uma cobrança paga), preenche o form
       if (defaultData) {
         setFormData(defaultData);
       } else {
@@ -72,7 +71,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
 
-      showSuccess("Nota emitida e enviada via WhatsApp!");
+      showSuccess("Nota Fiscal emitida e enviada ao cliente!");
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -90,7 +89,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                <FileText size={20} />
             </div>
-            Emitir Fatura / NF
+            Emitir Nota Fiscal (NFe)
           </DialogTitle>
         </DialogHeader>
         
@@ -124,9 +123,9 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-apple-muted uppercase">Descrição dos Serviços</Label>
+            <Label className="text-xs font-bold text-apple-muted uppercase">Descrição p/ Nota Fiscal</Label>
             <Input 
-              placeholder="Ex: Consultoria técnica, licença mensal..."
+              placeholder="Ex: Prestação de serviços de consultoria..."
               className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-medium"
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
@@ -136,7 +135,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
           <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex items-start gap-3">
              <Send className="text-orange-500 mt-1" size={16} />
              <p className="text-[11px] text-orange-800 leading-relaxed font-medium">
-               Ao confirmar, o sistema gerará o link oficial na Woovi e disparará uma mensagem para o WhatsApp do cliente com o link da fatura.
+               A Nota Fiscal será gerada eletronicamente e o link do documento será enviado instantaneamente para o WhatsApp do cliente.
              </p>
           </div>
 
@@ -147,7 +146,7 @@ const IssueInvoiceModal = ({ isOpen, onClose, onSuccess, defaultData }: IssueInv
               className="w-full bg-apple-black hover:bg-zinc-800 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <FileText size={18} />}
-              EMITIR E ENVIAR NOTA
+              GERAR NOTA FISCAL AGORA
             </button>
           </DialogFooter>
         </form>
