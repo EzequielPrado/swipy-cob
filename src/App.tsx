@@ -28,6 +28,7 @@ import SalesDashboard from "./pages/sales/SalesDashboard";
 // Estoque
 import Products from "./pages/inventory/Products";
 import Movements from "./pages/inventory/Movements";
+import Shipping from "./pages/inventory/Shipping";
 
 // Indústria
 import Production from "./pages/industry/Production";
@@ -107,6 +108,7 @@ const App = () => (
               {/* ESTOQUE */}
               <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
               <Route path="/estoque/movimentacoes" element={<ProtectedRoute><Movements /></ProtectedRoute>} />
+              <Route path="/estoque/expedicao" element={<ProtectedRoute><Shipping /></ProtectedRoute>} />
               <Route path="/industria/producao" element={<ProtectedRoute><Production /></ProtectedRoute>} />
 
               {/* FINANCEIRO */}

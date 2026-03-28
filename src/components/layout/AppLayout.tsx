@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown
+  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -63,7 +63,8 @@ const menuStructure = [
     roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], 
     submenus: [
       { label: 'Produtos', path: '/estoque/produtos' }, 
-      { label: 'Movimentações', path: '/estoque/movimentacoes' }
+      { label: 'Movimentações', path: '/estoque/movimentacoes' },
+      { label: 'Expedição (Logística)', path: '/estoque/expedicao' }
     ] 
   },
   { 
