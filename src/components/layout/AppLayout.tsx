@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText
+  Moon, Sun, Menu, X, FileText, Globe
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -33,6 +33,7 @@ const menuStructure = [
       { label: 'Visão Global', path: '/admin/dashboard' }, 
       { label: 'Lojistas', path: '/admin/usuarios' }, 
       { label: 'Planos', path: '/admin/planos' }, 
+      { label: 'CRM Global Master', path: '/admin/crm' },
       { label: 'Automação Global', path: '/admin/automacao' }
     ] 
   }
