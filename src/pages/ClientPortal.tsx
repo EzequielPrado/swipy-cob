@@ -171,8 +171,8 @@ const ClientPortal = () => {
         )}
 
         <div className="mt-24 flex flex-col items-center gap-4 opacity-30">
-          <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.4em] text-zinc-600">
-            <ShieldCheck size={16} /> Pagamento 100% Seguro via PIX
+          <div className="flex items-center text-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 max-w-md">
+            <ShieldCheck size={16} className="shrink-0" /> Pagamento 100% seguro por Swipy e Woovi Instituição de Pagamento LTDA.
           </div>
         </div>
       </div>

@@ -215,8 +215,8 @@ const Checkout = () => {
         </div>
 
         <div className="flex flex-col items-center gap-4 pt-4 opacity-50">
-          <div className="flex items-center gap-2 text-zinc-600 text-[10px] font-bold uppercase tracking-[0.2em] text-center max-w-xs">
-            <ShieldCheck size={14} className="shrink-0" /> Pagamento Protegido por Swipy Fintech LTDA com apoio da Woovi Instituição de Pagamento LTDA
+          <div className="flex items-center justify-center gap-2 text-zinc-600 text-[10px] font-bold uppercase tracking-[0.2em] text-center max-w-sm">
+            <ShieldCheck size={16} className="shrink-0" /> Pagamento 100% seguro por Swipy e Woovi Instituição de Pagamento LTDA.
           </div>
         </div>
       </div>

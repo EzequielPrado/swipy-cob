@@ -282,9 +282,9 @@ const QuotePublicView = () => {
           </div>
         </div>
 
-        <div className="mt-8 text-center opacity-40">
-           <p className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-             <ShieldCheck size={14} /> Transação Segura via Swipy ERP
+        <div className="mt-8 text-center opacity-40 flex justify-center">
+           <p className="flex items-center justify-center text-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] max-w-sm">
+             <ShieldCheck size={16} className="shrink-0" /> Pagamento 100% seguro por Swipy e Woovi Instituição de Pagamento LTDA.
            </p>
         </div>
       </div>
