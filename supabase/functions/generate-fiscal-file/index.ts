@@ -25,7 +25,7 @@ serve(async (req) => {
     const endDate = new Date(Number(year), Number(month), 0).toISOString().split('T')[0]
 
     // 1. Criar registro de exportação
-    const { data: exportRecord } = await supabaseAdmin.from('fiscal_exports').insert({
+    const { data: exportRecord, error: insertError } = await supabaseAdmin.from('fiscal_exports').insert({
       user_id: user.id,
       file_name: `${type.toUpperCase()}_${period.replace('-', '_')}.txt`,
       file_type: type,
@@ -33,11 +33,12 @@ serve(async (req) => {
       status: 'processing'
     }).select().single()
 
-    // 2. Buscar dados (Exemplo Sintegra)
-    // Buscamos o perfil para cabeçalho
+    if (insertError) throw insertError;
+
+    // 2. Buscar dados do Lojista
     const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', user.id).single()
     
-    // Buscamos as cobranças pagas (vendas)
+    // Buscar vendas (cobranças pagas)
     const { data: sales } = await supabaseAdmin.from('charges')
       .select('*, customers(*)')
       .eq('user_id', user.id)
@@ -50,17 +51,17 @@ serve(async (req) => {
     if (type === 'sintegra') {
       // REGISTRO 10 - Mestre
       const cnpj = (profile?.cpf || '00000000000000').replace(/\D/g, '').padEnd(14, '0')
-      const ie = 'ISENTO'.padEnd(14, ' ') // Inscrição Estadual
-      const razao = (profile?.company || 'EMPRESA TESTE').padEnd(35, ' ').substring(0, 35)
+      const ie = 'ISENTO'.padEnd(14, ' ')
+      const razao = (profile?.company || 'EMPRESA SEM RAZAO').padEnd(35, ' ').substring(0, 35)
       const cidade = (profile?.trade_name || 'CIDADE').padEnd(30, ' ').substring(0, 30)
       const uf = 'SP'
       
       content += `10${cnpj}${ie}${razao}${cidade}${uf}211\r\n`
 
-      // REGISTRO 11 - Dados Complementares
+      // REGISTRO 11 - Complementar
       content += `11${' '.padEnd(124, ' ')}\r\n`
 
-      // REGISTRO 50 - Notas de Venda (Simulado pelas cobranças)
+      // REGISTRO 50 - Notas (Simuladas)
       sales?.forEach(sale => {
         const doc = sale.customers?.tax_id?.replace(/\D/g, '').padStart(14, '0') || '00000000000000'
         const data = sale.due_date.replace(/-/g, '')
@@ -71,18 +72,22 @@ serve(async (req) => {
       // REGISTRO 90 - Totalizador
       const totalCount = (sales?.length || 0) + 3
       content += `90${cnpj}${ie}99${totalCount.toString().padStart(8, '0')}000\r\n`
+    } else {
+      content = "Relatório de Inventário - Dados de estoque em processamento.";
     }
 
     // 3. Salvar no Storage
     const fileName = `${user.id}/${exportRecord.id}.txt`
-    await supabaseAdmin.storage.from('fiscal_files').upload(fileName, content, {
-      contentType: 'text/plain',
+    const { error: uploadError } = await supabaseAdmin.storage.from('fiscal_files').upload(fileName, content, {
+      contentType: 'text/plain; charset=utf-8',
       upsert: true
     })
 
+    if (uploadError) throw new Error("Falha ao salvar arquivo no Storage: " + uploadError.message);
+
     const { data: { publicUrl } } = supabaseAdmin.storage.from('fiscal_files').getPublicUrl(fileName)
 
-    // 4. Atualizar registro
+    // 4. Atualizar registro para finalizado
     await supabaseAdmin.from('fiscal_exports').update({
       status: 'completed',
       file_url: publicUrl
