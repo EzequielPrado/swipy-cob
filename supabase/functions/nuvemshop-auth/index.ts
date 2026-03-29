@@ -48,30 +48,34 @@ serve(async (req) => {
     const storeId = tokenData.user_id.toString();
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
 
-    console.log(`[nuvemshop-auth] Token gerado para loja ${storeId}. Registrando Webhook...`);
+    console.log(`[nuvemshop-auth] Token gerado para loja ${storeId}. Registrando Webhooks...`);
 
-    // 2. Registrar o Webhook
-    // IMPORTANTE: Nuvemshop exige o header 'Authentication' com 'bearer' minúsculo
-    const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
-      method: 'POST',
-      headers: { 
-        'Authentication': `bearer ${accessToken}`, 
-        'Content-Type': 'application/json',
-        'User-Agent': 'Swipy ERP (suporte@swipy.com)'
-      },
-      body: JSON.stringify({ event: "order/created", url: webhookUrl })
-    });
+    // 2. Registrar os Webhooks (order/created E order/paid)
+    const eventsToRegister = ["order/created", "order/paid"];
+    let lastWebhookId = 'existing';
 
-    const regData = await regRes.json();
-    
-    if (!regRes.ok) {
-      const errorMsg = JSON.stringify(regData);
-      // Se o erro for que o webhook já existe, não paramos o processo
-      if (errorMsg.includes("already exists") || errorMsg.includes("webhook_already_active")) {
-        console.log(`[nuvemshop-auth] Webhook já estava configurado.`);
+    for (const ev of eventsToRegister) {
+      const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
+        method: 'POST',
+        headers: { 
+          'Authentication': `bearer ${accessToken}`, 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Swipy ERP (suporte@swipy.com)'
+        },
+        body: JSON.stringify({ event: ev, url: webhookUrl })
+      });
+
+      const regData = await regRes.json();
+      
+      if (!regRes.ok) {
+        const errorMsg = JSON.stringify(regData);
+        if (errorMsg.includes("already exists") || errorMsg.includes("webhook_already_active")) {
+          console.log(`[nuvemshop-auth] Webhook ${ev} já estava configurado.`);
+        } else {
+          console.error(`[nuvemshop-auth] Erro no registro do webhook ${ev}:`, regData);
+        }
       } else {
-        console.error("[nuvemshop-auth] Erro no registro do webhook:", regData);
-        throw new Error(`Nuvemshop negou o registro do Webhook: ${regData.error || regData.message || 'Unauthorized'}`);
+        lastWebhookId = regData.id;
       }
     }
 
@@ -92,7 +96,7 @@ serve(async (req) => {
         status: 'active',
         settings: {
           connected_at: new Date().toISOString(),
-          webhook_id: regData.id || 'existing'
+          webhook_id: lastWebhookId
         }
       })
 
