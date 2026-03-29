@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   ArrowRight,
   Trash2,
-  AlertTriangle
+  Cloud
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -73,7 +73,6 @@ const Integrations = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      // Chamada para a nova Edge Function que limpa TUDO com permissão master
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/nuvemshop-uninstall`, {
         method: 'POST',
         headers: {
@@ -87,7 +86,7 @@ const Integrations = () => {
         throw new Error(errData.error || "Erro ao desinstalar.");
       }
       
-      setIntegrations([]); // Limpa UI imediatamente
+      setIntegrations([]);
       showSuccess("Loja desconectada com sucesso!");
       fetchIntegrations();
     } catch (err: any) {
@@ -122,12 +121,13 @@ const Integrations = () => {
           
           <div className={cn(
             "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[420px]",
-            isConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-orange-500/30"
+            isConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-blue-500/30"
           )}>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-[#000000] rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-3">
-                   <img src="https://assets.nuvemshop.com.br/marketing/brand/nuvemshop-logo-square-blue.png" alt="Nuvemshop" className="w-full h-full object-contain invert" />
+                {/* ÍCONE NATIVO DA NUVEMSHOP */}
+                <div className="w-16 h-16 bg-[#2B41FF] rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-3">
+                   <Cloud size={32} className="text-white" fill="currentColor" />
                 </div>
                 <div className={cn(
                   "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
@@ -153,8 +153,8 @@ const Integrations = () => {
                    <p className="text-[9px] text-apple-muted mt-2 font-mono">Loja ID: {nuvemshopConn.store_id}</p>
                 </div>
               ) : (
-                <div className="mt-8 bg-orange-50/50 p-5 rounded-2xl border border-orange-100/50">
-                   <p className="text-[10px] text-orange-600 font-bold uppercase leading-relaxed">
+                <div className="mt-8 bg-blue-50/50 p-5 rounded-2xl border border-blue-100/50">
+                   <p className="text-[10px] text-blue-600 font-bold uppercase leading-relaxed">
                      Conecte sua loja para faturar pedidos automaticamente.
                    </p>
                 </div>
@@ -174,9 +174,9 @@ const Integrations = () => {
               ) : (
                 <button 
                   onClick={() => setIsNuvemModalOpen(true)}
-                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-[#2B41FF] text-white font-black py-4 rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  <Globe size={18} className="text-orange-500" /> CONECTAR MINHA LOJA
+                  <Globe size={18} className="text-white" /> CONECTAR MINHA LOJA
                 </button>
               )}
             </div>
@@ -196,8 +196,8 @@ const Integrations = () => {
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-10 border-b border-apple-border bg-apple-offWhite">
             <DialogTitle className="text-2xl font-black flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                <Globe size={24} />
+              <div className="w-12 h-12 bg-[#2B41FF] rounded-2xl flex items-center justify-center text-white shadow-lg">
+                <Cloud size={24} fill="currentColor" />
               </div>
               Vincular Nuvemshop
             </DialogTitle>
@@ -209,10 +209,10 @@ const Integrations = () => {
                 value={storeName} 
                 onChange={e => setStoreName(e.target.value)} 
                 placeholder="ex: minha-loja" 
-                className="bg-apple-offWhite border-apple-border h-14 rounded-2xl font-black text-apple-black focus:ring-4 focus:ring-orange-500/10 text-lg" 
+                className="bg-apple-offWhite border-apple-border h-14 rounded-2xl font-black text-apple-black focus:ring-4 focus:ring-[#2B41FF]/10 text-lg" 
               />
             </div>
-            <button onClick={handleRedirectToNuvemshop} className="w-full bg-apple-black text-white font-black py-5 rounded-[2rem] transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 hover:bg-zinc-800 text-base">
+            <button onClick={handleRedirectToNuvemshop} className="w-full bg-[#2B41FF] text-white font-black py-5 rounded-[2rem] transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3 hover:bg-blue-700 text-base">
               AUTORIZAR ACESSO <ArrowRight size={20} />
             </button>
           </div>
