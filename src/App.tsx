@@ -62,6 +62,7 @@ import CustomerDetail from "./pages/CustomerDetail";
 import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
 import Settings from "./pages/Settings";
+import Integrations from "./pages/Integrations";
 
 // Admin
 import UserManagement from "./pages/admin/UserManagement";
@@ -144,6 +145,7 @@ const App = () => (
               <Route path="/fornecedores" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
               <Route path="/fornecedores/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/configuracoes/integracoes" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
 
               {/* ADMIN */}
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
