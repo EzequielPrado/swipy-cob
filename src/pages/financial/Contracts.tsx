@@ -8,12 +8,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddContractModal from '@/components/contracts/AddContractModal';
+import EditContractModal from '@/components/contracts/EditContractModal';
 
 const Contracts = () => {
   const { user } = useAuth();
   const [contracts, setContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  
+  const [selectedContract, setSelectedContract] = useState<any>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const fetchContracts = async () => {
     if (!user) return;
@@ -35,6 +39,11 @@ const Contracts = () => {
     const { error } = await supabase.from('subscriptions').update({ status: newStatus }).eq('id', contract.id);
     if (error) showError(error.message);
     else { showSuccess(`Contrato ${newStatus === 'active' ? 'ativado' : 'pausado'}`); fetchContracts(); }
+  };
+
+  const handleEditClick = (contract: any) => {
+    setSelectedContract(contract);
+    setIsEditOpen(true);
   };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -74,7 +83,7 @@ const Contracts = () => {
                     <th className="px-8 py-6">Categoria</th>
                     <th className="px-8 py-6">Ciclo / Frequência</th>
                     <th className="px-8 py-6 text-right">Valor</th>
-                    <th className="px-8 py-6 text-right">Situação</th>
+                    <th className="px-8 py-6 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-apple-border">
@@ -102,11 +111,13 @@ const Contracts = () => {
                       </td>
                       <td className="px-8 py-5 text-right font-black text-apple-black">{currency.format(c.amount)}</td>
                       <td className="px-8 py-5 text-right">
-                         <div className="flex items-center justify-end gap-3">
+                         <div className="flex items-center justify-end gap-1">
                             <span className={cn(
-                              "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border",
+                              "px-2.5 py-1 rounded-full text-[9px] font-black uppercase border mr-2",
                               c.status === 'active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100"
                             )}>{c.status}</span>
+                            
+                            <button onClick={() => handleEditClick(c)} className="p-2 text-apple-muted hover:text-blue-500 transition-all"><Edit3 size={18}/></button>
                             <button onClick={() => toggleStatus(c)} className="p-2 text-apple-muted hover:text-orange-500 transition-all">{c.status === 'active' ? <PauseCircle size={18}/> : <PlayCircle size={18}/>}</button>
                          </div>
                       </td>
@@ -119,6 +130,7 @@ const Contracts = () => {
         </div>
       </div>
       <AddContractModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onSuccess={fetchContracts} />
+      <EditContractModal isOpen={isEditOpen} onClose={() => { setIsEditOpen(false); setSelectedContract(null); }} onSuccess={fetchContracts} contract={selectedContract} />
     </AppLayout>
   );
 };
