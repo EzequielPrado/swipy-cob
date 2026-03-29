@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -23,6 +23,7 @@ const ServiceOrders = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [originFilter, setOriginFilter] = useState<'all' | 'web' | 'manual'>('all');
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -123,7 +124,12 @@ const ServiceOrders = () => {
     }
   };
 
-  const filteredOrders = orders.filter(o => o.title.toLowerCase().includes(searchTerm.toLowerCase()) || o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredOrders = orders.filter(o => {
+    const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesOrigin = originFilter === 'all' || o.origin === originFilter;
+    return matchesSearch && matchesOrigin;
+  });
+
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
@@ -137,74 +143,90 @@ const ServiceOrders = () => {
                 Gestão de Serviços {activeMerchant ? `• ${activeMerchant.company}` : ''}
               </span>
             </div>
-            <h2 className="text-3xl font-black tracking-tight text-apple-black">Ordens de Serviço</h2>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black">Painel de Atendimento</h2>
           </div>
           <div className="flex gap-3">
             <button 
               onClick={handleSharePortal}
               className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl border border-apple-border shadow-sm flex items-center gap-2 transition-all active:scale-95"
             >
-              <Share2 size={16} className="text-orange-500" /> Mandar para o Cliente
+              <Share2 size={16} className="text-orange-500" /> Link do Portal (WhatsApp)
             </button>
-            <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"><Plus size={20} /> NOVA ORDEM</button>
+            <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"><Plus size={20} /> ABRIR OS MANUAL</button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Chamados em Aberto</p><p className="text-3xl font-black text-apple-black">{orders.filter(o => o.status === 'aberto').length}</p></div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Novas Solicitações</p><p className="text-3xl font-black text-apple-black">{orders.filter(o => o.status === 'aberto').length}</p></div>
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Em Manutenção</p><p className="text-3xl font-black text-orange-500">{orders.filter(o => o.status === 'em_progresso').length}</p></div>
-           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Prontas para Entrega</p><p className="text-3xl font-black text-emerald-600">{orders.filter(o => o.status === 'concluido').length}</p></div>
-           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Faturamento Estimado</p><p className="text-3xl font-black text-blue-600">{currency.format(orders.reduce((acc, c) => acc + Number(c.estimated_cost), 0))}</p></div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Via Portal Web</p><p className="text-3xl font-black text-purple-600">{orders.filter(o => o.origin === 'web').length}</p></div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Faturamento Previsto</p><p className="text-3xl font-black text-blue-600">{currency.format(orders.reduce((acc, c) => acc + Number(c.estimated_cost), 0))}</p></div>
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
-          <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
+          <div className="p-8 border-b border-apple-border bg-apple-offWhite flex flex-col md:flex-row gap-6 items-center justify-between">
              <div className="relative w-full md:w-96">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por cliente ou serviço..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar cliente ou problema..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
+             </div>
+             
+             <div className="flex bg-apple-white border border-apple-border p-1 rounded-xl shadow-inner">
+                <button onClick={() => setOriginFilter('all')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all", originFilter === 'all' ? "bg-orange-500 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}>Todos</button>
+                <button onClick={() => setOriginFilter('web')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", originFilter === 'web' ? "bg-purple-600 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}><Globe size={12}/> Portal</button>
+                <button onClick={() => setOriginFilter('manual')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all", originFilter === 'manual' ? "bg-apple-black text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}>Balcão</button>
              </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Cliente do Lojista</th><th className="px-8 py-5">Responsável</th><th className="px-8 py-5">Origem / Fase</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Cliente Solicitante</th><th className="px-8 py-5">Técnico</th><th className="px-8 py-5">Origem / Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
                   <tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
                 ) : filteredOrders.length === 0 ? (
-                  <tr><td colSpan={5} className="py-20 text-center text-apple-muted italic">Nenhuma ordem de serviço registrada.</td></tr>
+                  <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic">
+                     <Inbox size={48} className="mx-auto mb-4 opacity-10" />
+                     <p>Nenhuma ordem localizada com esses filtros.</p>
+                  </td></tr>
                 ) : (
                   filteredOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-apple-light transition-colors group">
                       <td className="px-8 py-5">
                         <p className="text-[10px] font-black text-apple-muted font-mono uppercase">#{order.id.split('-')[0]}</p>
                         <p className="text-sm font-black text-apple-black group-hover:text-blue-600 transition-colors">{order.title}</p>
-                        <p className="text-[9px] text-apple-muted font-bold mt-0.5 italic">{order.equipment_info || 'Sem equipamento'}</p>
+                        <p className="text-[9px] text-apple-muted font-bold mt-0.5 italic">{order.equipment_info || 'Sem equipamento informado'}</p>
                       </td>
                       <td className="px-8 py-5">
-                        <Link to={`/clientes/${order.customers?.id}`} className="block hover:underline">
-                           <p className="text-sm font-bold text-apple-dark flex items-center gap-1.5">{order.customers?.name} <ExternalLink size={10} className="text-apple-muted opacity-0 group-hover:opacity-100" /></p>
-                           <p className="text-[10px] text-apple-muted">{order.customers?.phone}</p>
+                        <Link to={`/clientes/${order.customers?.id}`} className="block group/link">
+                           <p className="text-sm font-black text-apple-black flex items-center gap-1.5 group-hover/link:text-orange-500">
+                             {order.customers?.name} 
+                             <ExternalLink size={12} className="opacity-0 group-hover/link:opacity-100" />
+                           </p>
+                           <p className="text-[10px] text-apple-muted font-bold">{order.customers?.phone || 'Sem telefone'}</p>
                         </Link>
                       </td>
                       <td className="px-8 py-5">
-                        <p className="text-xs font-medium text-apple-muted flex items-center gap-1.5">
-                           <UserCheck size={12} className="text-blue-500" />
-                           {order.employees?.full_name || 'Aguardando Técnico'}
-                        </p>
+                        <div className="flex items-center gap-2">
+                           <div className="w-7 h-7 rounded-full bg-apple-offWhite border border-apple-border flex items-center justify-center text-apple-muted">
+                              <UserCheck size={14} />
+                           </div>
+                           <p className="text-xs font-bold text-apple-dark">
+                              {order.employees?.full_name || 'Em Aberto'}
+                           </p>
+                        </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex flex-col gap-2">
                            <div className="flex items-center gap-1.5">
                              {order.origin === 'web' ? (
-                               <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-purple-50 text-purple-600 border border-purple-100">
-                                 <Globe size={10} /> Portal
+                               <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[8px] font-black uppercase bg-purple-50 text-purple-600 border border-purple-100 shadow-sm">
+                                 <Globe size={10} /> VIA PORTAL
                                </span>
                              ) : (
-                               <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-apple-light text-apple-muted border border-apple-border">
-                                 <Edit3 size={10} /> Balcão
+                               <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[8px] font-black uppercase bg-apple-light text-apple-muted border border-apple-border shadow-sm">
+                                 <Edit3 size={10} /> BALCÃO
                                </span>
                              )}
                            </div>
@@ -213,9 +235,9 @@ const ServiceOrders = () => {
                       </td>
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                           {order.status === 'aberto' && <button onClick={() => updateStatus(order.id, 'em_progresso')} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm" title="Iniciar Reparo"><ArrowRight size={18}/></button>}
-                           {order.status === 'em_progresso' && <button onClick={() => updateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Concluir OS"><CheckCircle2 size={18}/></button>}
-                           <button onClick={() => deleteOS(order.id)} className="p-2.5 text-apple-muted hover:text-red-500 transition-all" title="Excluir"><Trash2 size={18}/></button>
+                           {order.status === 'aberto' && <button onClick={() => updateStatus(order.id, 'em_progresso')} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Iniciar Reparo"><ArrowRight size={18}/></button>}
+                           {order.status === 'em_progresso' && <button onClick={() => updateStatus(order.id, 'concluido')} className="p-3 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm" title="Concluir OS"><CheckCircle2 size={18}/></button>}
+                           <button onClick={() => deleteOS(order.id)} className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Excluir"><Trash2 size={18}/></button>
                         </div>
                       </td>
                     </tr>
@@ -233,7 +255,7 @@ const ServiceOrders = () => {
           <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Serviço Solicitado</Label><Input required placeholder="Ex: Ajuste de Armação" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" /></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Cliente do Lojista</Label>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Cliente Solicitante</Label>
                 <Select value={formData.customerId} onValueChange={v => setFormData({...formData, customerId: v})}>
                   <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent className="bg-apple-white border-apple-border">{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>

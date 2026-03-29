@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Wrench, Loader2, CheckCircle2, User, Phone, FileText, 
-  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe
+  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe, Check
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ const PublicBooking = () => {
   const [merchant, setMerchant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [successId, setSuccessId] = useState<string | null>(null);
+  const [successData, setSuccessData] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -90,16 +90,16 @@ const PublicBooking = () => {
 
       if (osErr) throw osErr;
 
-      // 3. Log de Evento
+      // 3. Log de Notificação para o Lojista
       await supabase.from('notifications').insert({
         user_id: merchant.id,
-        title: 'Nova OS via Portal!',
-        message: `${formData.name} abriu um chamado para ${formData.title}.`,
+        title: 'Nova Solicitação via Portal!',
+        message: `${formData.name} solicitou assistência para ${formData.title}.`,
         type: 'info'
       });
 
-      setSuccessId(os.id);
-      showSuccess("Ordem de serviço aberta com sucesso!");
+      setSuccessData({ id: os.id, name: formData.name, title: formData.title });
+      showSuccess("Sua solicitação foi enviada com sucesso!");
 
     } catch (err: any) {
       showError(err.message);
@@ -110,25 +110,41 @@ const PublicBooking = () => {
 
   if (loading) return <div className="min-h-screen bg-apple-light flex items-center justify-center"><Loader2 className="animate-spin text-orange-500" /></div>;
 
-  if (successId) return (
+  if (successData) return (
     <div className="min-h-screen bg-apple-light flex items-center justify-center p-6 font-sans text-center">
-      <div className="w-full max-w-md bg-apple-white border border-apple-border rounded-[3rem] p-10 shadow-xl animate-in zoom-in duration-500">
+      <div className="w-full max-w-md bg-apple-white border border-apple-border rounded-[3rem] p-10 shadow-xl animate-in zoom-in duration-500 overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
+        
         <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-100">
            <CheckCircle2 className="text-emerald-500" size={40} />
         </div>
-        <h2 className="text-2xl font-black text-apple-black mb-2">Solicitação Enviada!</h2>
-        <p className="text-apple-muted font-medium mb-8">Nossa equipe recebeu seu chamado e entrará em contato em breve.</p>
         
-        <div className="bg-apple-offWhite p-6 rounded-2xl border border-apple-border mb-8">
-           <p className="text-[10px] font-black uppercase text-apple-muted mb-1">Número do Protocolo</p>
-           <p className="text-xl font-mono font-bold text-apple-black uppercase">#{successId.split('-')[0]}</p>
+        <h2 className="text-2xl font-black text-apple-black mb-2">Sucesso, {successData.name.split(' ')[0]}!</h2>
+        <p className="text-apple-muted font-medium mb-10 leading-relaxed">
+           Sua solicitação de **{successData.title}** foi registrada. Anote seu protocolo de atendimento:
+        </p>
+        
+        <div className="bg-apple-offWhite p-6 rounded-2xl border border-apple-border mb-10 shadow-inner">
+           <p className="text-[10px] font-black uppercase text-apple-muted mb-1 tracking-widest">Protocolo de Registro</p>
+           <p className="text-3xl font-mono font-bold text-apple-black uppercase tracking-tighter">#{successData.id.split('-')[0]}</p>
+        </div>
+
+        <div className="space-y-4 text-left bg-apple-light/50 p-6 rounded-2xl border border-apple-border mb-8">
+           <div className="flex gap-3">
+              <Check className="text-emerald-500 shrink-0" size={16} />
+              <p className="text-xs text-apple-dark font-medium">A equipe de **{merchant.company}** já foi notificada.</p>
+           </div>
+           <div className="flex gap-3">
+              <Check className="text-emerald-500 shrink-0" size={16} />
+              <p className="text-xs text-apple-dark font-medium">Entraremos em contato via WhatsApp ou E-mail.</p>
+           </div>
         </div>
 
         <button 
           onClick={() => window.location.reload()}
-          className="w-full bg-apple-black text-white font-black py-4 rounded-2xl active:scale-95 transition-all shadow-xl"
+          className="w-full bg-apple-black text-white font-black py-5 rounded-2xl active:scale-95 transition-all shadow-xl hover:bg-zinc-800"
         >
-          VOLTAR PARA O INÍCIO
+          FECHAR E VOLTAR
         </button>
       </div>
     </div>
@@ -156,7 +172,7 @@ const PublicBooking = () => {
                  </h3>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-apple-muted ml-1">Nome Completo</label>
+                       <label className="text-xs font-bold text-apple-muted ml-1">Seu Nome Completo</label>
                        <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Como devemos te chamar?" />
                     </div>
                     <div className="space-y-2">
@@ -164,7 +180,7 @@ const PublicBooking = () => {
                        <input required value={formData.taxId} onChange={e => setFormData({...formData, taxId: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Apenas números" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-apple-muted ml-1">WhatsApp</label>
+                       <label className="text-xs font-bold text-apple-muted ml-1">Seu WhatsApp</label>
                        <input required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="(00) 00000-0000" />
                     </div>
                     <div className="space-y-2">
