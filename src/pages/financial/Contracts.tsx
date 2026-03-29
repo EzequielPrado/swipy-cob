@@ -18,6 +18,7 @@ const Contracts = () => {
   
   const [selectedContract, setSelectedContract] = useState<any>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchContracts = async () => {
     if (!user) return;
@@ -44,6 +45,27 @@ const Contracts = () => {
   const handleEditClick = (contract: any) => {
     setSelectedContract(contract);
     setIsEditOpen(true);
+  };
+
+  const handleDelete = async (id: string, number: string) => {
+    if (!confirm(`Tem certeza que deseja excluir permanentemente o contrato ${number}? Esta ação não pode ser desfeita.`)) return;
+    
+    setDeletingId(id);
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      showSuccess("Contrato removido com sucesso.");
+      fetchContracts();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -117,8 +139,20 @@ const Contracts = () => {
                               c.status === 'active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100"
                             )}>{c.status}</span>
                             
-                            <button onClick={() => handleEditClick(c)} className="p-2 text-apple-muted hover:text-blue-500 transition-all"><Edit3 size={18}/></button>
-                            <button onClick={() => toggleStatus(c)} className="p-2 text-apple-muted hover:text-orange-500 transition-all">{c.status === 'active' ? <PauseCircle size={18}/> : <PlayCircle size={18}/>}</button>
+                            <button onClick={() => handleEditClick(c)} className="p-2 text-apple-muted hover:text-blue-500 transition-all" title="Editar">
+                              <Edit3 size={18}/>
+                            </button>
+                            <button onClick={() => toggleStatus(c)} className="p-2 text-apple-muted hover:text-orange-500 transition-all" title={c.status === 'active' ? 'Pausar' : 'Ativar'}>
+                              {c.status === 'active' ? <PauseCircle size={18}/> : <PlayCircle size={18}/>}
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(c.id, c.contract_number || 'S/N')} 
+                              disabled={deletingId === c.id}
+                              className="p-2 text-apple-muted hover:text-red-500 transition-all disabled:opacity-50"
+                              title="Excluir"
+                            >
+                              {deletingId === c.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18}/>}
+                            </button>
                          </div>
                       </td>
                     </tr>
