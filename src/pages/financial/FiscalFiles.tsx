@@ -12,7 +12,6 @@ import {
   CheckCircle2, 
   AlertTriangle,
   History,
-  Zip,
   FileJson,
   Package
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import { showSuccess, showError } from '@/utils/toast';
 
 const FILE_TYPES = [
   { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT posicional para validação na SEFAZ.' },
-  { id: 'xml_batch', label: 'Lote de XMLs (NF-e)', icon: Zip, desc: 'Compactado com todos os XMLs de notas do mês.' },
+  { id: 'xml_batch', label: 'Lote de XMLs (NF-e)', icon: FileArchive, desc: 'Compactado com todos os XMLs de notas do mês.' },
   { id: 'inventory', label: 'Livro de Inventário (P7)', icon: Package, desc: 'Posição de estoque para fechamento de balanço.' }
 ];
 
