@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, Search, Loader2, CheckCircle2, 
   ArrowUpCircle, ArrowDownCircle, Filter, Calendar, 
   Clock, Landmark, Info, ArrowUpRight, ArrowDownRight,
-  Wallet, Receipt, DollarSign, AlertCircle
+  Wallet, Receipt, DollarSign, AlertCircle, Activity, Layers
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
