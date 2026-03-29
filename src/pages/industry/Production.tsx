@@ -10,8 +10,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 
 const Production = () => {
   const { user } = useAuth();
@@ -23,7 +21,12 @@ const Production = () => {
   const fetchOrders = async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase.from('production_orders').select('*, products(name, sku, stock_quantity), quotes(id, customers(name))').eq('user_id', user.id).order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('production_orders')
+      .select('*, products(name, sku, stock_quantity), quotes(id, customers(name))')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
     if (!error && data) setOrders(data);
     setLoading(false);
   };
@@ -32,25 +35,67 @@ const Production = () => {
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
-      const matchSearch = o.products?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || (o.products?.sku && o.products.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchSearch = o.products?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (o.products?.sku && o.products.sku.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchStatus = statusFilter === 'all' || o.status === statusFilter;
       return matchSearch && matchStatus;
     });
   }, [orders, searchTerm, statusFilter]);
 
-  const handleUpdateStatus = async (id: string, newStatus: string, productId: string, quantity: number) => {
+  const handleUpdateStatus = async (order: any, newStatus: string) => {
     try {
-      await supabase.from('production_orders').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+      // 1. Atualizar status da ordem de produção
+      const { error: updateError } = await supabase
+        .from('production_orders')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      if (updateError) throw updateError;
+
+      // 2. Se a produção foi finalizada
       if (newStatus === 'completed') {
-        const { data: p } = await supabase.from('products').select('stock_quantity').eq('id', productId).single();
+        // Aumentar estoque
+        const { data: p } = await supabase.from('products').select('stock_quantity').eq('id', order.product_id).single();
         if (p) {
-          await supabase.from('products').update({ stock_quantity: p.stock_quantity + quantity }).eq('id', productId);
-          await supabase.from('inventory_movements').insert({ user_id: user?.id, product_id: productId, type: 'in', quantity: quantity, notes: `Produção Concluída - Ordem #${id.split('-')[0].toUpperCase()}` });
+          await supabase.from('products').update({ stock_quantity: (p.stock_quantity || 0) + order.quantity }).eq('id', order.product_id);
+          await supabase.from('inventory_movements').insert({ 
+            user_id: user?.id, 
+            product_id: order.product_id, 
+            type: 'in', 
+            quantity: order.quantity, 
+            notes: `Produção Finalizada - OP #${order.id.split('-')[0].toUpperCase()}` 
+          });
         }
+
+        // INTELIGÊNCIA DE FLUXO: Se houver um pedido vinculado
+        if (order.quote_id) {
+          // Verifica se existem outras OPs pendentes para este mesmo pedido
+          const { data: otherOps } = await supabase
+            .from('production_orders')
+            .select('status')
+            .eq('quote_id', order.quote_id)
+            .neq('id', order.id); // Exclui a que acabamos de completar
+
+          const allCompleted = !otherOps || otherOps.every(op => op.status === 'completed');
+
+          if (allCompleted) {
+            // Avança o pedido para Separação
+            await supabase.from('quotes').update({ status: 'picking' }).eq('id', order.quote_id);
+            showSuccess(`Produção concluída! Pedido movido para Logística.`);
+          } else {
+            showSuccess(`Item produzido. Aguardando demais itens do pedido.`);
+          }
+        } else {
+          showSuccess(`Ordem de produção finalizada.`);
+        }
+      } else {
+        showSuccess(`Produção iniciada.`);
       }
-      showSuccess(`Ordem ${newStatus === 'completed' ? 'finalizada' : 'iniciada'}.`);
+
       fetchOrders();
-    } catch (err: any) { showError(err.message); }
+    } catch (err: any) { 
+      showError(err.message); 
+    }
   };
 
   return (
@@ -68,7 +113,7 @@ const Production = () => {
             { label: 'Aguardando', icon: AlertTriangle, color: 'text-orange-500', bg: 'border-l-orange-500', filter: 'pending' },
             { label: 'Em Produção', icon: Play, color: 'text-blue-500', bg: 'border-l-blue-500', filter: 'in_progress' },
             { label: 'Concluídos', icon: CheckCircle2, color: 'text-emerald-500', bg: 'border-l-emerald-500', filter: 'completed' },
-            { label: 'Total Itens', icon: Package, color: 'text-apple-muted', bg: 'border-l-apple-border', filter: 'all' }
+            { label: 'Total Unidades', icon: Package, color: 'text-apple-muted', bg: 'border-l-apple-border', filter: 'all' }
           ].map(stat => (
             <div key={stat.label} className={cn("bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm border-l-4", stat.bg)}>
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2"><stat.icon size={14} className={stat.color} /> {stat.label}</p>
@@ -80,7 +125,7 @@ const Production = () => {
         <div className="flex flex-col md:flex-row gap-4 items-center bg-apple-white p-2 rounded-[2rem] border border-apple-border shadow-sm">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar produto ou código..." className="w-full bg-transparent border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-0 outline-none text-apple-black" />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar produto ou OP..." className="w-full bg-transparent border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-0 outline-none text-apple-black" />
           </div>
           <div className="flex gap-1 pr-1 overflow-x-auto">
             {['all', 'pending', 'in_progress', 'completed'].map((st) => (
@@ -95,7 +140,7 @@ const Production = () => {
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-20 text-apple-muted font-bold italic"><p>Nenhuma ordem de produção ativa.</p></div>
+            <div className="text-center py-20 text-apple-muted font-bold italic"><p>Nenhuma ordem de produção localizada.</p></div>
           ) : (
             <table className="w-full text-left">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
@@ -105,14 +150,17 @@ const Production = () => {
                 {filteredOrders.map((o) => (
                   <tr key={o.id} className={cn("hover:bg-apple-light transition-colors group", o.status === 'completed' && "opacity-60")}>
                     <td className="px-8 py-5 font-mono text-xs font-black uppercase">#{o.id.split('-')[0]}</td>
-                    <td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{o.products?.name}</p><p className="text-[10px] text-apple-muted font-bold">SKU: {o.products?.sku}</p></td>
-                    <td className="px-8 py-5"><span className="text-base font-black text-orange-600">{o.quantity} <span className="text-[10px] text-apple-muted uppercase">un.</span></span></td>
+                    <td className="px-8 py-5">
+                       <p className="text-sm font-bold text-apple-black">{o.products?.name}</p>
+                       <p className="text-[10px] text-apple-muted font-bold uppercase">Ref: {o.quotes?.customers?.name || 'Estoque Direto'}</p>
+                    </td>
+                    <td className="px-8 py-5"><span className="text-base font-black text-orange-600">{o.quantity} <span className="text-[10px] text-apple-muted uppercase font-bold">un.</span></span></td>
                     <td className="px-8 py-5">
                       <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", o.status === 'pending' ? "bg-orange-50 text-orange-600 border-orange-100" : o.status === 'in_progress' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-emerald-50 text-emerald-600 border-emerald-100")}>{o.status === 'pending' ? 'Aguardando' : o.status === 'in_progress' ? 'Produzindo' : 'Finalizado'}</span>
                     </td>
                     <td className="px-8 py-5 text-right">
-                       {o.status === 'pending' && <button onClick={() => handleUpdateStatus(o.id, 'in_progress', o.product_id, o.quantity)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"><Play size={16} fill="currentColor" /></button>}
-                       {o.status === 'in_progress' && <button onClick={() => handleUpdateStatus(o.id, 'completed', o.product_id, o.quantity)} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"><CheckCircle2 size={16} /></button>}
+                       {o.status === 'pending' && <button onClick={() => handleUpdateStatus(o, 'in_progress')} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm"><Play size={16} fill="currentColor" /></button>}
+                       {o.status === 'in_progress' && <button onClick={() => handleUpdateStatus(o, 'completed')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"><CheckCircle2 size={16} /></button>}
                     </td>
                   </tr>
                 ))}
