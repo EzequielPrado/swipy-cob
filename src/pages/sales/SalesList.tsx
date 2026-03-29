@@ -7,25 +7,17 @@ import {
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
   CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
-  CalendarDays, Banknote, PlayCircle, DollarSign, Factory
+  CalendarDays, Banknote, PlayCircle, DollarSign, Factory, MapPin
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const FULFILLMENT_STAGES = [
-  { id: 'approved', label: 'Aprovado', icon: CheckCircle2 },
-  { id: 'paid', label: 'Pago', icon: Banknote },
-  { id: 'production', label: 'Produção', icon: Wrench },
-  { id: 'picking', label: 'Separação', icon: PackageSearch },
-  { id: 'invoiced', label: 'Faturado', icon: Receipt },
-  { id: 'shipped', label: 'Despachado', icon: Truck },
-];
+import FulfillmentStepper from '@/components/sales/FulfillmentStepper';
 
 const SalesList = () => {
-  const { effectiveUserId } = useAuth(); // Usando effectiveUserId para suportar modo contador
+  const { effectiveUserId } = useAuth();
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,7 +42,6 @@ const SalesList = () => {
   
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const fetchSales = async () => {
     if (!effectiveUserId) return;
@@ -64,7 +55,7 @@ const SalesList = () => {
       .from('quotes')
       .select(`
         *, 
-        customers(name, email, phone),
+        customers(name, email, phone, address),
         employees(full_name),
         quote_items(
           id, product_id, quantity, unit_price, total_price,
@@ -89,31 +80,24 @@ const SalesList = () => {
   const filteredSales = useMemo(() => {
     return sales.filter(s => 
       s.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.employees?.full_name && s.employees.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
+      s.id.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [sales, searchTerm]);
 
-  const totalMonthRevenue = useMemo(() => {
-    return sales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
-  }, [sales]);
-
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  const openDetails = (sale: any) => {
-    setSelectedSale(sale);
-    setIsDetailsOpen(true);
-  };
-
   const getStatusDisplay = (status: string) => {
-    if (status === 'shipped') return { label: 'Despachado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-orange-50 text-orange-600 border-orange-100' };
-    if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    if (status === 'paid') return { label: 'Pago', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    
-    const stage = FULFILLMENT_STAGES.find(s => s.id === status);
-    if (!stage) return { label: status, color: 'bg-apple-light text-apple-muted border-apple-border' };
-    return { label: stage.label, color: 'bg-blue-50 text-blue-600 border-blue-100' };
+    const map: Record<string, { label: string, color: string }> = {
+      'draft': { label: 'Orçamento', color: 'bg-orange-50 text-orange-600 border-orange-100' },
+      'approved': { label: 'Aprovado', color: 'bg-blue-50 text-blue-600 border-blue-100' },
+      'paid': { label: 'Pago / Conciliado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+      'production': { label: 'Em Produção', color: 'bg-purple-50 text-purple-600 border-purple-100' },
+      'picking': { label: 'Em Separação', color: 'bg-yellow-50 text-yellow-600 border-yellow-100' },
+      'invoiced': { label: 'Faturado', color: 'bg-blue-50 text-blue-600 border-blue-100' },
+      'shipped': { label: 'Despachado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+      'completed': { label: 'Concluído', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
+    };
+    return map[status] || { label: status, color: 'bg-apple-light text-apple-muted border-apple-border' };
   };
 
   return (
@@ -121,110 +105,148 @@ const SalesList = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Gestão de Vendas</h2>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black">Gestão de Vendas</h2>
             <p className="text-apple-muted mt-1 font-medium">Acompanhe seus pedidos e movimente-os pelo fluxo de atendimento.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-apple-white border border-apple-border rounded-lg overflow-hidden pr-2 shadow-sm">
-              <div className="pl-3 text-apple-muted"><CalendarDays size={16} /></div>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-500"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
-                  {monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value} className="focus:bg-apple-light">{opt.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex items-center bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
+            <CalendarDays size={16} className="text-apple-muted mr-3" />
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-apple-white border-apple-border">
+                {monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-
-        <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm border-l-4 border-l-orange-500 max-w-sm">
-          <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2">Faturamento no Período</p>
-          <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalMonthRevenue)}</p>
         </div>
 
         <div className="relative max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar pedido ou cliente..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
+          <input 
+            type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
+            placeholder="Buscar por cliente ou #ID..." 
+            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm" 
+          />
         </div>
 
-        <div className="bg-apple-white border border-apple-border rounded-[2rem] overflow-hidden min-h-[400px] shadow-sm">
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>
+            <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
           ) : (
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
-                <tr>
-                  <th className="px-8 py-5">Ref. Pedido</th>
-                  <th className="px-8 py-5">Cliente</th>
-                  <th className="px-8 py-5">Valor</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {filteredSales.map((sale) => (
-                  <tr key={sale.id} className="hover:bg-apple-light transition-colors group">
-                    <td className="px-8 py-5">
-                      <p className="text-xs font-bold text-apple-black font-mono uppercase">#{sale.id.split('-')[0]}</p>
-                      <p className="text-[10px] text-apple-muted mt-1 font-bold">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
-                    </td>
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-apple-black">{sale.customers?.name || 'Venda PDV'}</p>
-                      <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1 mt-0.5"><Contact size={10} className="text-blue-500" /> {sale.employees?.full_name || 'Venda Direta'}</p>
-                    </td>
-                    <td className="px-8 py-5 text-sm font-black text-orange-600">{currencyFormatter.format(sale.total_amount)}</td>
-                    <td className="px-8 py-5">
-                      <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border", getStatusDisplay(sale.status).color)}>
-                        {getStatusDisplay(sale.status).label}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <button onClick={() => openDetails(sale)} className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors"><Eye size={18}/></button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                  <tr>
+                    <th className="px-8 py-6">Data / Identificação</th>
+                    <th className="px-8 py-6">Cliente</th>
+                    <th className="px-8 py-6">Fulfillment (Status)</th>
+                    <th className="px-8 py-6 text-right">Total</th>
+                    <th className="px-8 py-6 text-right">Ficha</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {filteredSales.map((sale) => (
+                    <tr key={sale.id} className="hover:bg-apple-light transition-colors group">
+                      <td className="px-8 py-5">
+                        <p className="text-xs font-black text-apple-black font-mono uppercase">#{sale.id.split('-')[0]}</p>
+                        <p className="text-[10px] text-apple-muted mt-1 font-bold">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors">{sale.customers?.name || 'Venda PDV'}</p>
+                        <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1 mt-0.5"><Contact size={10} className="text-blue-500" /> {sale.employees?.full_name || 'Venda Direta'}</p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border", getStatusDisplay(sale.status).color)}>
+                          {getStatusDisplay(sale.status).label}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-right font-black text-apple-black">
+                        {currencyFormatter.format(sale.total_amount)}
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <button onClick={() => { setSelectedSale(sale); setIsDetailsOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl transition-all border border-apple-border shadow-sm">
+                          <Eye size={18}/>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[700px] p-0 rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[750px] p-0 rounded-[3rem] overflow-hidden shadow-2xl">
           {selectedSale && (
             <>
-              <div className="p-8 border-b border-apple-border bg-apple-offWhite shrink-0 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-500 border border-orange-100 shadow-sm"><ShoppingBag size={20} /></div>
+              <div className="p-10 border-b border-apple-border bg-apple-offWhite flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-orange-500 border border-apple-border shadow-inner"><ShoppingBag size={28} /></div>
                   <div>
-                    <h3 className="text-xl font-bold">Pedido <span className="font-mono uppercase text-orange-500">#{selectedSale.id.split('-')[0]}</span></h3>
-                    <p className="text-xs text-apple-muted font-bold">Feito em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
+                    <h3 className="text-2xl font-black tracking-tight">Pedido <span className="font-mono text-orange-500 uppercase">#{selectedSale.id.split('-')[0]}</span></h3>
+                    <p className="text-xs text-apple-muted font-bold uppercase tracking-widest">Registrado em {new Date(selectedSale.created_at).toLocaleString('pt-BR')}</p>
                   </div>
                 </div>
-                <span className={cn("px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border", getStatusDisplay(selectedSale.status).color)}>{getStatusDisplay(selectedSale.status).label}</span>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-apple-muted uppercase mb-1">Status Operacional</p>
+                  <span className={cn("px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border", getStatusDisplay(selectedSale.status).color)}>{getStatusDisplay(selectedSale.status).label}</span>
+                </div>
               </div>
 
-              <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div className="p-6 bg-apple-offWhite border border-apple-border rounded-3xl">
-                      <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Cliente / Pagador</p>
-                      <p className="text-base font-bold text-apple-black">{selectedSale.customers?.name}</p>
-                      <p className="text-xs text-apple-muted font-bold mt-1">{selectedSale.customers?.email}</p>
-                   </div>
-                   <div className="p-6 bg-orange-50 border border-orange-100 rounded-3xl text-right">
-                      <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-3">Valor Total</p>
-                      <p className="text-3xl font-black text-orange-600">{currencyFormatter.format(selectedSale.total_amount)}</p>
+              <div className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                
+                {/* PIPELINE DE FLUXO */}
+                <div className="space-y-4">
+                   <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] ml-1">Fluxo de Atendimento</h4>
+                   <div className="bg-apple-offWhite border border-apple-border p-6 rounded-[2.5rem] shadow-inner">
+                      <FulfillmentStepper currentStatus={selectedSale.status} />
                    </div>
                 </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest flex items-center gap-2"><Package size={14} /> Itens do Pedido</h4>
-                  {selectedSale.quote_items?.map((item: any) => (
-                    <div key={item.id} className="p-4 bg-apple-white border border-apple-border rounded-2xl flex items-center justify-between shadow-sm">
-                      <div><p className="text-sm font-bold text-apple-black">{item.products?.name || 'Item Excluído'}</p><p className="text-[10px] text-apple-muted font-mono font-bold">SKU: {item.products?.sku || 'N/A'}</p></div>
-                      <div className="text-right"><p className="text-sm font-black text-apple-black">{currencyFormatter.format(item.total_price)}</p><p className="text-[10px] text-apple-muted font-bold">{item.quantity}x {currencyFormatter.format(item.unit_price)}</p></div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="p-8 bg-apple-offWhite border border-apple-border rounded-[2.5rem]">
+                      <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-6">Informações do Cliente</p>
+                      <h4 className="text-xl font-black text-apple-black">{selectedSale.customers?.name}</h4>
+                      <p className="text-sm text-apple-muted font-bold mt-1">{selectedSale.customers?.email}</p>
+                      <div className="mt-6 flex items-center gap-2 text-xs font-bold text-apple-dark bg-white p-3 rounded-xl border border-apple-border">
+                         <MapPin size={14} className="text-orange-500" />
+                         {selectedSale.customers?.address?.city || 'Retirada no Local'}
+                      </div>
+                   </div>
+                   <div className="p-8 bg-orange-50 border border-orange-100 rounded-[2.5rem] flex flex-col justify-between">
+                      <div>
+                        <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">Total do Pedido</p>
+                        <p className="text-5xl font-black text-orange-500 tracking-tighter">{currencyFormatter.format(selectedSale.total_amount)}</p>
+                      </div>
+                      {selectedSale.tracking_code && (
+                        <div className="mt-6 p-4 bg-white rounded-2xl border border-orange-200">
+                           <p className="text-[9px] font-black text-orange-600 uppercase mb-1">Rastreio ({selectedSale.carrier})</p>
+                           <p className="text-xs font-mono font-bold text-apple-black">{selectedSale.tracking_code}</p>
+                        </div>
+                      )}
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest flex items-center gap-2"><Package size={16} /> Composição da Venda</h4>
+                  <div className="space-y-3">
+                    {selectedSale.quote_items?.map((item: any) => (
+                      <div key={item.id} className="p-5 bg-apple-white border border-apple-border rounded-2xl flex items-center justify-between shadow-sm hover:border-apple-dark transition-all">
+                        <div className="flex items-center gap-4">
+                           {item.products?.is_produced ? <Factory size={18} className="text-orange-500" /> : <Package size={18} className="text-blue-500" />}
+                           <div>
+                             <p className="text-sm font-bold text-apple-black">{item.products?.name || 'Item Excluído'}</p>
+                             <p className="text-[10px] text-apple-muted font-mono font-bold uppercase">SKU: {item.products?.sku || 'N/A'}</p>
+                           </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-apple-black">{currencyFormatter.format(item.total_price)}</p>
+                          <p className="text-[10px] text-apple-muted font-bold">{item.quantity}x {currencyFormatter.format(item.unit_price)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </>
