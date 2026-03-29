@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   FileArchive, 
@@ -12,12 +12,15 @@ import {
   CheckCircle2, 
   AlertTriangle,
   History,
-  FileJson,
-  Package
+  Package,
+  Clock,
+  RefreshCcw
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError } from '@/utils/toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/integrations/supabase/auth';
 
 const FILE_TYPES = [
   { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT posicional para validação na SEFAZ.' },
@@ -26,7 +29,10 @@ const FILE_TYPES = [
 ];
 
 const FiscalFiles = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [history, setHistory] = useState<any[]>([]);
   const [selectedType, setSelectedType] = useState('sintegra');
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -49,28 +55,64 @@ const FiscalFiles = () => {
     return options;
   }, []);
 
+  const fetchHistory = async () => {
+    if (!user) return;
+    setHistoryLoading(true);
+    const { data } = await supabase
+      .from('fiscal_exports')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    if (data) setHistory(data);
+    setHistoryLoading(false);
+  };
+
+  useEffect(() => { fetchHistory(); }, [user]);
+
   const handleGenerate = async () => {
     setLoading(true);
-    // Simulação de chamada para Edge Function que processaria a lógica do Sintegra
-    setTimeout(() => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/generate-fiscal-file`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ type: selectedType, period: selectedMonth })
+      });
+
+      if (!response.ok) throw new Error("Erro ao gerar arquivo no servidor.");
+
+      showSuccess(`Solicitação de arquivo ${selectedType.toUpperCase()} enviada!`);
+      fetchHistory();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
       setLoading(false);
-      showSuccess(`Arquivo ${selectedType.toUpperCase()} gerado com sucesso!`);
-    }, 2000);
+    }
   };
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
-        <div>
-          <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
-            <FileArchive className="text-orange-500" size={32} /> Arquivos Fiscais
-          </h2>
-          <p className="text-apple-muted mt-1 font-medium">Geração de obrigações acessórias e exportação para contabilidade.</p>
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
+              <FileArchive className="text-orange-500" size={32} /> Arquivos Fiscais
+            </h2>
+            <p className="text-apple-muted mt-1 font-medium">Geração de obrigações acessórias e exportação para contabilidade.</p>
+          </div>
+          <button onClick={fetchHistory} className="p-2 text-apple-muted hover:text-apple-black transition-all">
+             <RefreshCcw size={20} className={historyLoading ? "animate-spin" : ""} />
+          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* CONFIGURAÇÃO DE GERAÇÃO */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
               <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
@@ -88,7 +130,6 @@ const FiscalFiles = () => {
                       {monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-apple-muted px-1">Recomendamos gerar após o dia 5 do mês subsequente.</p>
                 </div>
 
                 <div className="space-y-3">
@@ -126,51 +167,44 @@ const FiscalFiles = () => {
                   className="w-full bg-apple-black text-white font-black py-5 rounded-3xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                  >
                     {loading ? <Loader2 className="animate-spin" size={24} /> : <Download size={24} />}
-                    SOLICITAR GERAÇÃO DO ARQUIVO
+                    GERAR ARQUIVO AGORA
                  </button>
               </div>
             </div>
-
-            <div className="bg-blue-50 border border-blue-100 p-6 rounded-[2rem] flex items-start gap-4">
-               <ShieldCheck className="text-blue-600 shrink-0 mt-1" size={24} />
-               <div>
-                  <h4 className="text-sm font-black text-blue-900 uppercase tracking-widest">Conformidade Garantida</h4>
-                  <p className="text-xs text-blue-800 leading-relaxed mt-1 font-medium">
-                    Os arquivos gerados seguem rigorosamente o Manual de Orientação do Convênio ICMS 57/95 e atualizações. 
-                    Lembre-se de validar o arquivo no programa da SEFAZ antes da transmissão.
-                  </p>
-               </div>
-            </div>
           </div>
 
-          {/* HISTÓRICO DE DOWNLOADS */}
           <div className="space-y-6">
              <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 shadow-sm h-full flex flex-col">
                 <h3 className="text-xs font-bold text-apple-black uppercase tracking-widest mb-8 flex items-center gap-2">
-                  <History size={16} className="text-orange-500" /> Exportações Recentes
+                  <History size={16} className="text-orange-500" /> Histórico Real
                 </h3>
                 
                 <div className="flex-1 space-y-4">
-                   {[1, 2].map((_, i) => (
-                     <div key={i} className="p-4 bg-apple-offWhite border border-apple-border rounded-2xl flex items-center justify-between group hover:border-orange-200 transition-all">
+                   {historyLoading ? (
+                      <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" /></div>
+                   ) : history.length === 0 ? (
+                      <div className="py-12 text-center opacity-30 italic text-sm">Nenhum arquivo gerado ainda.</div>
+                   ) : history.map((item) => (
+                     <div key={item.id} className="p-4 bg-apple-offWhite border border-apple-border rounded-2xl flex items-center justify-between group hover:border-orange-200 transition-all">
                         <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center text-emerald-500 shadow-sm">
-                              <CheckCircle2 size={18} />
+                           <div className={cn(
+                             "w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center shadow-sm",
+                             item.status === 'completed' ? "text-emerald-500" : "text-orange-500"
+                           )}>
+                              {item.status === 'completed' ? <CheckCircle2 size={18} /> : <Clock size={18} className="animate-pulse" />}
                            </div>
-                           <div>
-                              <p className="text-xs font-black text-apple-black">Sintegra_2024_04.txt</p>
-                              <p className="text-[9px] text-apple-muted font-bold uppercase">Gerado em 10/05/2024</p>
+                           <div className="overflow-hidden">
+                              <p className="text-xs font-black text-apple-black truncate">{item.file_name}</p>
+                              <p className="text-[9px] text-apple-muted font-bold uppercase">{new Date(item.created_at).toLocaleDateString('pt-BR')}</p>
                            </div>
                         </div>
-                        <button className="p-2 text-apple-muted hover:text-orange-500 transition-colors">
-                           <Download size={16} />
-                        </button>
+                        {item.status === 'completed' && (
+                          <a href={item.file_url} target="_blank" download className="p-2 text-apple-muted hover:text-orange-500 transition-colors">
+                             <Download size={16} />
+                          </a>
+                        )}
                      </div>
                    ))}
-                   
-                   <div className="py-12 text-center opacity-30 italic">
-                      <p className="text-[10px] font-bold uppercase tracking-widest">Fim do histórico disponível</p>
-                   </div>
                 </div>
              </div>
           </div>
