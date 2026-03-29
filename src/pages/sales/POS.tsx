@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
 import { 
   Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, 
-  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag, Truck, Factory, AlertTriangle, ShieldCheck
+  CheckCircle2, Loader2, PackageOpen, ArrowRight, User, Contact, Tag, Truck, Factory, AlertTriangle, ShieldCheck, Layers
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -24,6 +24,7 @@ const POS = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -40,7 +41,8 @@ const POS = () => {
   const [checkoutData, setCheckoutData] = useState({
     customerId: '',
     sellerId: 'none',
-    method: 'pix'
+    method: 'pix',
+    categoryId: ''
   });
 
   const [customerRisk, setCustomerRisk] = useState<null | 'low' | 'high'>(null);
@@ -50,14 +52,21 @@ const POS = () => {
   const fetchData = async () => {
     if (!user) return;
     setLoading(true);
-    const [prodRes, custRes, empRes] = await Promise.all([
+    const [prodRes, custRes, empRes, catRes] = await Promise.all([
       supabase.from('products').select('*').eq('user_id', user.id).order('name'),
       supabase.from('customers').select('id, name, tax_id').eq('user_id', user.id).order('name'),
-      supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
+      supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name'),
+      supabase.from('chart_of_accounts').select('id, name').eq('user_id', user.id).eq('type', 'revenue').order('name')
     ]);
     if (prodRes.data) setProducts(prodRes.data);
     if (custRes.data) setCustomers(custRes.data);
     if (empRes.data) setEmployees(empRes.data);
+    if (catRes.data) {
+      setCategories(catRes.data);
+      // Tentar pré-selecionar uma categoria que contenha "Venda"
+      const defaultCat = catRes.data.find(c => c.name.toLowerCase().includes('venda')) || catRes.data[0];
+      if (defaultCat) setCheckoutData(prev => ({ ...prev, categoryId: defaultCat.id }));
+    }
     setLoading(false);
   };
 
@@ -80,7 +89,7 @@ const POS = () => {
     checkGlobalRisk(checkoutData.customerId);
   }, [checkoutData.customerId]);
 
-  const categories = useMemo(() => {
+  const categoriesList = useMemo(() => {
     const cats = products.map(p => p.category).filter(Boolean);
     return [...new Set(cats)].sort();
   }, [products]);
@@ -108,6 +117,8 @@ const POS = () => {
 
   const handleCheckout = async () => {
     if (!checkoutData.customerId) return showError("Selecione um cliente.");
+    if (!checkoutData.categoryId) return showError("Selecione a classificação contábil.");
+    
     setProcessing(true);
     try {
       const { data: quote } = await supabase.from('quotes').insert({ 
@@ -139,10 +150,15 @@ const POS = () => {
             method: 'pix', 
             dueDate: new Date().toISOString().split('T')[0], 
             userId: user?.id, 
-            origin: window.location.origin 
+            origin: window.location.origin,
+            quoteId: quote.id
           })
         });
         const result = await response.json();
+        
+        // Vincular categoria na cobrança gerada
+        await supabase.from('charges').update({ category_id: checkoutData.categoryId }).eq('id', result.id);
+        
         navigate(`/financeiro/cobrancas/${result.id}`);
       } else {
         await supabase.from('charges').insert({ 
@@ -151,7 +167,9 @@ const POS = () => {
           amount: totalAmount, 
           status: 'pago', 
           method: checkoutData.method, 
-          due_date: new Date().toISOString().split('T')[0] 
+          due_date: new Date().toISOString().split('T')[0],
+          category_id: checkoutData.categoryId,
+          description: `Venda PDV #${quote.id.split('-')[0].toUpperCase()}`
         });
         showSuccess("Venda finalizada!");
         setCart([]);
@@ -178,7 +196,7 @@ const POS = () => {
             </div>
             <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0">
                <button onClick={() => setCategoryFilter('all')} className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border", categoryFilter === 'all' ? "bg-orange-500 text-white border-orange-600" : "bg-apple-white text-apple-muted")}>Todos</button>
-               {categories.map(cat => (<button key={cat} onClick={() => setCategoryFilter(cat)} className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border", categoryFilter === cat ? "bg-orange-500 text-white border-orange-600" : "bg-apple-white text-apple-muted")}>{cat}</button>))}
+               {categoriesList.map(cat => (<button key={cat} onClick={() => setCategoryFilter(cat)} className={cn("px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border", categoryFilter === cat ? "bg-orange-500 text-white border-orange-600" : "bg-apple-white text-apple-muted")}>{cat}</button>))}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -281,6 +299,18 @@ const POS = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-[10px] font-black uppercase text-apple-muted"><Layers size={14} className="text-orange-500" /> Classificação Contábil (Receita)</Label>
+                <Select value={checkoutData.categoryId} onValueChange={v => setCheckoutData({...checkoutData, categoryId: v})}>
+                  <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-apple-white border-apple-border">
+                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
