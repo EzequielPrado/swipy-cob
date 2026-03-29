@@ -10,30 +10,32 @@ import {
   FileText, 
   CheckCircle2, 
   History,
-  Package,
-  Clock,
   RefreshCcw,
   FileSpreadsheet,
-  Layers
+  Layers,
+  FileDown
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError } from '@/utils/toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const FILE_TYPES = [
-  { id: 'consolidated', label: 'Relatório Auxiliar (Excel/CSV)', icon: FileSpreadsheet, desc: 'Lista completa de receitas e despesas com categorias, ideal para o contador.' },
-  { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT posicional para validação em sistemas governamentais.' },
-  { id: 'xml_batch', label: 'Lote de XMLs (Simulado)', icon: FileArchive, desc: 'Compactado com os registros de notas emitidas no período.' }
+  { id: 'pdf_report', label: 'Relatório Executivo (PDF)', icon: FileDown, desc: 'Documento formatado com o fechamento do mês, pronto para impressão.' },
+  { id: 'consolidated', label: 'Planilha Contábil (CSV)', icon: FileSpreadsheet, desc: 'Lista detalhada de receitas e despesas para importar no Excel.' },
+  { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT para validação em sistemas governamentais.' },
+  { id: 'xml_batch', label: 'Lote de Notas (Resumo)', icon: FileArchive, desc: 'Compilado das informações das notas fiscais emitidas no período.' }
 ];
 
 const FiscalFiles = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
-  const [selectedType, setSelectedType] = useState('consolidated');
+  const [selectedType, setSelectedType] = useState('pdf_report');
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
@@ -71,24 +73,78 @@ const FiscalFiles = () => {
 
   useEffect(() => { fetchHistory(); }, [user]);
 
+  // Função para gerar PDF no cliente (mais rápido e bonito)
+  const generateClientPDF = async () => {
+    const [year, month] = selectedMonth.split('-');
+    const startDate = `${year}-${month}-01`;
+    const endDate = new Date(Number(year), Number(month), 0).toISOString().split('T')[0];
+
+    const [revRes, expRes] = await Promise.all([
+      supabase.from('charges').select('*, customers(name)').eq('user_id', user?.id).gte('due_date', startDate).lte('due_date', endDate),
+      supabase.from('expenses').select('*').eq('user_id', user?.id).gte('due_date', startDate).lte('due_date', endDate)
+    ]);
+
+    const doc = new jsPDF();
+    const periodLabel = monthOptions.find(o => o.value === selectedMonth)?.label;
+    const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // Header
+    doc.setFillColor(29, 29, 31);
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(249, 115, 22);
+    doc.setFontSize(22);
+    doc.text("FECHAMENTO CONTÁBIL", 14, 20);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text(`${profile?.company?.toUpperCase() || 'EMPRESA'} | ${periodLabel?.toUpperCase()}`, 14, 30);
+
+    const body = [
+      ... (revRes.data || []).map(r => [new Date(r.due_date).toLocaleDateString('pt-BR'), 'RECEITA', r.customers?.name || 'Venda', currency.format(r.amount), r.status.toUpperCase()]),
+      ... (expRes.data || []).map(e => [new Date(e.due_date).toLocaleDateString('pt-BR'), 'DESPESA', e.description, currency.format(e.amount), e.status.toUpperCase()])
+    ];
+
+    autoTable(doc, {
+      head: [['DATA', 'TIPO', 'DESCRIÇÃO / ENTIDADE', 'VALOR', 'STATUS']],
+      body: body,
+      startY: 50,
+      theme: 'striped',
+      headStyles: { fillColor: [249, 115, 22] }
+    });
+
+    doc.save(`Fechamento_${selectedMonth}.pdf`);
+    
+    // Registrar no histórico mesmo sendo gerado no cliente
+    await supabase.from('fiscal_exports').insert({
+      user_id: user?.id,
+      file_name: `RELATORIO_PDF_${selectedMonth}.pdf`,
+      file_type: 'pdf_report',
+      period: selectedMonth,
+      status: 'completed',
+      file_url: '#'
+    });
+    fetchHistory();
+  };
+
   const handleGenerate = async () => {
+    if (selectedType === 'pdf_report') {
+      setLoading(true);
+      await generateClientPDF();
+      setLoading(false);
+      showSuccess("PDF gerado com sucesso!");
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/generate-fiscal-file`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ type: selectedType, period: selectedMonth })
       });
 
-      if (!response.ok) throw new Error("Erro ao gerar arquivo no servidor.");
-
-      showSuccess(`Arquivo ${selectedType.toUpperCase()} está sendo gerado!`);
-      // Simular um delay para o polling do histórico
+      if (!response.ok) throw new Error("Erro no servidor.");
+      showSuccess(`Arquivo ${selectedType.toUpperCase()} solicitado!`);
       setTimeout(fetchHistory, 2000);
     } catch (err: any) {
       showError(err.message);
@@ -105,7 +161,7 @@ const FiscalFiles = () => {
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
               <Layers className="text-orange-500" size={32} /> Exportação Contábil
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Gere os insumos necessários para o fechamento mensal da sua empresa.</p>
+            <p className="text-apple-muted mt-1 font-medium">Gere os insumos para o fechamento mensal da sua empresa.</p>
           </div>
           <button onClick={fetchHistory} className="p-2 text-apple-muted hover:text-apple-black transition-all">
              <RefreshCcw size={20} className={historyLoading ? "animate-spin" : ""} />
@@ -113,7 +169,6 @@ const FiscalFiles = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
               <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
@@ -151,9 +206,9 @@ const FiscalFiles = () => {
                            )}>
                               <type.icon size={20} />
                            </div>
-                           <div>
+                           <div className="overflow-hidden">
                               <p className={cn("text-sm font-black", selectedType === type.id ? "text-orange-600" : "text-apple-black")}>{type.label}</p>
-                              <p className="text-[10px] text-apple-muted font-medium leading-tight">{type.desc}</p>
+                              <p className="text-[10px] text-apple-muted font-medium leading-tight truncate">{type.desc}</p>
                            </div>
                         </button>
                       ))}
@@ -168,7 +223,7 @@ const FiscalFiles = () => {
                   className="w-full bg-apple-black text-white font-black py-5 rounded-3xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                  >
                     {loading ? <Loader2 className="animate-spin" size={24} /> : <Download size={24} />}
-                    PREPARAR PACOTE CONTÁBIL
+                    {selectedType === 'pdf_report' ? 'GERAR PDF IMEDIATO' : 'SOLICITAR PROCESSAMENTO'}
                  </button>
               </div>
             </div>
@@ -177,7 +232,7 @@ const FiscalFiles = () => {
           <div className="space-y-6">
              <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 shadow-sm h-full flex flex-col">
                 <h3 className="text-xs font-bold text-apple-black uppercase tracking-widest mb-8 flex items-center gap-2">
-                  <History size={16} className="text-orange-500" /> Exportações Recentes
+                  <History size={16} className="text-orange-500" /> Histórico de Exportações
                 </h3>
                 
                 <div className="flex-1 space-y-4">
@@ -199,7 +254,7 @@ const FiscalFiles = () => {
                               <p className="text-[9px] text-apple-muted font-bold uppercase">{new Date(item.created_at).toLocaleDateString('pt-BR')}</p>
                            </div>
                         </div>
-                        {item.status === 'completed' && (
+                        {item.status === 'completed' && item.file_url !== '#' && (
                           <a href={item.file_url} target="_blank" download className="p-2 text-apple-muted hover:text-orange-500 transition-colors shrink-0">
                              <Download size={16} />
                           </a>
@@ -209,7 +264,6 @@ const FiscalFiles = () => {
                 </div>
              </div>
           </div>
-
         </div>
       </div>
     </AppLayout>
