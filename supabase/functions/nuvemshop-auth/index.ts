@@ -22,13 +22,11 @@ serve(async (req) => {
     const { code } = await req.json()
     if (!code) throw new Error("Código de autorização ausente")
 
-    // Credenciais Reais fornecidas pelo usuário
     const CLIENT_ID = "28762";
     const CLIENT_SECRET = "d7c43cd574f2a328361e7322a7ad5dabece3df60b47a3b3f";
 
     console.log("[nuvemshop-auth] Trocando código pelo token...");
 
-    // 1. Chamar API da Nuvemshop para pegar o Token
     const tokenRes = await fetch('https://www.nuvemshop.com.br/apps/authorize/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -46,13 +44,11 @@ serve(async (req) => {
     const accessToken = tokenData.access_token;
     const storeId = tokenData.user_id.toString();
 
-    // 2. REGISTRO AUTOMÁTICO DE WEBHOOK (order/created)
-    // Isso faz com que a Nuvemshop avise o ERP sempre que houver um novo pedido
+    // REGISTRO DE WEBHOOK COM LOGS DETALHADOS
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
+    console.log(`[nuvemshop-auth] Registrando Webhook em: ${webhookUrl} para a loja ${storeId}`);
     
-    console.log(`[nuvemshop-auth] Registrando Webhook para a loja ${storeId}...`);
-    
-    await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
+    const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
       method: 'POST',
       headers: { 
         'Authorization': `bearer ${accessToken}`, 
@@ -65,7 +61,9 @@ serve(async (req) => {
       })
     });
 
-    // 3. Salvar na tabela de integrações do ERP
+    const regData = await regRes.json();
+    console.log(`[nuvemshop-auth] Status do Registro: ${regRes.status}`, regData);
+
     const { error: dbError } = await supabaseAdmin
       .from('integrations')
       .upsert({
@@ -78,7 +76,8 @@ serve(async (req) => {
           token_type: tokenData.token_type,
           scope: tokenData.scope,
           connected_at: new Date().toISOString(),
-          webhook_registered: true
+          webhook_id: regData.id,
+          webhook_registered: regRes.ok
         },
         updated_at: new Date().toISOString()
       })
