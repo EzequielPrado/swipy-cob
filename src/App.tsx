@@ -47,6 +47,7 @@ import SwipyAccount from "./pages/financial/SwipyAccount";
 import Fiscal from "./pages/financial/Fiscal";
 import DRE from "./pages/financial/DRE";
 import ChartOfAccounts from "./pages/financial/ChartOfAccounts";
+import Reconciliation from "./pages/financial/Reconciliation";
 
 // RH
 import Employees from "./pages/hr/Employees";
@@ -124,6 +125,7 @@ const App = () => (
               <Route path="/financeiro/fiscal" element={<ProtectedRoute><Fiscal /></ProtectedRoute>} />
               <Route path="/financeiro/dre" element={<ProtectedRoute><DRE /></ProtectedRoute>} />
               <Route path="/financeiro/plano-contas" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
+              <Route path="/financeiro/conciliacao" element={<ProtectedRoute><Reconciliation /></ProtectedRoute>} />
               <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
 
               {/* RH */}
