@@ -27,7 +27,6 @@ const Integrations = () => {
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<any[]>([]);
 
-  // Estados para o Modal da Nuvemshop
   const [isNuvemModalOpen, setIsNuvemModalOpen] = useState(false);
   const [storeName, setStoreName] = useState('');
 
@@ -72,23 +71,28 @@ const Integrations = () => {
     
     setLoading(true);
     try {
-      // Deletamos por provider e user_id para limpar qualquer duplicata acidental
-      const { error } = await supabase
-        .from('integrations')
-        .delete()
-        .eq('provider', 'nuvemshop')
-        .eq('user_id', effectiveUserId);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Chamada para a nova Edge Function que limpa TUDO com permissão master
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/nuvemshop-uninstall`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Erro ao desinstalar.");
+      }
       
-      // Limpa o estado local IMEDIATAMENTE
-      setIntegrations([]);
+      setIntegrations([]); // Limpa UI imediatamente
       showSuccess("Loja desconectada com sucesso!");
-      
-      // Pequeno delay para o banco processar antes do refetch
-      setTimeout(fetchIntegrations, 500);
+      fetchIntegrations();
     } catch (err: any) {
       showError("Erro ao remover: " + err.message);
+    } finally {
       setLoading(false);
     }
   };
