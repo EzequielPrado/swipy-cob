@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox, Users, CreditCard, CalendarClock, CheckSquare, Square, Layers, RefreshCw, Eye, Paperclip
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox, Users, CreditCard, CalendarClock, CheckSquare, Square, Layers, RefreshCw, Eye, Paperclip, FileText
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -175,7 +175,7 @@ const ServiceOrders = () => {
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex flex-col md:flex-row gap-6 items-center justify-between">
              <div className="relative w-full md:w-96"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar OS..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none shadow-sm" /></div>
-             <div className="flex bg-apple-white border border-apple-border p-1 rounded-xl shadow-inner"><button onClick={() => setOriginFilter('all')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all", originFilter === 'all' ? "bg-orange-500 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}>Todos</button><button onClick={() => setOriginFilter('web')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", originFilter === 'web' ? "bg-purple-600 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}><Globe size={12}/> Portal Web</button></div>
+             <div className="flex bg-apple-white border border-apple-border p-1 rounded-xl shadow-inner"><button onClick={() => setOriginFilter('all')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all", originFilter === 'all' ? "bg-orange-50 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}>Todos</button><button onClick={() => setOriginFilter('web')} className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", originFilter === 'web' ? "bg-purple-600 text-white shadow-sm" : "text-apple-muted hover:text-apple-black")}><Globe size={12}/> Portal Web</button></div>
           </div>
 
           <div className="overflow-x-auto">
@@ -197,7 +197,7 @@ const ServiceOrders = () => {
                           <p className="text-[10px] font-black text-apple-muted font-mono uppercase">#{order.id.split('-')[0]}</p>
                           <p className="text-sm font-black text-apple-black group-hover:text-orange-600 transition-colors flex items-center gap-2">
                              {order.title}
-                             {attachmentUrl && <Paperclip size={14} className="text-blue-500 animate-pulse" title="Contém Anexo" />}
+                             {attachmentUrl && <Paperclip size={14} className="text-blue-500 animate-pulse" />}
                           </p>
                           <span className={cn("inline-flex items-center gap-1 mt-1 text-[8px] font-black uppercase px-2 py-0.5 rounded border", order.origin === 'web' ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-apple-light text-apple-muted border-apple-border")}>{order.origin === 'web' ? 'Portal Web' : 'Balcão'}</span>
                         </td>
@@ -205,7 +205,7 @@ const ServiceOrders = () => {
                         <td className="px-8 py-5"><p className="text-sm font-black text-apple-black">{currency.format(order.estimated_cost)}</p><span className="text-[9px] font-bold text-apple-muted uppercase">{order.billing_type === 'faturado' ? 'Em Lote' : 'À Vista'}</span></td>
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                             {attachmentUrl && <a href={attachmentUrl} target="_blank" rel="noreferrer" className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Ver Anexo"><FileText size={18}/></a>}
+                             {attachmentUrl && <a href={attachmentUrl} target="_blank" rel="noreferrer" className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"><FileText size={18}/></a>}
                              <button onClick={() => openEditModal(order)} className="p-3 text-apple-muted hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all" title="Ver Detalhes"><Edit3 size={18}/></button>
                              <button onClick={() => { if(confirm("Remover?")) fetchOrders(); }} className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18}/></button>
                           </div>

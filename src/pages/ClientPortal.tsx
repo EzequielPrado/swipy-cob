@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Search, Loader2, Building2, CheckCircle2, ExternalLink, Mail, Phone, ShieldCheck, FileText, AlertCircle, ArrowRight, User } from 'lucide-react';
+import { Search, Loader2, Building2, CheckCircle2, ExternalLink, Mail, Phone, ShieldCheck, FileText, AlertCircle, ArrowRight, User, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
@@ -183,7 +183,7 @@ const ClientPortal = () => {
                         </Link>
                       </div>
                     </div>
-                  );
+                   );
                 })}
               </div>
             )}

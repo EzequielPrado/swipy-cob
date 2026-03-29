@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Wrench, Loader2, CheckCircle2, User, Phone, FileText, 
   Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe, Check, Users, Upload, X, File,
-  Smartphone, Mail, ClipboardList, Info
+  Smartphone, Mail, ClipboardList, Info, Paperclip
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from "@/lib/utils";
