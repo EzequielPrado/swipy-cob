@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  Hash
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -106,61 +107,117 @@ const DRE = () => {
     const companyName = profile?.company || profile?.full_name || 'Nossa Empresa';
     const period = viewType === 'monthly' ? monthOptions.find(o => o.value === selectedMonth)?.label : `ANO ${selectedYear}`;
 
-    // Cabeçalho Premium Dark
-    doc.setFillColor(29, 29, 31);
-    doc.roundedRect(10, 10, 190, 45, 5, 5, 'F');
-    
-    doc.setTextColor(249, 115, 22);
-    doc.setFontSize(8);
-    doc.text("• DRE CONTÁBIL", 20, 22);
+    // 1. HEADER PREMIUM
+    doc.setFillColor(249, 115, 22); // Swipy Orange
+    doc.rect(0, 0, 210, 45, 'F');
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    doc.setFontSize(26);
     doc.setFont("helvetica", "bold");
-    doc.text(companyName.toUpperCase(), 20, 32);
+    doc.text("DEMONSTRATIVO DRE", 15, 25);
     
-    doc.setTextColor(150, 150, 150);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(period || '', 20, 40);
+    doc.text(`GERADO EM: ${new Date().toLocaleString('pt-BR')}`, 15, 33);
+    
+    // Alinhamento à direita no header
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(companyName.toUpperCase(), 195, 25, { align: 'right' });
+    doc.setFont("helvetica", "normal");
+    doc.text(`COMPETÊNCIA: ${period?.toUpperCase()}`, 195, 33, { align: 'right' });
 
-    // Badge de Resultado no PDF
-    doc.setFillColor(255, 255, 255, 0.1);
-    doc.roundedRect(145, 18, 45, 28, 14, 14, 'F');
-    doc.setTextColor(totals.netProfit >= 0 ? 16 : 244, totals.netProfit >= 0 ? 185 : 63, totals.netProfit >= 0 ? 129 : 94);
-    doc.setFontSize(14);
-    doc.text(currency.format(totals.netProfit), 167, 32, { align: 'center' });
-    doc.setFontSize(7);
-    doc.text("RESULTADO LÍQUIDO", 167, 38, { align: 'center' });
+    // 2. RESUMO DE RESULTADO (CARD NO PDF)
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(15, 55, 180, 25, 4, 4, 'F');
+    doc.setDrawColor(230, 230, 230);
+    doc.roundedRect(15, 55, 180, 25, 4, 4, 'S');
 
-    const rows = [
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(9);
+    doc.text("RESULTADO LÍQUIDO DO PERÍODO", 25, 63);
+    
+    doc.setTextColor(totals.netProfit >= 0 ? 16 : 220, totals.netProfit >= 0 ? 120 : 38, totals.netProfit >= 0 ? 80 : 38);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(currency.format(totals.netProfit), 25, 74);
+
+    // Indicador visual de margem no card
+    const margin = totals.totalGrossRevenue > 0 ? ((totals.netProfit / totals.totalGrossRevenue) * 100).toFixed(1) : 0;
+    doc.setTextColor(150, 150, 150);
+    doc.setFontSize(8);
+    doc.text(`MARGEM LÍQUIDA: ${margin}%`, 185, 74, { align: 'right' });
+
+    // 3. TABELA DE LANÇAMENTOS
+    const rows: any[] = [
       ["1.", "RECEITA OPERACIONAL BRUTA", currency.format(totals.totalGrossRevenue)],
-      ["2.", "(-) DEDUÇÕES E IMPOSTOS", currency.format(-totals.taxDeductions)],
-      ["3.", "= RECEITA OPERACIONAL LÍQUIDA", currency.format(totals.netRevenue)],
-      ["4.", "(-) CUSTO DE VENDAS (CPV)", currency.format(-totals.cpv)],
-      ["5.", "= RESULTADO OPERACIONAL BRUTO", currency.format(totals.grossProfit)],
-      ["6.", "(-) DESPESAS OPERACIONAIS", currency.format(-(totals.totalExpenses - totals.taxDeductions))],
-      ["7.", "= LUCRO / PREJUÍZO LÍQUIDO", currency.format(totals.netProfit)]
     ];
+
+    // Sub-itens de Receita
+    categories.filter(c => c.type === 'revenue').forEach(cat => {
+      const val = totals.revenueByCat[cat.id] || 0;
+      if (val > 0) rows.push([`   ${cat.code}`, cat.name, currency.format(val)]);
+    });
+
+    rows.push(["2.", "(-) DEDUÇÕES E IMPOSTOS S/ VENDAS", `(${currency.format(totals.taxDeductions)})`]);
+    rows.push(["3.", "RECEITA OPERACIONAL LÍQUIDA", currency.format(totals.netRevenue)]);
+    rows.push(["4.", "(-) CUSTO DE VENDAS (CPV)", `(${currency.format(totals.cpv)})`]);
+    rows.push(["5.", "RESULTADO OPERACIONAL BRUTO", currency.format(totals.grossProfit)]);
+    rows.push(["6.", "(-) DESPESAS OPERACIONAIS", `(${currency.format(totals.totalExpenses - totals.taxDeductions)})`]);
+
+    // Sub-itens de Despesa
+    categories.filter(c => c.type === 'expense' && !c.name.toLowerCase().includes('imposto')).forEach(cat => {
+      const val = totals.expenseByCat[cat.id] || 0;
+      if (val > 0) rows.push([`   ${cat.code}`, cat.name, `(${currency.format(val)})`]);
+    });
+
+    rows.push(["7.", "LUCRO / PREJUÍZO LÍQUIDO", currency.format(totals.netProfit)]);
 
     autoTable(doc, {
       body: rows,
-      startY: 65,
-      theme: 'plain',
-      styles: { fontSize: 9, cellPadding: 6, textColor: [40, 40, 40] },
-      columnStyles: { 0: { cellWidth: 10 }, 2: { halign: 'right', fontStyle: 'bold' } },
+      startY: 90,
+      theme: 'striped',
+      styles: { fontSize: 9, cellPadding: 5, textColor: [60, 60, 67], font: 'helvetica' },
+      headStyles: { fillColor: [249, 115, 22], textColor: 255, fontStyle: 'bold' },
+      columnStyles: { 
+        0: { cellWidth: 20, fontStyle: 'bold' }, 
+        1: { cellWidth: 'auto' }, 
+        2: { halign: 'right', fontStyle: 'bold', cellWidth: 45 } 
+      },
+      alternateRowStyles: { fillColor: [252, 252, 253] },
       didParseCell: (data) => {
-        if (data.row.index === 2 || data.row.index === 4 || data.row.index === 6) {
+        // Estilização condicional para linhas de totais
+        const label = String(data.row.raw[1]);
+        const isTotal = ["RECEITA OPERACIONAL LÍQUIDA", "RESULTADO OPERACIONAL BRUTO", "LUCRO / PREJUÍZO LÍQUIDO"].includes(label);
+        
+        if (isTotal) {
           data.cell.styles.fontStyle = 'bold';
-          if (data.row.index === 6) {
-            data.cell.styles.fillColor = [29, 29, 31];
-            data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.textColor = [29, 29, 31];
+          if (label === "LUCRO / PREJUÍZO LÍQUIDO") {
+             data.cell.styles.fillColor = [29, 29, 31];
+             data.cell.styles.textColor = [255, 255, 255];
           }
+        }
+
+        // Itens recuados (sub-categorias)
+        if (String(data.row.raw[0]).startsWith('   ')) {
+           data.cell.styles.fontSize = 8;
+           data.cell.styles.textColor = [120, 120, 128];
         }
       }
     });
 
-    doc.save(`DRE_${companyName}_${period}.pdf`);
+    // 4. FOOTER
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(180, 180, 180);
+      doc.text("Relatório gerado via Swipy ERP — Instituição de Pagamento Woovi", 105, 285, { align: 'center' });
+      doc.text(`Página ${i} de ${pageCount}`, 195, 285, { align: 'right' });
+    }
+
+    doc.save(`DRE_${companyName.replace(/\s+/g, '_')}_${selectedMonth}.pdf`);
   };
 
   const DRERow = ({ number, label, value, isTotal = false, negative = false, indent = false }: any) => (
@@ -189,7 +246,6 @@ const DRE = () => {
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12 max-w-6xl mx-auto">
         
-        {/* CABEÇALHO DE CONTROLES */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
           <div className="flex bg-apple-offWhite border border-apple-border p-1.5 rounded-2xl shadow-inner">
              <button onClick={() => setViewType('monthly')} className={cn("px-6 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all", viewType === 'monthly' ? "bg-white text-orange-600 shadow-md" : "text-apple-muted hover:text-apple-black")}>Mensal</button>
@@ -209,14 +265,12 @@ const DRE = () => {
               </Select>
             )}
 
-            <button onClick={handleExportPDF} className="flex-1 md:flex-none bg-apple-black hover:bg-zinc-800 text-white px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl transition-all active:scale-95"><FileDown size={18} /> GERAR PDF</button>
+            <button onClick={handleExportPDF} className="flex-1 md:flex-none bg-apple-black hover:bg-zinc-800 text-white px-8 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl transition-all active:scale-95"><FileDown size={18} /> EXPORTAR PDF</button>
           </div>
         </div>
 
-        {/* CONTAINER DRE DARK (CONFORME DESIGN) */}
         <div className="bg-[#1d1d1f] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-700">
            
-           {/* HEADER DRE INTERNO */}
            <div className="p-10 md:p-14 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/5 relative">
               <div className="space-y-4">
                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
@@ -231,7 +285,6 @@ const DRE = () => {
                  </p>
               </div>
 
-              {/* BADGE DE RESULTADO CIRCULAR */}
               <div className="mt-8 md:mt-0 flex flex-col items-center justify-center w-32 h-32 rounded-full border-4 border-white/5 bg-white/5 relative group">
                  <div className={cn(
                    "absolute inset-0 rounded-full blur-2xl opacity-20 transition-all duration-1000 group-hover:opacity-40",
@@ -275,7 +328,6 @@ const DRE = () => {
                   </div>;
                 })}
 
-                {/* LINHA FINAL DE LUCRO REALÇADA */}
                 <div className="bg-white p-10 md:p-14 flex items-center justify-between">
                    <div className="flex items-center gap-4">
                       <span className="text-xs font-mono text-zinc-400">7.</span>
@@ -291,7 +343,6 @@ const DRE = () => {
              </div>
            )}
 
-           {/* RODAPÉ DO DRE */}
            <div className="p-8 bg-black/40 flex flex-col md:flex-row items-center justify-between border-t border-white/5 gap-4">
               <p className="text-[9px] font-medium text-zinc-500">Página 1 de 1 — {profile?.company || 'Swipy ERP'} — Gerado via Swipy Fintech LTDA</p>
               <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
@@ -301,7 +352,6 @@ const DRE = () => {
            </div>
         </div>
 
-        {/* INFO ADICIONAL */}
         <div className="bg-orange-50 border border-orange-100 p-6 rounded-[2.5rem] flex items-start gap-4">
            <Layers className="text-orange-500 shrink-0" size={24} />
            <div>
