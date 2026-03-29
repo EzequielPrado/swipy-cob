@@ -40,31 +40,36 @@ const ServiceOrders = () => {
   const fetchOrders = async () => {
     if (!effectiveUserId) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('service_orders')
-      .select('*, customers(id, name, email, phone), employees(full_name), charges(id, status, due_date)')
-      .eq('user_id', effectiveUserId)
-      .order('created_at', { ascending: false });
+    
+    try {
+      // Simplificado: removido o join complexo com charges caso a relação não esteja mapeada
+      const { data, error } = await supabase
+        .from('service_orders')
+        .select('*, customers(id, name, email, phone), employees(full_name)')
+        .eq('user_id', effectiveUserId)
+        .order('created_at', { ascending: false });
 
-    if (!error) setOrders(data || []);
-    setLoading(false);
+      if (error) throw error;
+      setOrders(data || []);
+    } catch (err: any) {
+      console.error("[ServiceOrders] Erro ao buscar:", err.message);
+      showError("Não foi possível carregar as ordens. Verifique sua conexão.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchOrders();
     
-    // ATIVAÇÃO REALTIME: Escutar novas OS (especialmente as do portal)
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('os-realtime')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'service_orders',
         filter: `user_id=eq.${effectiveUserId}` 
-      }, (payload) => {
-        console.log("Mudança detectada nas OS:", payload);
-        fetchOrders(); // Recarrega a lista automaticamente
-      })
+      }, () => fetchOrders())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -83,20 +88,8 @@ const ServiceOrders = () => {
     fetchDeps();
   }, [effectiveUserId]);
 
-  const openEditModal = (order: any) => {
-    setEditingOrder(order);
-    setFormData({
-      title: order.title,
-      customerId: order.customer_id,
-      employeeId: order.employee_id || '',
-      equipmentInfo: order.equipment_info || '',
-      description: order.description || '',
-      priority: order.priority || 'normal',
-      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00',
-      billingType: order.billing_type || 'imediato',
-      billingDays: (order.billing_days || 30).toString()
-    });
-    setIsModalOpen(true);
+  const toggleSelect = (id: string) => {
+    setSelectedOrders(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const handleBatchBilling = async () => {
@@ -107,7 +100,7 @@ const ServiceOrders = () => {
 
     try {
       setLoading(true);
-      const totalAmount = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost), 0);
+      const totalAmount = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost || 0), 0);
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 30);
 
@@ -115,7 +108,7 @@ const ServiceOrders = () => {
         user_id: effectiveUserId,
         customer_id: firstOrder.customer_id,
         amount: totalAmount,
-        description: `Lote Consolidado: ${selectedOrders.length} Serviços Realizados`,
+        description: `Lote Consolidado: ${selectedOrders.length} Serviços`,
         status: 'pendente',
         due_date: dueDate.toISOString().split('T')[0],
         method: 'pix'
@@ -125,11 +118,10 @@ const ServiceOrders = () => {
 
       await supabase.from('service_orders').update({
         status: 'concluido',
-        charge_id: charge.id,
         completion_date: new Date().toISOString()
       }).in('id', selectedOrders);
 
-      showSuccess("Fatura de lote gerada!");
+      showSuccess("Fatura gerada com sucesso!");
       setSelectedOrders([]);
       fetchOrders();
     } catch (err: any) { showError(err.message); } finally { setLoading(false); }
@@ -165,18 +157,9 @@ const ServiceOrders = () => {
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'aberto': return "bg-blue-50 text-blue-600 border-blue-100";
-      case 'em_progresso': return "bg-orange-50 text-orange-600 border-orange-100";
-      case 'concluido': return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      default: return "bg-zinc-100 text-zinc-500 border-zinc-200";
-    }
-  };
-
   const filteredOrders = orders.filter(o => {
     const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+                          (o.customers?.name && o.customers.name.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesOrigin = originFilter === 'all' || o.origin === originFilter;
     return matchesSearch && matchesOrigin;
   });
@@ -192,7 +175,7 @@ const ServiceOrders = () => {
             <div className="flex items-center gap-2 mb-1">
               <Wrench className="text-blue-500" size={20} />
               <span className="text-[10px] font-black uppercase text-apple-muted tracking-widest">
-                Gestão de Serviços {activeMerchant ? `• ${activeMerchant.company}` : ''}
+                Gestão Operacional {activeMerchant ? `• ${activeMerchant.company}` : ''}
               </span>
             </div>
             <h2 className="text-3xl font-black tracking-tight text-apple-black">Painel de Ordens</h2>
@@ -211,15 +194,15 @@ const ServiceOrders = () => {
         </div>
 
         {webPendingCount > 0 && (
-           <div className="bg-purple-600 p-4 rounded-2xl flex items-center justify-between text-white shadow-xl shadow-purple-600/20 animate-in fade-in zoom-in duration-500">
-              <div className="flex items-center gap-3">
-                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Globe size={20} /></div>
+           <div className="bg-purple-600 p-5 rounded-3xl flex items-center justify-between text-white shadow-xl shadow-purple-600/20 animate-in fade-in zoom-in duration-500">
+              <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center"><Globe size={24} /></div>
                  <div>
-                    <p className="text-xs font-black uppercase tracking-widest leading-none">Novas Solicitações Web</p>
-                    <p className="text-[10px] opacity-80 mt-1">Existem {webPendingCount} ordens vindas do portal aguardando triagem.</p>
+                    <p className="text-sm font-black uppercase tracking-widest leading-none">Novas Solicitações Web</p>
+                    <p className="text-[11px] opacity-90 mt-1">Existem {webPendingCount} ordens vindas do portal aguardando triagem.</p>
                  </div>
               </div>
-              <button onClick={() => setOriginFilter('web')} className="bg-white text-purple-600 text-[9px] font-black uppercase px-4 py-2 rounded-lg hover:bg-apple-light transition-all">FILTRAR AGORA</button>
+              <button onClick={() => setOriginFilter('web')} className="bg-white text-purple-600 text-[10px] font-black uppercase px-6 py-3 rounded-xl hover:bg-apple-light transition-all shadow-sm">FILTRAR AGORA</button>
            </div>
         )}
 
@@ -256,7 +239,7 @@ const ServiceOrders = () => {
                   filteredOrders.map((order) => (
                     <tr key={order.id} className={cn("hover:bg-apple-light transition-colors group", selectedOrders.includes(order.id) && "bg-orange-50/50")}>
                       <td className="px-8 py-5">
-                         {!order.charge_id && order.status !== 'concluido' && (
+                         {order.status !== 'concluido' && (
                            <button onClick={() => toggleSelect(order.id)} className="text-orange-500 transition-transform active:scale-90">
                               {selectedOrders.includes(order.id) ? <CheckSquare size={20} /> : <Square size={20} className="opacity-20 hover:opacity-100" />}
                            </button>
@@ -274,7 +257,7 @@ const ServiceOrders = () => {
                       </td>
                       <td className="px-8 py-5">
                         <div className="space-y-1">
-                           <p className="text-sm font-bold text-apple-black">{order.customers?.name}</p>
+                           <p className="text-sm font-bold text-apple-black">{order.customers?.name || 'Cliente Indefinido'}</p>
                            {order.is_intermediary && (
                              <div className="bg-orange-50 border border-orange-100 px-2.5 py-1 rounded-lg flex items-center gap-2 w-fit">
                                 <Users size={10} className="text-orange-600" />

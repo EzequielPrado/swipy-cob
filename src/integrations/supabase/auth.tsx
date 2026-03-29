@@ -105,7 +105,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       loading, 
       activeMerchant,
       setActiveMerchant,
-      effectiveUserId: activeMerchant?.id || user?.id,
+      // CRÍTICO: Se for funcionário, o effectiveUserId é o ID do patrão (merchant_id)
+      effectiveUserId: activeMerchant?.id || profile?.merchant_id || user?.id,
       signOut,
       refreshProfile
     }}>
