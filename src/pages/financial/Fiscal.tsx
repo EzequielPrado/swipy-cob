@@ -40,10 +40,10 @@ const Fiscal = () => {
 
   const monthOptions = useMemo(() => {
     const options = [];
-    // Opção para ver TUDO
     options.push({ value: 'all', label: 'Histórico Completo' });
 
     const d = new Date();
+    d.setDate(1); // Fix: Set to day 1 to avoid date overflow issues
     for(let i=0; i<12; i++) {
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -57,7 +57,7 @@ const Fiscal = () => {
     if (!user) return;
     setLoading(true);
     try {
-      let startDate = '2021-01-01'; // Início sugerido pela documentação Woovi
+      let startDate = '2021-01-01'; 
       let endDate = new Date().toISOString().split('T')[0];
 
       if (selectedMonth !== 'all') {
@@ -73,7 +73,6 @@ const Fiscal = () => {
       });
 
       const data = await response.json();
-      
       if (!response.ok) throw new Error(data.error || "Falha ao conectar com a Woovi");
 
       setInvoices(data.invoices || []);
@@ -135,7 +134,6 @@ const Fiscal = () => {
           </div>
         </div>
 
-        {/* KPIs COM VISÃO DE SUCESSO/FALHA */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden group">
             <p className="text-[10px] text-apple-muted font-black uppercase tracking-widest mb-2">Total de Registros</p>

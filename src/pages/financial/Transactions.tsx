@@ -22,9 +22,8 @@ const Transactions = () => {
   const [accounts, setAccounts] = useState<any[]>([]);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('all'); // all, bank, receivable, payable
+  const [sourceFilter, setSourceFilter] = useState('all');
 
-  // Filtro de Mês
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -33,8 +32,9 @@ const Transactions = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
-    d.setMonth(d.getMonth() - 11); // Mostrar últimos 12 meses
-    for(let i=0; i<24; i++) { // Permitir ver 1 ano atrás e 1 ano à frente (projeção)
+    d.setDate(1); // Fix
+    d.setMonth(d.getMonth() - 11); 
+    for(let i=0; i<24; i++) { 
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
       options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
@@ -74,7 +74,6 @@ const Transactions = () => {
 
       if (accRes.data) setAccounts(accRes.data);
 
-      // Normalizar dados para uma lista única
       const normalizedTrx = (trxRes.data || []).map(t => ({
         id: t.id,
         date: t.date,
@@ -168,7 +167,6 @@ const Transactions = () => {
           </div>
         </div>
 
-        {/* KPIs RÁPIDOS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Entradas (Período)</p>
@@ -184,7 +182,6 @@ const Transactions = () => {
            </div>
         </div>
 
-        {/* BARRA DE FILTROS */}
         <div className="bg-apple-white border border-apple-border p-2 rounded-[2rem] shadow-sm flex flex-col lg:flex-row gap-2">
            <div className="relative flex-1">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
@@ -218,7 +215,6 @@ const Transactions = () => {
            </div>
         </div>
 
-        {/* TABELA CONSOLIDADA */}
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
