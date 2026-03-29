@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNavigate, Link } from 'react-router-dom';
 
 const ServiceOrders = () => {
-  const { user, profile, effectiveUserId, activeMerchant } = useAuth();
+  const { effectiveUserId, activeMerchant } = useAuth();
   const navigate = useNavigate();
   
   // Estados de Dados
@@ -102,7 +102,7 @@ const ServiceOrders = () => {
   }, [effectiveUserId]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta OS?")) return;
+    if (!confirm("Tem certeza que deseja excluir esta OS permanentemente?")) return;
     try {
       const { error } = await supabase.from('service_orders').delete().eq('id', id);
       if (error) throw error;
@@ -187,7 +187,21 @@ const ServiceOrders = () => {
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedOrders(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesOrigin = originFilter === 'all' || o.origin === originFilter;
+      return matchesSearch && matchesOrigin;
+    });
+  }, [orders, searchTerm, originFilter]);
+
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  
   const stats = useMemo(() => ({
     open: orders.filter(o => o.status === 'aberto').length,
     progress: orders.filter(o => o.status === 'em_progresso').length,
