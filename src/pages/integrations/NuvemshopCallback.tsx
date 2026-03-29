@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
-import { Loader2, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 
 const NuvemshopCallback = () => {
@@ -12,10 +12,17 @@ const NuvemshopCallback = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
+  const [errorMessage, setErrorMessage] = useState("");
+  
+  // Trava para o React Strict Mode não rodar a requisição 2x
+  const processedCode = useRef<string | null>(null);
 
   useEffect(() => {
     const code = searchParams.get('code');
-    if (code && user) {
+    
+    // Só prossegue se tiver o código, o usuário estiver carregado e AINDA não tiver processado esse código
+    if (code && user && processedCode.current !== code) {
+      processedCode.current = code;
       finalizeConnection(code);
     }
   }, [user, searchParams]);
@@ -34,15 +41,16 @@ const NuvemshopCallback = () => {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok) throw new Error(result.error || "Erro desconhecido retornado pelo servidor.");
 
       setStatus('success');
       showSuccess("Nuvemshop conectada com sucesso!");
       setTimeout(() => navigate('/configuracoes/integracoes'), 3000);
       
     } catch (err: any) {
-      console.error(err);
+      console.error("[NuvemshopCallback] Erro:", err);
       setStatus('error');
+      setErrorMessage(err.message || "Falha ao finalizar integração.");
       showError(err.message || "Falha ao finalizar integração.");
     }
   };
@@ -70,11 +78,16 @@ const NuvemshopCallback = () => {
         )}
 
         {status === 'error' && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             <XCircle className="text-red-500 mx-auto" size={48} />
             <h2 className="text-2xl font-black text-apple-black tracking-tight">Erro na Conexão</h2>
-            <p className="text-apple-muted font-medium text-sm">Não foi possível validar o token da Nuvemshop.</p>
-            <button onClick={() => navigate('/configuracoes/integracoes')} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl mt-4">TENTAR NOVAMENTE</button>
+            <p className="text-red-500 font-medium text-sm bg-red-50 p-4 rounded-xl border border-red-100">
+              {errorMessage}
+            </p>
+            <p className="text-apple-muted text-xs">Se o erro for relacionado a credenciais, verifique a Edge Function no Supabase.</p>
+            <button onClick={() => navigate('/configuracoes/integracoes')} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl mt-4 active:scale-95 transition-all">
+              VOLTAR PARA TENTAR NOVAMENTE
+            </button>
           </div>
         )}
       </div>
