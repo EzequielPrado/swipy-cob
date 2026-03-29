@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
-  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench
+  Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench,
+  ReceiptText
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -43,10 +44,18 @@ const menuStructure = [
       { label: 'Assinaturas', path: '/financeiro/assinaturas' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
       { label: 'Contas Bancárias', path: '/financeiro/bancos' },
-      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
-      { label: 'DRE Contábil', path: '/financeiro/dre' },
       { label: 'Agenda Financeira', path: '/financeiro/calendario' },
       { label: 'Raio-X de Performance', path: '/financeiro/performance' }
+    ] 
+  },
+  { 
+    title: 'Fiscal', 
+    moduleId: 'fiscal', 
+    icon: ReceiptText, 
+    roles: ['Admin', 'Financeiro', 'Contador'], 
+    submenus: [
+      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
+      { label: 'DRE Contábil', path: '/financeiro/dre' }
     ] 
   },
   { 
