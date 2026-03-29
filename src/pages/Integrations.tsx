@@ -11,14 +11,23 @@ import {
   Zap,
   Globe,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { showError } from '@/utils/toast';
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<any[]>([]);
+
+  // Estados para o Modal da Nuvemshop
+  const [isNuvemModalOpen, setIsNuvemModalOpen] = useState(false);
+  const [storeName, setStoreName] = useState('');
 
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
@@ -44,10 +53,18 @@ const Integrations = () => {
 
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
-  // NOVO FLUXO: Link direto global da Nuvemshop (não precisa do nome da loja)
-  const handleConnectNuvemshop = () => {
+  // Função que monta a URL corretamente e redireciona
+  const handleRedirectToNuvemshop = () => {
+    if (!storeName.trim()) {
+      showError("Por favor, digite o nome da sua loja.");
+      return;
+    }
+    
+    // Limpa o nome da loja (remove espaços e caracteres especiais)
+    const cleanStoreName = storeName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     const CLIENT_ID = "28762";
-    const authUrl = `https://www.nuvemshop.com.br/apps/${CLIENT_ID}/authorize`;
+    
+    const authUrl = `https://${cleanStoreName}.lojavirtualnuvem.com.br/admin/apps/${CLIENT_ID}/authorize`;
     window.location.href = authUrl;
   };
 
@@ -70,6 +87,7 @@ const Integrations = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {/* CARD NUVEMSHOP */}
           <div className={cn(
             "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative",
             nuvemshopConn?.status === 'active' ? "border-emerald-500/20 bg-emerald-50/5" : "border-apple-border hover:border-orange-500/30"
@@ -115,7 +133,7 @@ const Integrations = () => {
               ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                   <button 
-                    onClick={handleConnectNuvemshop}
+                    onClick={() => setIsNuvemModalOpen(true)}
                     className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Globe size={18} className="text-orange-500" /> CONECTAR LOJA
@@ -125,6 +143,7 @@ const Integrations = () => {
             </div>
           </div>
 
+          {/* CARD SHOPIFY */}
           <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
              <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
                 <ShoppingBag size={24} className="text-apple-muted" />
@@ -134,6 +153,46 @@ const Integrations = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL PARA DIGITAR O NOME DA LOJA */}
+      <Dialog open={isNuvemModalOpen} onOpenChange={setIsNuvemModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl font-black flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg">
+                <Globe size={20} />
+              </div>
+              Conectar Nuvemshop
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="p-8 space-y-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Nome da sua loja</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  value={storeName} 
+                  onChange={e => setStoreName(e.target.value)} 
+                  placeholder="ex: minha-loja-oficial" 
+                  className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold text-apple-black" 
+                  autoFocus
+                />
+              </div>
+              <p className="text-[10px] text-apple-muted font-medium italic mt-2">
+                Se o link da sua loja é <strong>minha-loja</strong>.lojavirtualnuvem.com.br, digite apenas <strong>minha-loja</strong>.
+              </p>
+            </div>
+
+            <button 
+              onClick={handleRedirectToNuvemshop}
+              className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all shadow-xl active:scale-95 flex items-center justify-center gap-2 hover:bg-zinc-800"
+            >
+              AUTORIZAR ACESSO <ArrowRight size={18} />
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </AppLayout>
   );
 };
