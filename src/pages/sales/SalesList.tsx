@@ -25,7 +25,7 @@ const FULFILLMENT_STAGES = [
 ];
 
 const SalesList = () => {
-  const { user } = useAuth();
+  const { effectiveUserId } = useAuth(); // Usando effectiveUserId para suportar modo contador
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,7 +53,7 @@ const SalesList = () => {
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const fetchSales = async () => {
-    if (!user) return;
+    if (!effectiveUserId) return;
     setLoading(true);
     
     const [year, month] = selectedMonth.split('-');
@@ -71,7 +71,7 @@ const SalesList = () => {
           products(name, sku, is_produced)
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', effectiveUserId)
       .gte('created_at', startDate)
       .lte('created_at', endDate)
       .order('created_at', { ascending: false });
@@ -84,7 +84,7 @@ const SalesList = () => {
 
   useEffect(() => {
     fetchSales();
-  }, [user, selectedMonth]);
+  }, [effectiveUserId, selectedMonth]);
 
   const filteredSales = useMemo(() => {
     return sales.filter(s => 
@@ -105,85 +105,11 @@ const SalesList = () => {
     setIsDetailsOpen(true);
   };
 
-  const advanceStatus = async (manualNextStage?: string) => {
-    if (!selectedSale) return;
-    
-    // IMPORTANTE: Se o argumento vier de um evento onClick, ele será um objeto.
-    // Garantimos que nextStage seja apenas string ou null.
-    let nextStage = typeof manualNextStage === 'string' ? manualNextStage : null;
-    
-    if (!nextStage) {
-      const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
-      if (currentIndex === -1 || currentIndex >= FULFILLMENT_STAGES.length - 1) return;
-      nextStage = FULFILLMENT_STAGES[currentIndex + 1].id;
-    }
-
-    setUpdatingStatus(true);
-    try {
-      const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
-      if (error) throw error;
-
-      if (nextStage === 'production') {
-        const prodEntries = selectedSale.quote_items
-          .filter((i: any) => i.products?.is_produced)
-          .map((i: any) => ({
-            user_id: user?.id,
-            product_id: i.product_id,
-            quote_id: selectedSale.id,
-            quantity: i.quantity,
-            status: 'pending'
-          }));
-        
-        if (prodEntries.length > 0) {
-          await supabase.from('production_orders').insert(prodEntries);
-        }
-      }
-
-      showSuccess(`Pedido avançado.`);
-      const updatedSale = { ...selectedSale, status: nextStage };
-      setSelectedSale(updatedSale);
-      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
-  const handleInvoiceAndAdvance = async () => {
-    if (!selectedSale) return;
-    setUpdatingStatus(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ 
-          chargeId: selectedSale.id, 
-          customerId: selectedSale.customer_id, 
-          amount: selectedSale.total_amount, 
-          description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}` 
-        })
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-      const nextStage = 'invoiced';
-      await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
-      showSuccess("Fatura emitida!");
-      const updatedSale = { ...selectedSale, status: nextStage };
-      setSelectedSale(updatedSale);
-      setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
-    } catch (err: any) {
-      showError(err.message);
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
   const getStatusDisplay = (status: string) => {
+    if (status === 'shipped') return { label: 'Despachado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
     if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-orange-50 text-orange-600 border-orange-100' };
     if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-    if (status === 'paid') return { label: 'Pagamento Confirmado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    if (status === 'paid') return { label: 'Pago', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
     
     const stage = FULFILLMENT_STAGES.find(s => s.id === status);
     if (!stage) return { label: status, color: 'bg-apple-light text-apple-muted border-apple-border' };
@@ -211,21 +137,9 @@ const SalesList = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-orange-200 transition-all border-l-4 border-l-orange-500">
-            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
-            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
-              <DollarSign size={14} className="text-orange-500" /> Faturamento no Período
-            </p>
-            {loading ? <Loader2 className="animate-spin text-apple-muted" size={24} /> : (
-              <div>
-                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalMonthRevenue)}</p>
-                <p className="text-[10px] text-apple-muted mt-2 font-medium uppercase">
-                  {monthOptions.find(o => o.value === selectedMonth)?.label}
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm border-l-4 border-l-orange-500 max-w-sm">
+          <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2">Faturamento no Período</p>
+          <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalMonthRevenue)}</p>
         </div>
 
         <div className="relative max-w-md">
@@ -291,49 +205,6 @@ const SalesList = () => {
               </div>
 
               <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                {selectedSale.status !== 'draft' && selectedSale.status !== 'completed' && (
-                  <div className="p-6 rounded-[1.5rem] border border-apple-border bg-apple-offWhite shadow-inner">
-                    <div className="flex items-center justify-between mb-8"><h4 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Fluxo de Atendimento</h4></div>
-                    <div className="relative flex justify-between items-center px-4">
-                      <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 bg-apple-border -z-10 -translate-y-1/2"></div>
-                      {FULFILLMENT_STAGES.map((stage, index) => {
-                        const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
-                        const isCompleted = index <= currentIndex;
-                        return (
-                          <div key={stage.id} className="flex flex-col items-center gap-2 z-10 relative">
-                            <div className={cn("w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all", isCompleted ? "bg-orange-500 border-orange-600 text-white shadow-sm" : "bg-apple-white border-apple-border text-apple-muted")}>
-                              <stage.icon size={16} />
-                            </div>
-                            <span className={cn("absolute -bottom-6 text-[8px] font-black uppercase tracking-wider", isCompleted ? "text-orange-600" : "text-apple-muted")}>{stage.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    <div className="mt-14 flex justify-center">
-                       {selectedSale.status === 'paid' ? (
-                         <div className="flex gap-4">
-                            {selectedSale.quote_items.some((i: any) => i.products?.is_produced) ? (
-                              <button onClick={() => advanceStatus('production')} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
-                                {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <><Factory size={16} /> Liberar para Produção</>}
-                              </button>
-                            ) : (
-                              <button onClick={() => advanceStatus('picking')} disabled={updatingStatus} className="bg-blue-600 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 transition-all shadow-sm">
-                                {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <><PackageSearch size={16} /> Liberar para Separação</>}
-                              </button>
-                            )}
-                         </div>
-                       ) : (
-                         FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && selectedSale.status !== 'approved' && (
-                           <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : () => advanceStatus()} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
-                             {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : (selectedSale.status === 'picking' ? "Emitir Fatura Oficial" : "Avançar Próxima Etapa")}
-                           </button>
-                         )
-                       )}
-                    </div>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div className="p-6 bg-apple-offWhite border border-apple-border rounded-3xl">
                       <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3">Cliente / Pagador</p>

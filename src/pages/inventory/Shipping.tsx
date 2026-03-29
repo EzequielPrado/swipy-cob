@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const Shipping = () => {
-  const { user } = useAuth();
+  const { effectiveUserId } = useAuth(); // Usando effectiveUserId para consistência
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,19 +24,21 @@ const Shipping = () => {
   const [shipData, setShipData] = useState({ carrier: '', trackingCode: '' });
 
   const fetchQueue = async () => {
-    if (!user) return;
+    if (!effectiveUserId) return;
     setLoading(true);
+    // Buscamos apenas os que NÃO foram despachados ainda
     const { data } = await supabase
       .from('quotes')
       .select('*, customers(*), quote_items(*, products(*))')
-      .eq('user_id', user.id)
+      .eq('user_id', effectiveUserId)
       .in('status', ['picking', 'invoiced'])
       .order('created_at', { ascending: true });
+    
     setOrders(data || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchQueue(); }, [user]);
+  useEffect(() => { fetchQueue(); }, [effectiveUserId]);
 
   const handleIssueInvoice = async (order: any) => {
     setInvoicingId(order.id);
@@ -59,10 +61,9 @@ const Shipping = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro ao emitir nota");
 
-      // Avançar status para invoiced
       await supabase.from('quotes').update({ status: 'invoiced' }).eq('id', order.id);
       
-      showSuccess("Nota Fiscal emitida e enviada!");
+      showSuccess("Nota Fiscal emitida!");
       fetchQueue();
     } catch (err: any) {
       showError(err.message);
@@ -75,12 +76,14 @@ const Shipping = () => {
     if (!shipData.carrier) return showError("Informe a transportadora");
     setProcessing(true);
     try {
-      // 1. Atualizar Orçamento
-      await supabase.from('quotes').update({
+      // 1. Atualizar Orçamento para 'shipped'
+      const { error: updateError } = await supabase.from('quotes').update({
         status: 'shipped',
         carrier: shipData.carrier,
         tracking_code: shipData.trackingCode
       }).eq('id', selectedOrder.id);
+
+      if (updateError) throw updateError;
 
       // 2. Baixa de Estoque
       for (const item of selectedOrder.quote_items) {
@@ -89,7 +92,7 @@ const Shipping = () => {
           const newQty = currentStock - item.quantity;
           await supabase.from('products').update({ stock_quantity: newQty }).eq('id', item.product_id);
           await supabase.from('inventory_movements').insert({
-            user_id: user?.id, 
+            user_id: effectiveUserId, 
             product_id: item.product_id, 
             type: 'out', 
             quantity: item.quantity,
@@ -98,9 +101,10 @@ const Shipping = () => {
         }
       }
 
-      showSuccess("Pedido enviado com sucesso!");
+      showSuccess("Pedido despachado!");
       setIsShipModalOpen(false);
-      fetchQueue();
+      setShipData({ carrier: '', trackingCode: '' });
+      fetchQueue(); // Atualiza a lista e remove o item despachado da visão
     } catch (err: any) { 
       showError(err.message); 
     } finally { 
