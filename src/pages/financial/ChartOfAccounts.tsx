@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { Layers, Plus, Loader2, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Info, CheckCircle2 } from 'lucide-react';
+import { Layers, Plus, Loader2, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Info, CheckCircle2, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -24,7 +24,6 @@ const ChartOfAccounts = () => {
         .from('chart_of_accounts')
         .select('*')
         .eq('user_id', user.id)
-        .order('type', { ascending: false })
         .order('code', { ascending: true });
 
       if (error) throw error;
@@ -73,27 +72,6 @@ const ChartOfAccounts = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <div className="bg-apple-white border border-apple-border p-7 rounded-[2.5rem] shadow-sm flex items-center gap-5">
-              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 border border-emerald-100">
-                <ArrowUpCircle size={28} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Fontes de Receita</p>
-                <p className="text-3xl font-black text-apple-black">{categories.filter(c => c.type === 'revenue').length}</p>
-              </div>
-           </div>
-           <div className="bg-apple-white border border-apple-border p-7 rounded-[2.5rem] shadow-sm flex items-center gap-5">
-              <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-500 border border-red-100">
-                <ArrowDownCircle size={28} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Centros de Custo</p>
-                <p className="text-3xl font-black text-apple-black">{categories.filter(c => c.type === 'expense').length}</p>
-              </div>
-           </div>
-        </div>
-
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="relative w-full md:w-96">
@@ -107,7 +85,7 @@ const ChartOfAccounts = () => {
               />
             </div>
             <div className="flex items-center gap-2 text-[10px] font-black text-orange-600 bg-orange-50 px-4 py-2 rounded-xl border border-orange-100">
-               <Info size={14} /> CLASSIFICAÇÃO GERENCIAL ATIVA
+               <Info size={14} /> CLASSIFICAÇÃO INTELIGENTE ATIVA
             </div>
           </div>
 
@@ -118,20 +96,19 @@ const ChartOfAccounts = () => {
                   <th className="px-8 py-5">Código</th>
                   <th className="px-8 py-5">Nome da Categoria</th>
                   <th className="px-8 py-5">Tipo</th>
-                  <th className="px-8 py-5">Status</th>
                   <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
-                  <tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
+                  <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="py-20 text-center text-apple-muted italic">Nenhuma categoria cadastrada.</td></tr>
+                  <tr><td colSpan={4} className="py-20 text-center text-apple-muted italic">Inicie seu plano criando sua primeira categoria.</td></tr>
                 ) : (
                   filtered.map((cat) => (
                     <tr key={cat.id} className="hover:bg-apple-light transition-colors group">
-                      <td className="px-8 py-5 font-mono text-xs font-black text-orange-500">
-                        {cat.code || '---'}
+                      <td className="px-8 py-5 font-mono text-sm font-black text-orange-500">
+                        {cat.code}
                       </td>
                       <td className="px-8 py-5">
                         <p className="text-sm font-bold text-apple-black">{cat.name}</p>
@@ -139,20 +116,15 @@ const ChartOfAccounts = () => {
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-2">
                            {cat.type === 'revenue' ? (
-                             <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 uppercase">
-                               <ArrowUpCircle size={14} /> Receita
+                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black text-emerald-600 uppercase bg-emerald-50 border border-emerald-100">
+                               <ArrowUpCircle size={12} /> Receita
                              </span>
                            ) : (
-                             <span className="flex items-center gap-1.5 text-[10px] font-black text-red-600 uppercase">
-                               <ArrowDownCircle size={14} /> Despesa
+                             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black text-red-600 uppercase bg-red-50 border border-red-100">
+                               <ArrowDownCircle size={12} /> Despesa
                              </span>
                            )}
                         </div>
-                      </td>
-                      <td className="px-8 py-5">
-                         <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase text-emerald-600">
-                           <CheckCircle2 size={12} /> Ativa
-                         </span>
                       </td>
                       <td className="px-8 py-5 text-right">
                          <button 
