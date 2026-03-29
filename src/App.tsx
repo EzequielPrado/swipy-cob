@@ -48,6 +48,7 @@ import Fiscal from "./pages/financial/Fiscal";
 import DRE from "./pages/financial/DRE";
 import ChartOfAccounts from "./pages/financial/ChartOfAccounts";
 import Reconciliation from "./pages/financial/Reconciliation";
+import Transactions from "./pages/financial/Transactions";
 
 // RH
 import Employees from "./pages/hr/Employees";
@@ -117,6 +118,7 @@ const App = () => (
 
               {/* FINANCEIRO */}
               <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/financeiro/transacoes" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
               <Route path="/financeiro/contratos" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
