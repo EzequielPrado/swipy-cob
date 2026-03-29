@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Save, Loader2, Palette, Globe, ShieldCheck, Upload, X, BellRing, MessageSquare } from 'lucide-react';
+import { Save, Loader2, Palette, Globe, ShieldCheck, Upload, X, BellRing, MessageSquare, Link as LinkIcon } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -23,7 +23,8 @@ const Settings = () => {
     phone: '',
     logo_url: '', 
     primary_color: '#f97316',
-    notify_whatsapp_sales: true // Nova preferência
+    slug: '',
+    notify_whatsapp_sales: true 
   });
 
   useEffect(() => { if (user) fetchProfile(); }, [user]);
@@ -38,6 +39,7 @@ const Settings = () => {
         phone: data.phone || '',
         logo_url: data.logo_url || '', 
         primary_color: data.primary_color || '#f97316',
+        slug: data.slug || '',
         notify_whatsapp_sales: data.notify_whatsapp_sales ?? true
       });
     }
@@ -62,16 +64,23 @@ const Settings = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await supabase.from('profiles').update({ 
+      // Normalizar o slug (apenas letras minusculas, numeros e hifens)
+      const cleanSlug = formData.slug.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+      const { error } = await supabase.from('profiles').update({ 
         company: formData.company, 
         full_name: formData.full_name, 
         phone: formData.phone,
         logo_url: formData.logo_url, 
         primary_color: formData.primary_color,
+        slug: cleanSlug,
         notify_whatsapp_sales: formData.notify_whatsapp_sales,
         updated_at: new Date().toISOString() 
       }).eq('id', user?.id);
+
+      if (error) throw error;
       showSuccess("Configurações salvas!");
+      fetchProfile();
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
@@ -95,6 +104,24 @@ const Settings = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2"><Label className="text-xs font-bold text-apple-dark">Nome da Empresa</Label><Input value={formData.company} onChange={(e) => setFormData({...formData, company: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
                   <div className="space-y-2"><Label className="text-xs font-bold text-apple-dark">WhatsApp para Notificações</Label><Input value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} placeholder="5511999999999" className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono" /></div>
+                </div>
+                
+                <div className="space-y-2 pt-4">
+                  <Label className="text-xs font-bold text-apple-dark flex items-center gap-2">
+                    <LinkIcon size={14} className="text-orange-500" /> URL do seu Portal de Agendamento
+                  </Label>
+                  <div className="flex items-center gap-2">
+                     <span className="text-[10px] font-black text-apple-muted bg-apple-offWhite px-3 py-3 rounded-xl border border-apple-border">swipy.sh/emp/</span>
+                     <Input 
+                      value={formData.slug} 
+                      onChange={(e) => setFormData({...formData, slug: e.target.value})} 
+                      placeholder="seu-negocio" 
+                      className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold text-orange-600" 
+                     />
+                  </div>
+                  <p className="text-[9px] text-apple-muted font-medium mt-2 italic px-1">
+                    Este link permite que seus clientes abram Ordens de Serviço diretamente pela internet.
+                  </p>
                 </div>
               </div>
 
@@ -146,6 +173,24 @@ const Settings = () => {
                 <div className="h-10 rounded-xl flex items-center justify-center text-[10px] font-black text-white" style={{ backgroundColor: formData.primary_color }}>EXEMPLO DE BOTÃO</div>
               </div>
             </div>
+            
+            {formData.slug && (
+              <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 shadow-sm">
+                <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-6">Seu Portal Público</h4>
+                <div className="p-5 bg-orange-50 border border-orange-200 rounded-3xl text-center">
+                   <LinkIcon className="mx-auto text-orange-500 mb-2" size={24} />
+                   <p className="text-[10px] font-black text-orange-600 mb-4">COMPARTILHE COM SEUS CLIENTES</p>
+                   <a 
+                    href={`/emp/${formData.slug}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-xs font-bold text-apple-black underline break-all"
+                   >
+                     swipy.sh/emp/{formData.slug}
+                   </a>
+                </div>
+              </div>
+            )}
           </div>
         </form>
       </div>

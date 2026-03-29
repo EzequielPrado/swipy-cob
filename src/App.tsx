@@ -17,6 +17,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Checkout from "./pages/Checkout";
 import ClientPortal from "./pages/ClientPortal";
+import PublicBooking from "./pages/PublicBooking";
 import NotFound from "./pages/NotFound";
 
 // Vendas
@@ -98,6 +99,7 @@ const App = () => (
               <Route path="/pagar/:id" element={<Checkout />} />
               <Route path="/regularizar" element={<ClientPortal />} />
               <Route path="/orcamento/:id" element={<QuotePublicView />} />
+              <Route path="/emp/:slug" element={<PublicBooking />} />
               
               <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
               <Route path="/contador" element={<ProtectedRoute><AccountantDashboard /></ProtectedRoute>} />
