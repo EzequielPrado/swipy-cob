@@ -7,9 +7,8 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { 
   ArrowRightLeft, Search, Loader2, CheckCircle2, 
   ArrowUpCircle, ArrowDownCircle, Filter, Calendar, 
-  Clock, Landmark, Building2, Info, ArrowUpRight, ArrowDownRight,
-  ChevronRight,
-  ListFilter
+  Clock, Landmark, Info, ArrowUpRight, ArrowDownRight,
+  Wallet, Receipt, DollarSign, AlertCircle
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
@@ -17,28 +16,65 @@ import { Link } from 'react-router-dom';
 const Transactions = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [unifiedData, setUnifiedData] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   
-  // Filtros
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [accountFilter, setAccountFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all'); // all, bank, receivable, payable
 
   const fetchData = async () => {
     if (!effectiveUserId) return;
     setLoading(true);
     try {
-      const [accRes, trxRes] = await Promise.all([
+      const [accRes, trxRes, chargesRes, expensesRes] = await Promise.all([
         supabase.from('bank_accounts').select('id, name').eq('user_id', effectiveUserId),
-        supabase.from('bank_transactions')
-          .select('*, bank_accounts(name, type)')
-          .eq('user_id', effectiveUserId)
-          .order('date', { ascending: false })
+        supabase.from('bank_transactions').select('*, bank_accounts(name)').eq('user_id', effectiveUserId),
+        supabase.from('charges').select('*, customers(name)').eq('user_id', effectiveUserId),
+        supabase.from('expenses').select('*').eq('user_id', effectiveUserId)
       ]);
 
       if (accRes.data) setAccounts(accRes.data);
-      if (trxRes.data) setTransactions(trxRes.data);
+
+      // Normalizar dados para uma lista única
+      const normalizedTrx = (trxRes.data || []).map(t => ({
+        id: t.id,
+        date: t.date,
+        description: t.description,
+        amount: t.amount,
+        type: t.type === 'credit' ? 'IN' : 'OUT',
+        status: t.status === 'reconciled' ? 'Conciliado' : 'Pendente (Banco)',
+        source: 'bank',
+        account: t.bank_accounts?.name,
+        rawStatus: t.status
+      }));
+
+      const normalizedCharges = (chargesRes.data || []).map(c => ({
+        id: c.id,
+        date: c.due_date,
+        description: `Recebível: ${c.customers?.name || 'Venda'}`,
+        amount: c.amount,
+        type: 'IN',
+        status: c.status === 'pago' ? 'Recebido' : 'A Receber',
+        source: 'receivable',
+        rawStatus: c.status
+      }));
+
+      const normalizedExpenses = (expensesRes.data || []).map(e => ({
+        id: e.id,
+        date: e.due_date,
+        description: `Pagamento: ${e.description}`,
+        amount: e.amount,
+        type: 'OUT',
+        status: e.status === 'pago' ? 'Pago' : 'A Pagar',
+        source: 'payable',
+        rawStatus: e.status
+      }));
+
+      const combined = [...normalizedTrx, ...normalizedCharges, ...normalizedExpenses].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+
+      setUnifiedData(combined);
     } catch (err) {
       console.error(err);
     } finally {
@@ -48,14 +84,13 @@ const Transactions = () => {
 
   useEffect(() => { fetchData(); }, [effectiveUserId]);
 
-  const filteredTrx = useMemo(() => {
-    return transactions.filter(t => {
-      const matchSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-      const matchAccount = accountFilter === 'all' || t.bank_account_id === accountFilter;
-      return matchSearch && matchStatus && matchAccount;
+  const filteredData = useMemo(() => {
+    return unifiedData.filter(item => {
+      const matchSearch = item.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSource = sourceFilter === 'all' || item.source === sourceFilter;
+      return matchSearch && matchSource;
     });
-  }, [transactions, searchTerm, statusFilter, accountFilter]);
+  }, [unifiedData, searchTerm, sourceFilter]);
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -65,121 +100,132 @@ const Transactions = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
-              <ArrowRightLeft className="text-orange-500" size={32} /> Transações
+              <Activity className="text-orange-500" size={32} /> Fluxo Unificado
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Fluxo consolidado de entradas e saídas de todas as suas contas.</p>
+            <p className="text-apple-muted mt-1 font-medium">Visão consolidada de extratos bancários, contas a pagar e a receber.</p>
           </div>
           <div className="flex gap-2">
              <Link 
               to="/financeiro/conciliacao"
               className="bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
              >
-                <CheckCircle2 size={16} /> Realizar Conciliação
+                <CheckCircle2 size={16} /> Conciliar Bancos
              </Link>
           </div>
         </div>
 
-        {/* BARRA DE FILTROS ESTILO APPLE */}
+        {/* KPIs RÁPIDOS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Entradas (Mês)</p>
+              <p className="text-2xl font-black text-emerald-600">{currency.format(unifiedData.filter(i => i.type === 'IN').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
+           </div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Saídas (Mês)</p>
+              <p className="text-2xl font-black text-red-600">{currency.format(unifiedData.filter(i => i.type === 'OUT').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
+           </div>
+           <div className="bg-orange-500 p-6 rounded-[2rem] shadow-xl text-white">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Saldo Projetado</p>
+              <p className="text-2xl font-black">{currency.format(unifiedData.filter(i => i.type === 'IN').reduce((acc, curr) => acc + Number(curr.amount), 0) - unifiedData.filter(i => i.type === 'OUT').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
+           </div>
+        </div>
+
+        {/* BARRA DE FILTROS */}
         <div className="bg-apple-white border border-apple-border p-2 rounded-[2rem] shadow-sm flex flex-col lg:flex-row gap-2">
            <div className="relative flex-1">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
               <input 
                 type="text" 
-                placeholder="Buscar por descrição ou valor..."
+                placeholder="Buscar por descrição ou cliente..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full bg-transparent border-none rounded-2xl pl-14 pr-6 py-4 text-sm focus:ring-0 outline-none font-medium text-apple-black"
               />
            </div>
            
-           <div className="flex flex-wrap gap-2 p-1">
-              <select 
-                value={accountFilter} 
-                onChange={e => setAccountFilter(e.target.value)}
-                className="bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-1 focus:ring-orange-500"
-              >
-                <option value="all">Todas as Contas</option>
-                {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-              </select>
-
-              <select 
-                value={statusFilter} 
-                onChange={e => setStatusFilter(e.target.value)}
-                className="bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-1 focus:ring-orange-500"
-              >
-                <option value="all">Todos os Status</option>
-                <option value="pending">Pendentes</option>
-                <option value="reconciled">Conciliadas</option>
-              </select>
+           <div className="flex gap-2 p-1 overflow-x-auto">
+              {[
+                { id: 'all', label: 'Tudo', icon: Layers },
+                { id: 'bank', label: 'Bancos', icon: Landmark },
+                { id: 'receivable', label: 'A Receber', icon: ArrowUpCircle },
+                { id: 'payable', label: 'A Pagar', icon: ArrowDownCircle }
+              ].map(source => (
+                <button
+                  key={source.id}
+                  onClick={() => setSourceFilter(source.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                    sourceFilter === source.id ? "bg-orange-500 border-orange-600 text-white shadow-md" : "bg-apple-offWhite border-apple-border text-apple-muted hover:bg-apple-light"
+                  )}
+                >
+                  <source.icon size={14} /> {source.label}
+                </button>
+              ))}
            </div>
         </div>
 
-        {/* TABELA DE MOVIMENTAÇÃO */}
+        {/* TABELA CONSOLIDADA */}
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-6">Data / Origem</th>
-                  <th className="px-8 py-6">Descrição no Banco</th>
+                  <th className="px-8 py-6">Descrição do Lançamento</th>
                   <th className="px-8 py-6">Valor</th>
-                  <th className="px-8 py-6 text-center">Status</th>
-                  <th className="px-8 py-6 text-right">Ação</th>
+                  <th className="px-8 py-6 text-center">Status Interno</th>
+                  <th className="px-8 py-6 text-right">Fonte</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
                   <tr><td colSpan={5} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={40} /></td></tr>
-                ) : filteredTrx.length === 0 ? (
-                  <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic font-bold">Nenhum lançamento encontrado para os filtros aplicados.</td></tr>
+                ) : filteredData.length === 0 ? (
+                  <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic font-bold">Nenhum lançamento localizado.</td></tr>
                 ) : (
-                  filteredTrx.map((trx) => (
-                    <tr key={trx.id} className="hover:bg-apple-light transition-colors group">
+                  filteredData.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-apple-light transition-colors group">
                       <td className="px-8 py-5">
-                         <p className="text-sm font-black text-apple-black">{new Date(trx.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
-                         <div className="flex items-center gap-1.5 mt-1">
-                            <Landmark size={10} className="text-orange-500" />
-                            <span className="text-[9px] text-apple-muted font-black uppercase tracking-tighter">{trx.bank_accounts?.name}</span>
-                         </div>
+                         <p className="text-sm font-black text-apple-black">{new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+                         <p className="text-[9px] text-apple-muted font-bold uppercase mt-0.5">{item.account || 'Previsão de Caixa'}</p>
                       </td>
                       <td className="px-8 py-5">
-                         <p className="text-sm font-bold text-apple-dark italic">"{trx.description}"</p>
+                         <p className="text-sm font-bold text-apple-dark">{item.description}</p>
                       </td>
                       <td className="px-8 py-5">
                          <div className="flex items-center gap-2">
-                            {trx.type === 'credit' ? (
-                              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-inner border border-emerald-100"><ArrowUpRight size={14} /></div>
+                            {item.type === 'IN' ? (
+                              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100"><ArrowUpRight size={14} /></div>
                             ) : (
-                              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shadow-inner border border-red-100"><ArrowDownRight size={14} /></div>
+                              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100"><ArrowDownRight size={14} /></div>
                             )}
-                            <span className={cn("text-base font-black", trx.type === 'credit' ? "text-emerald-600" : "text-red-600")}>
-                              {trx.type === 'credit' ? '+' : '-'}{currency.format(trx.amount)}
+                            <span className={cn("text-base font-black", item.type === 'IN' ? "text-emerald-600" : "text-red-600")}>
+                              {item.type === 'IN' ? '+' : '-'}{currency.format(item.amount)}
                             </span>
                          </div>
                       </td>
                       <td className="px-8 py-5 text-center">
                          <span className={cn(
-                           "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border shadow-sm",
-                           trx.status === 'reconciled' 
+                           "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border",
+                           item.rawStatus === 'reconciled' || item.rawStatus === 'pago' 
                             ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                            : "bg-orange-50 text-orange-600 border-orange-100"
+                            : item.rawStatus === 'atrasado' ? "bg-red-50 text-red-600 border-red-100" : "bg-orange-50 text-orange-600 border-orange-100"
                          )}>
-                           {trx.status === 'reconciled' ? 'Conciliado' : 'Pendente'}
+                           {item.status}
                          </span>
                       </td>
                       <td className="px-8 py-5 text-right">
-                         {trx.status === 'pending' ? (
-                           <Link 
-                            to="/financeiro/conciliacao"
-                            className="text-[9px] font-black text-orange-600 hover:bg-orange-600 hover:text-white border border-orange-500/20 px-3 py-1.5 rounded-lg transition-all shadow-sm active:scale-95"
-                           >
-                             CONCILIAR
-                           </Link>
-                         ) : (
-                           <div className="text-emerald-500 bg-emerald-50 w-8 h-8 rounded-full flex items-center justify-center ml-auto border border-emerald-100 shadow-inner">
-                              <CheckCircle2 size={16} />
-                           </div>
-                         )}
+                         <div className="flex flex-col items-end">
+                            {item.source === 'bank' ? (
+                               <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                                 <Landmark size={10} /> Extrato Real
+                               </div>
+                            ) : (
+                               <div className="flex items-center gap-1.5 text-[9px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                                 <Receipt size={10} /> Sistema ERP
+                               </div>
+                            )}
+                         </div>
                       </td>
                     </tr>
                   ))
