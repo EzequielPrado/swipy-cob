@@ -25,8 +25,6 @@ serve(async (req) => {
     const CLIENT_ID = "28762";
     const CLIENT_SECRET = "d7c43cd574f2a328361e7322a7ad5dabece3df60b47a3b3f";
 
-    console.log("[nuvemshop-auth] Trocando código pelo token...");
-
     const tokenRes = await fetch('https://www.nuvemshop.com.br/apps/authorize/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,15 +37,21 @@ serve(async (req) => {
     })
 
     const tokenData = await tokenRes.json()
-    if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro na Nuvemshop ao obter token");
+    if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro na Nuvemshop");
 
     const accessToken = tokenData.access_token;
     const storeId = tokenData.user_id.toString();
 
-    // REGISTRO DE WEBHOOK COM LOGS DETALHADOS
+    // 1. Limpar integrações antigas do mesmo provedor para este usuário
+    // Isso resolve o problema da loja 'voltar' como conectada por causa de duplicatas
+    await supabaseAdmin
+      .from('integrations')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('provider', 'nuvemshop');
+
+    // 2. Registrar Webhook
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
-    console.log(`[nuvemshop-auth] Registrando Webhook em: ${webhookUrl} para a loja ${storeId}`);
-    
     const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
       method: 'POST',
       headers: { 
@@ -55,31 +59,24 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'User-Agent': 'Swipy ERP (suporte@swipy.com)'
       },
-      body: JSON.stringify({
-        event: "order/created",
-        url: webhookUrl
-      })
+      body: JSON.stringify({ event: "order/created", url: webhookUrl })
     });
 
     const regData = await regRes.json();
-    console.log(`[nuvemshop-auth] Status do Registro: ${regRes.status}`, regData);
 
+    // 3. Criar nova integração
     const { error: dbError } = await supabaseAdmin
       .from('integrations')
-      .upsert({
+      .insert({
         user_id: user.id,
         provider: 'nuvemshop',
         access_token: accessToken,
         store_id: storeId,
         status: 'active',
         settings: {
-          token_type: tokenData.token_type,
-          scope: tokenData.scope,
           connected_at: new Date().toISOString(),
-          webhook_id: regData.id,
-          webhook_registered: regRes.ok
-        },
-        updated_at: new Date().toISOString()
+          webhook_id: regData.id
+        }
       })
 
     if (dbError) throw dbError
@@ -90,7 +87,7 @@ serve(async (req) => {
     })
 
   } catch (error: any) {
-    console.error("[nuvemshop-auth] Erro Crítico:", error.message);
+    console.error("[nuvemshop-auth] Erro:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
