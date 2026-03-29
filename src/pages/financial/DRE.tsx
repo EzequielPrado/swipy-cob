@@ -14,7 +14,8 @@ import {
   ArrowDownRight,
   PieChart,
   Calendar,
-  Layers
+  Layers,
+  CheckCircle2
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -269,12 +270,12 @@ const DRE = () => {
 
             {viewType === 'monthly' ? (
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] h-11 rounded-xl bg-apple-white border-apple-border font-bold text-orange-500"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[180px] h-11 rounded-xl bg-apple-white border border-apple-border font-bold text-orange-500"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-apple-white border-apple-border">{monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
               </Select>
             ) : (
               <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[180px] h-11 rounded-xl bg-apple-white border-apple-border font-bold text-orange-500"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[180px] h-11 rounded-xl bg-apple-white border border-apple-border font-bold text-orange-500"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-apple-white border-apple-border">{yearOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent>
               </Select>
             )}
