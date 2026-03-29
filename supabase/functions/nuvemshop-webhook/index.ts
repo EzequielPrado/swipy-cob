@@ -53,7 +53,7 @@ serve(async (req) => {
 
       const order = await orderRes.json();
 
-      // 3. Processamento de Cliente Seguro (Sem Upsert para evitar quebra de constraint)
+      // 3. Processamento de Cliente Seguro
       const customerData = order.customer || {};
       const cleanTaxId = customerData.identification?.replace(/\D/g, '') || `NS_${customerData.id || order.id}`;
       
@@ -80,38 +80,100 @@ serve(async (req) => {
         customerId = newCust.id;
       }
 
-      // 4. Processamento da Cobrança/Venda
+      // Definir status lógicos
       const correlationId = `nuvem_${order.id}`;
-      const chargeStatus = order.payment_status === 'paid' ? 'pago' : 'pendente';
+      const isPaid = order.payment_status === 'paid';
+      const chargeStatus = isPaid ? 'pago' : 'pendente';
+      // Se pago, já move para a Logística (picking). Se não, fica como aprovado.
+      const quoteStatus = isPaid ? 'picking' : 'approved';
 
+      // 4. Verifica se a venda já existe no sistema
       const { data: existingCharge } = await supabaseAdmin.from('charges')
-        .select('id')
+        .select('id, quote_id')
         .eq('correlation_id', correlationId)
         .maybeSingle();
 
       if (existingCharge) {
-        // Se a cobrança já existe (ex: criada no order/created e agora veio order/paid)
+        // ATUALIZAÇÃO: O pedido já existe, vamos atualizar o status de pagamento e da venda
         await supabaseAdmin.from('charges').update({ status: chargeStatus }).eq('id', existingCharge.id);
+        if (existingCharge.quote_id) {
+           await supabaseAdmin.from('quotes').update({ status: quoteStatus }).eq('id', existingCharge.quote_id);
+        }
       } else {
-        // Se não existe, cria a cobrança
-        const { data: charge, error: chargeError } = await supabaseAdmin.from('charges').insert({
+        // NOVO PEDIDO: Fluxo completo de Inserção ERP
+        
+        // A. Cria o Pedido de Venda (Quote)
+        const { data: quote, error: quoteErr } = await supabaseAdmin.from('quotes').insert({
           user_id: integration.user_id,
           customer_id: customerId,
+          total_amount: parseFloat(order.total),
+          status: quoteStatus
+        }).select().single();
+
+        if (quoteErr) throw quoteErr;
+
+        // B. Processa e vincula os Produtos (Itens da Venda)
+        if (order.products && Array.isArray(order.products)) {
+          for (const item of order.products) {
+            let localProductId = null;
+            const itemSku = item.sku || `NS_${item.product_id}`;
+            
+            // Busca produto pelo SKU na base do ERP
+            const { data: existingProd } = await supabaseAdmin.from('products')
+              .select('id')
+              .eq('user_id', integration.user_id)
+              .eq('sku', itemSku)
+              .maybeSingle();
+            
+            if (existingProd) {
+              localProductId = existingProd.id;
+            } else {
+              // Produto não existe no ERP? Cadastra automaticamente!
+              const { data: newProd } = await supabaseAdmin.from('products').insert({
+                user_id: integration.user_id,
+                name: item.name,
+                sku: itemSku,
+                price: parseFloat(item.price),
+                stock_quantity: 0,
+                category: 'E-commerce'
+              }).select().single();
+              
+              if (newProd) localProductId = newProd.id;
+            }
+
+            // Insere o item na Venda
+            if (localProductId) {
+              await supabaseAdmin.from('quote_items').insert({
+                quote_id: quote.id,
+                product_id: localProductId,
+                quantity: parseInt(item.quantity),
+                unit_price: parseFloat(item.price),
+                total_price: parseFloat(item.price) * parseInt(item.quantity)
+              });
+            }
+          }
+        }
+
+        // C. Cria a Cobrança vinculada ao Pedido (Financeiro)
+        const { error: chargeError } = await supabaseAdmin.from('charges').insert({
+          user_id: integration.user_id,
+          customer_id: customerId,
+          quote_id: quote.id, // Vínculo com a Gestão de Vendas
           amount: parseFloat(order.total),
-          description: `Pedido Nuvemshop #${order.number}`,
+          description: `Pedido E-commerce #${order.number}`,
           status: chargeStatus,
-          method: 'manual', // Entra como manual para não gerar QR Code da Woovi
+          method: 'manual', 
           due_date: new Date().toISOString().split('T')[0],
           correlation_id: correlationId
-        }).select().single();
+        });
 
         if (chargeError) throw chargeError;
 
-        // Avisar o lojista no sistema
+        // D. Avisa no Dashboard
         await supabaseAdmin.from('notifications').insert({
           user_id: integration.user_id,
-          title: 'Novo Pedido Nuvemshop',
-          message: `Venda #${order.number} recebida no valor de R$ ${order.total}. Status: ${chargeStatus.toUpperCase()}.`,
+          title: 'Nova Venda E-commerce',
+          message: `Pedido #${order.number} importado para a Gestão de Vendas. Valor: R$ ${order.total}.`,
           type: 'success'
         });
       }
@@ -120,7 +182,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers: corsHeaders })
   } catch (error: any) {
     console.error("[nuvemshop-webhook] Erro Crítico:", error.message);
-    // Retornar 200 para a Nuvemshop não ficar tentando reenviar o webhook infinitamente em caso de falha de código
     return new Response(JSON.stringify({ error: error.message }), { status: 200, headers: corsHeaders })
   }
 })
