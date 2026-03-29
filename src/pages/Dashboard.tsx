@@ -12,7 +12,9 @@ import {
   Loader2, 
   RefreshCw,
   Scale,
-  CalendarDays
+  CalendarDays,
+  PieChart as PieChartIcon,
+  Activity
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -22,7 +24,12 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line
 } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from '@/integrations/supabase/client';
@@ -30,11 +37,12 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { showError } from '@/utils/toast';
 import FinancialAgenda from '@/components/financial/FinancialAgenda';
 
+const COLORS = ['#FF8C42', '#10b981', '#3b82f6', '#8b5cf6', '#f43f5e', '#f59e0b', '#06b6d4', '#86868b'];
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   
-  // Controle de Mês/Ano
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -43,7 +51,7 @@ const Dashboard = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
-    d.setMonth(d.getMonth() - 6); // Volta 6 meses
+    d.setMonth(d.getMonth() - 6);
     for(let i=0; i<12; i++) {
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -60,52 +68,14 @@ const Dashboard = () => {
     aReceber: 0,
     aPagar: 0,
     mrr: 0,
-    chartData: [] as any[]
+    chartData: [] as any[],
+    expenseBreakdown: [] as any[],
+    cashProjection: [] as any[]
   });
 
-  const [wallet, setWallet] = useState({
-    available: 0,
-    blocked: 0,
-    total: 0,
-    loading: true,
-  });
+  const [wallet, setWallet] = useState({ available: 0, total: 0, loading: true });
 
-  const currencyFormatter = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2
-  });
-
-  const fetchWalletBalance = async () => {
-    setWallet(prev => ({ ...prev, loading: true }));
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
-      });
-      const data = await response.json();
-
-      if (data.error) {
-        showError(`Erro na Woovi: ${data.message}`);
-        setWallet({ available: 0, blocked: 0, total: 0, loading: false });
-        return;
-      }
-      
-      if (data.balance) {
-        setWallet({
-          available: data.balance.available / 100,
-          blocked: data.balance.blocked / 100,
-          total: data.balance.total / 100,
-          loading: false,
-        });
-      } else {
-        setWallet({ available: 0, blocked: 0, total: 0, loading: false });
-      }
-    } catch (err: any) {
-      console.error("Falha ao consultar carteira:", err);
-      setWallet({ available: 0, blocked: 0, total: 0, loading: false });
-    }
-  };
+  const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const fetchFinancialData = async () => {
     if (!user) return;
@@ -116,258 +86,195 @@ const Dashboard = () => {
       const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
       const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
 
-      const { data: charges } = await supabase
-        .from('charges')
-        .select('amount, status, created_at, due_date')
-        .eq('user_id', user.id)
-        .gte('due_date', startDate)
-        .lte('due_date', endDate);
-
-      const { data: expenses } = await supabase
-        .from('expenses')
-        .select('amount, status, due_date, payment_date')
-        .eq('user_id', user.id)
-        .gte('due_date', startDate)
-        .lte('due_date', endDate);
-
-      const { data: subs } = await supabase
-        .from('subscriptions')
-        .select('amount')
-        .eq('status', 'active')
-        .eq('user_id', user.id);
-
-      const mrr = subs?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
-
-      let entradasTotais = 0;
-      let aReceber = 0;
+      // 1. Buscar Carteira
+      const { data: { session } } = await supabase.auth.getSession();
+      const wooviRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      }).then(res => res.json()).catch(() => ({ balance: { total: 0, available: 0 } }));
       
-      charges?.forEach(charge => {
-        if (charge.status === 'pago') {
-          entradasTotais += Number(charge.amount || 0);
-        } else if (charge.status === 'pendente' || charge.status === 'atrasado') {
-          aReceber += Number(charge.amount || 0);
-        }
+      const swipyBalance = (wooviRes?.balance?.total || 0) / 100;
+
+      // 2. Buscar Contas Bancárias Manuais
+      const { data: accounts } = await supabase.from('bank_accounts').select('balance, type').eq('user_id', user.id);
+      const manualBalance = accounts?.filter(a => a.type !== 'swipy').reduce((acc, curr) => acc + Number(curr.balance), 0) || 0;
+      const currentTotalCash = swipyBalance + manualBalance;
+
+      // 3. Buscar Movimentações do Período
+      const [chargesRes, expensesRes, subsRes, categoriesRes] = await Promise.all([
+        supabase.from('charges').select('amount, status, due_date').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate),
+        supabase.from('expenses').select('amount, status, due_date, chart_of_accounts(name)').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate),
+        supabase.from('subscriptions').select('amount').eq('status', 'active').eq('user_id', user.id),
+        supabase.from('chart_of_accounts').select('id, name').eq('user_id', user.id).eq('type', 'expense')
+      ]);
+
+      const mrr = subsRes.data?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
+
+      let inPaid = 0, inPending = 0, outPaid = 0, outPending = 0;
+      chargesRes.data?.forEach(c => { if (c.status === 'pago') inPaid += Number(c.amount); else inPending += Number(c.amount); });
+      expensesRes.data?.forEach(e => { if (e.status === 'pago') outPaid += Number(e.amount); else outPending += Number(e.amount); });
+
+      // Composição de Despesas
+      const expMap: Record<string, number> = {};
+      expensesRes.data?.forEach(e => {
+        const catName = e.chart_of_accounts?.name || 'Não Categorizada';
+        expMap[catName] = (expMap[catName] || 0) + Number(e.amount);
       });
+      const breakdown = Object.entries(expMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
 
-      let saidasTotais = 0;
-      let aPagar = 0;
+      // Projeção de Caixa (Próximos 30 dias a partir de hoje)
+      const projection = [];
+      let runningBalance = currentTotalCash;
+      const today = new Date();
+      
+      // Buscar faturas pendentes GLOBAIS (não só do mês selecionado) para projeção real
+      const { data: allPendingIn } = await supabase.from('charges').select('amount, due_date').eq('user_id', user.id).neq('status', 'pago').gte('due_date', today.toISOString());
+      const { data: allPendingOut } = await supabase.from('expenses').select('amount, due_date').eq('user_id', user.id).neq('status', 'pago').gte('due_date', today.toISOString());
 
-      expenses?.forEach(exp => {
-        if (exp.status === 'pago') {
-          saidasTotais += Number(exp.amount || 0);
-        } else {
-          aPagar += Number(exp.amount || 0);
-        }
-      });
+      for (let i = 0; i < 30; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const dStr = d.toISOString().split('T')[0];
 
-      const lucroLiquido = entradasTotais - saidasTotais;
-
-      const chartData = [
-        {
-          name: 'Realizado (Pago)',
-          Entradas: entradasTotais,
-          Saídas: saidasTotais,
-        },
-        {
-          name: 'Projetado (Pendente)',
-          Entradas: aReceber,
-          Saídas: aPagar,
-        }
-      ];
+        const dayIn = allPendingIn?.filter(c => c.due_date === dStr).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+        const dayOut = allPendingOut?.filter(e => e.due_date === dStr).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+        
+        runningBalance = runningBalance + dayIn - dayOut;
+        projection.push({ date: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), balance: runningBalance });
+      }
 
       setFinance({
-        entradasTotais,
-        saidasTotais,
-        lucroLiquido,
-        aReceber,
-        aPagar,
+        entradasTotais: inPaid,
+        saidasTotais: outPaid,
+        lucroLiquido: inPaid - outPaid,
+        aReceber: inPending,
+        aPagar: outPending,
         mrr,
-        chartData
+        chartData: [
+          { name: 'Realizado (Pago)', Entradas: inPaid, Saídas: outPaid },
+          { name: 'Projetado (Pendente)', Entradas: inPending, Saídas: outPending }
+        ],
+        expenseBreakdown: breakdown,
+        cashProjection: projection
       });
+      setWallet({ available: (wooviRes?.balance?.available || 0) / 100, total: currentTotalCash, loading: false });
 
-    } catch (error) {
-      console.error("Erro ao buscar dados financeiros:", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchFinancialData();
-  }, [user, selectedMonth]); 
-
-  useEffect(() => {
-    if(user) fetchWalletBalance();
-  }, [user]);
+  useEffect(() => { fetchFinancialData(); }, [user, selectedMonth]);
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-12 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-apple-black">Visão Financeira</h2>
-            <p className="text-apple-muted mt-1 font-medium">Fluxo de Caixa, Desempenho e Conciliação</p>
-          </div>
-          
+          <div><h2 className="text-3xl font-bold tracking-tight text-apple-black">Painel Financeiro</h2><p className="text-apple-muted mt-1 font-medium">Análise de performance, gastos e projeção de liquidez.</p></div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-apple-white border border-apple-border rounded-lg overflow-hidden pr-2 shadow-sm">
-              <div className="pl-3 text-apple-muted">
-                <CalendarDays size={16} />
-              </div>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-semibold text-orange-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
-                  {monthOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value} className="focus:bg-apple-light">{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <button 
-              onClick={fetchWalletBalance}
-              className="flex items-center gap-2 px-4 py-2 bg-apple-white border border-apple-border rounded-lg text-sm font-semibold hover:bg-apple-light transition-colors text-apple-black shadow-sm"
-            >
-              {wallet.loading ? <Loader2 size={16} className="animate-spin text-orange-500" /> : <RefreshCw size={16} className="text-apple-muted" />}
-              Sincronizar
-            </button>
+             <div className="flex items-center bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
+                <CalendarDays size={16} className="text-apple-muted mr-3" />
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}><SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">{monthOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}</SelectContent></Select>
+             </div>
+             <button onClick={fetchFinancialData} className="p-2.5 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:bg-apple-light transition-all shadow-sm"><RefreshCw size={18} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
 
-        {/* TOP CARDS: O DRE BÁSICO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><ArrowUpRight size={100} /></div>
-            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-              <ArrowUpRight size={16} className="text-emerald-500" /> Entradas (Realizadas)
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
-              <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.entradasTotais)}</p>
-            )}
-            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
+          <div className="bg-apple-white border border-apple-border p-8 rounded-[2rem] shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><ArrowUpRight size={100} /></div>
+            <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><ArrowUpRight size={14} className="text-emerald-500" /> Recebido (Mês)</h3>
+            <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.entradasTotais)}</p>
           </div>
-
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><ArrowDownRight size={100} /></div>
-            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-              <ArrowDownRight size={16} className="text-red-500" /> Saídas (Pagas)
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
-              <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.saidasTotais)}</p>
-            )}
-            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">No mês selecionado</p>
+          <div className="bg-apple-white border border-apple-border p-8 rounded-[2rem] shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><ArrowDownRight size={100} /></div>
+            <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><ArrowDownRight size={14} className="text-red-500" /> Pago (Mês)</h3>
+            <p className="text-4xl font-black text-apple-black">{currencyFormatter.format(finance.saidasTotais)}</p>
           </div>
-
-          <div className={cn(
-            "p-6 rounded-[2rem] shadow-sm relative overflow-hidden border",
-            finance.lucroLiquido >= 0 
-              ? "bg-emerald-50 border-emerald-200" 
-              : "bg-red-50 border-red-200"
-          )}>
-            <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none"><Scale size={100} /></div>
-            <h3 className="text-xs font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Scale size={16} className={finance.lucroLiquido >= 0 ? "text-emerald-500" : "text-red-500"} /> 
-              Saldo Operacional (Lucro)
-            </h3>
-            {loading ? <Loader2 className="animate-spin text-apple-muted" /> : (
-              <p className={cn("text-4xl font-black", finance.lucroLiquido >= 0 ? "text-emerald-600" : "text-red-600")}>
-                {currencyFormatter.format(finance.lucroLiquido)}
-              </p>
-            )}
-            <p className="text-[10px] text-apple-muted mt-2 uppercase tracking-widest font-bold">Caixa Líquido no Mês</p>
+          <div className={cn("p-8 rounded-[2rem] shadow-sm relative overflow-hidden border transition-all", finance.lucroLiquido >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
+            <div className="absolute top-0 right-0 p-6 opacity-5"><Scale size={100} /></div>
+            <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Scale size={14} className={finance.lucroLiquido >= 0 ? "text-emerald-500" : "text-red-500"} /> Saldo Operacional</h3>
+            <p className={cn("text-4xl font-black", finance.lucroLiquido >= 0 ? "text-emerald-600" : "text-red-600")}>{currencyFormatter.format(finance.lucroLiquido)}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* GRÁFICO */}
-          <div className="lg:col-span-2 bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm min-h-[400px]">
-            <h3 className="text-sm font-bold text-apple-black mb-6 flex items-center gap-2">
-              <TrendingUp size={18} className="text-orange-500"/>
-              Comparativo: Entradas x Saídas
-            </h3>
-            {loading ? (
-              <div className="h-[300px] flex items-center justify-center">
-                <Loader2 className="animate-spin text-orange-500" size={32} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+           {/* GRÁFICO 1: COMPARATIVO */}
+           <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
+              <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><TrendingUp size={16} className="text-orange-500" /> Realizado vs. Projetado</h3>
+              <div className="h-[300px]">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={finance.chartData}>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                       <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={12} fontWeight="bold" />
+                       <YAxis hide />
+                       <Tooltip cursor={{fill: '#fafafa'}} contentStyle={{borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} />
+                       <Legend wrapperStyle={{paddingTop: '20px', fontSize: '10px', fontWeight: 'bold'}} />
+                       <Bar dataKey="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
+                       <Bar dataKey="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
+                    </BarChart>
+                 </ResponsiveContainer>
               </div>
-            ) : (
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={finance.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#d2d2d7" vertical={false} />
-                    <XAxis dataKey="name" stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#86868b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$ ${val}`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #d2d2d7', borderRadius: '12px' }}
-                      itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                      formatter={(value: number) => [currencyFormatter.format(value), '']}
-                    />
-                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '20px', color: '#86868b' }} />
-                    <Bar dataKey="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
-                    <Bar dataKey="Saídas" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
+           </div>
 
-          {/* INDICADORES SECUNDÁRIOS */}
-          <div className="space-y-6">
-            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3 text-apple-muted">
-                  <Wallet size={16} className="text-orange-500" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Saldo Carteira Woovi</span>
-                </div>
-                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Em tempo real</p>
+           {/* GRÁFICO 2: PROJEÇÃO DE CAIXA */}
+           <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
+              <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><Activity size={16} className="text-blue-500" /> Projeção de Saldo (Próximos 30 dias)</h3>
+              <div className="h-[300px]">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={finance.cashProjection}>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                       <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={10} interval={5} />
+                       <YAxis hide />
+                       <Tooltip contentStyle={{borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} formatter={(v: number) => [currencyFormatter.format(v), 'Saldo Previsto']} />
+                       <Line type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6 }} />
+                    </LineChart>
+                 </ResponsiveContainer>
               </div>
-              <p className="text-3xl font-bold text-apple-black mb-4">
-                {wallet.loading ? "..." : currencyFormatter.format(wallet.total)}
-              </p>
-              
-              <div className="grid grid-cols-2 gap-4 border-t border-apple-border pt-4">
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-apple-muted font-bold mb-1">Disponível</p>
-                  <p className="text-sm font-bold text-emerald-500">
-                    {wallet.loading ? "..." : currencyFormatter.format(wallet.available)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-apple-muted font-bold mb-1">Bloqueado</p>
-                  <p className="text-sm font-bold text-apple-muted">
-                    {wallet.loading ? "..." : currencyFormatter.format(wallet.blocked)}
-                  </p>
-                </div>
-              </div>
-            </div>
+           </div>
 
-            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-              <div className="flex items-center gap-3 text-apple-muted mb-2">
-                <Target size={16} className="text-blue-500" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">MRR (Assinaturas Ativas)</span>
+           {/* GRÁFICO 3: DISTRIBUIÇÃO DE DESPESAS */}
+           <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
+              <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><PieChartIcon size={16} className="text-red-500" /> Composição de Gastos (Plano de Contas)</h3>
+              <div className="h-[350px] flex items-center">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                       <Pie data={finance.expenseBreakdown} innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value">
+                          {finance.expenseBreakdown.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                       </Pie>
+                       <Tooltip formatter={(v: number) => currencyFormatter.format(v)} />
+                    </PieChart>
+                 </ResponsiveContainer>
+                 <div className="w-48 space-y-3">
+                    {finance.expenseBreakdown.slice(0, 5).map((item, idx) => (
+                      <div key={item.name} className="flex items-center gap-2 overflow-hidden">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                        <span className="text-[10px] font-black uppercase text-apple-black truncate">{item.name}</span>
+                      </div>
+                    ))}
+                 </div>
               </div>
-              <p className="text-2xl font-bold text-apple-black mb-1">
-                {loading ? "..." : currencyFormatter.format(finance.mrr)}
-              </p>
-              <p className="text-[10px] text-apple-muted uppercase tracking-widest">Receita Recorrente Mensal</p>
-            </div>
+           </div>
 
-            <div className="grid grid-cols-2 gap-4">
-               <div className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-apple-muted">A Receber (Mês)</span>
-                <p className="text-lg font-bold text-apple-black mt-1">{loading ? "..." : currencyFormatter.format(finance.aReceber)}</p>
+           {/* INDICADORES DE MRR E CARTEIRA */}
+           <div className="space-y-6">
+              <div className="bg-apple-black p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><Wallet size={100} className="text-orange-500" /></div>
+                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-2">Liquidez Imediata (Consolidado)</p>
+                 <h4 className="text-4xl font-black text-white">{currencyFormatter.format(wallet.total)}</h4>
+                 <div className="mt-8 pt-8 border-t border-white/10 flex gap-10">
+                    <div><p className="text-[9px] text-zinc-500 font-black uppercase">Na Woovi</p><p className="text-lg font-bold text-emerald-400">{currencyFormatter.format(wallet.available)}</p></div>
+                    <div className="h-10 w-px bg-white/10" />
+                    <div><p className="text-[9px] text-zinc-500 font-black uppercase">Receita Recorrente</p><p className="text-lg font-bold text-orange-400">{currencyFormatter.format(finance.mrr)}</p></div>
+                 </div>
               </div>
-              <div className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-apple-muted">A Pagar (Mês)</span>
-                <p className="text-lg font-bold text-red-500 mt-1">{loading ? "..." : currencyFormatter.format(finance.aPagar)}</p>
+
+              <div className="grid grid-cols-2 gap-6">
+                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Receber no Período</p><p className="text-2xl font-black text-apple-black">{currencyFormatter.format(finance.aReceber)}</p></div>
+                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Pagar no Período</p><p className="text-2xl font-black text-red-500">{currencyFormatter.format(finance.aPagar)}</p></div>
               </div>
-            </div>
-          </div>
+           </div>
         </div>
 
-        {/* AGENDA FINANCEIRA INTEGRADA */}
-        <div className="pt-8 border-t border-apple-border">
+        <div className="pt-12 border-t border-apple-border">
            <FinancialAgenda />
         </div>
       </div>

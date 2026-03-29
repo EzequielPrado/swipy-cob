@@ -40,12 +40,13 @@ const menuStructure = [
     roles: ['Admin', 'Financeiro', 'Contador'], 
     submenus: [
       { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
-      { label: 'Extrato de Transações', path: '/financeiro/transacoes' },
+      { label: 'Fluxo de Caixa (Extrato)', path: '/financeiro/transacoes' },
+      { label: 'Conciliação Bancária', path: '/financeiro/conciliacao' },
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
-      { label: 'Gestão de Contratos', path: '/financeiro/contratos' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
-      { label: 'Plano de Contas', path: '/financeiro/plano-contas' },
-      { label: 'Contas Bancárias', path: '/financeiro/bancos' }
+      { label: 'Contratos Recorrentes', path: '/financeiro/contratos' },
+      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
+      { label: 'Plano de Contas', path: '/financeiro/plano-contas' }
     ] 
   },
   { 
