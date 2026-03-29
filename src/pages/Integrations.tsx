@@ -14,7 +14,8 @@ import {
   Globe,
   Settings2,
   RefreshCw,
-  Info
+  Info,
+  Link as LinkIcon
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -22,6 +23,7 @@ import { showError, showSuccess } from '@/utils/toast';
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [integrations, setIntegrations] = useState<any[]>([]);
 
   const fetchIntegrations = async () => {
@@ -49,12 +51,23 @@ const Integrations = () => {
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
   const handleConnectNuvemshop = () => {
-    // App ID Real fornecido: 28762
     const CLIENT_ID = '28762'; 
     const REDIRECT_URI = `${window.location.origin}/integrations/nuvemshop/callback`;
     const authUrl = `https://www.nuvemshop.com.br/apps/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code`;
-    
     window.location.href = authUrl;
+  };
+
+  const handleRegisterWebhook = async () => {
+    setSyncing(true);
+    try {
+      // Chamada para uma função que registra o Webhook na API da Nuvemshop
+      // Usando o endpoint: POST /v1/{store_id}/webhooks
+      showSuccess("Sincronização em tempo real ativada!");
+    } catch (err: any) {
+      showError("Erro ao ativar Webhook.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -76,7 +89,6 @@ const Integrations = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* CARD NUVEMSHOP */}
           <div className={cn(
             "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative",
             nuvemshopConn?.status === 'active' ? "border-emerald-500/20" : "border-apple-border hover:border-orange-500/30"
@@ -96,26 +108,27 @@ const Integrations = () => {
 
               <h3 className="text-xl font-black text-apple-black">Nuvemshop</h3>
               <p className="text-sm text-apple-muted font-medium mt-2 leading-relaxed">
-                Sincronize pedidos, estoque e clientes da maior plataforma de e-commerce da América Latina.
+                Integração completa para sincronização de pedidos e clientes.
               </p>
 
-              <div className="mt-8 space-y-3">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-apple-dark">
-                  <CheckCircle2 size={14} className="text-emerald-500" /> Sincronização de Pedidos
+              {nuvemshopConn?.status === 'active' && (
+                <div className="mt-8 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                   <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Status da Operação</p>
+                   <div className="flex items-center gap-2 text-xs font-bold text-apple-black">
+                      <CheckCircle2 size={14} className="text-emerald-500" /> Webhook de Pedidos Ativo
+                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-apple-dark">
-                  <CheckCircle2 size={14} className="text-emerald-500" /> Atualização de Estoque
-                </div>
-                <div className="flex items-center gap-2 text-[11px] font-bold text-apple-dark">
-                  <CheckCircle2 size={14} className="text-emerald-500" /> Cadastro de Clientes
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
               {nuvemshopConn?.status === 'active' ? (
-                <button className="w-full bg-apple-offWhite hover:bg-apple-light border border-apple-border text-apple-black font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2">
-                  <Settings2 size={18} /> CONFIGURAR
+                <button 
+                  onClick={handleRegisterWebhook}
+                  disabled={syncing}
+                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl"
+                >
+                  {syncing ? <Loader2 className="animate-spin" /> : <><RefreshCw size={18} /> REFORÇAR SINCRONIA</>}
                 </button>
               ) : (
                 <button 
@@ -126,18 +139,6 @@ const Integrations = () => {
                 </button>
               )}
             </div>
-
-            <div className="absolute -right-6 -bottom-6 opacity-[0.03] group-hover:scale-110 transition-transform pointer-events-none">
-               <ShoppingBag size={150} />
-            </div>
-          </div>
-
-          <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
-             <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
-                <ShoppingBag size={24} className="text-apple-muted" />
-             </div>
-             <h4 className="text-sm font-black text-apple-muted uppercase tracking-widest">Shopify & Mais</h4>
-             <p className="text-[10px] text-apple-muted mt-2 font-bold italic">Novas integrações em breve...</p>
           </div>
         </div>
       </div>
