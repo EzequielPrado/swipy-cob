@@ -20,7 +20,6 @@ const Reconciliation = () => {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('all');
 
-  // Controle do Match
   const [isMatchOpen, setIsMatchOpen] = useState(false);
   const [activeTrx, setActiveTrx] = useState<any>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -53,8 +52,6 @@ const Reconciliation = () => {
     setMatching(true);
 
     try {
-      // Se for CRÉDITO, busca em CHARGES (Contas a Receber)
-      // Se for DÉBITO, busca em EXPENSES (Contas a Pagar)
       if (trx.type === 'credit') {
         const { data } = await supabase
           .from('charges')
@@ -62,7 +59,9 @@ const Reconciliation = () => {
           .eq('user_id', user?.id)
           .eq('status', 'pendente')
           .eq('amount', trx.amount);
-        if (data) setCandidates(data.map(c => ({ ...c, type: 'charge', name: c.customers?.name || 'Venda Avulsa' })));
+        
+        // Correção TS: Cast any para iterador 'c' para permitir acesso a joins que TS interpreta como arrays
+        if (data) setCandidates(data.map((c: any) => ({ ...c, type: 'charge', name: c.customers?.name || 'Venda Avulsa' })));
       } else {
         const { data } = await supabase
           .from('expenses')
@@ -78,7 +77,6 @@ const Reconciliation = () => {
   const confirmMatch = async (candidate: any) => {
     setMatching(true);
     try {
-      // 1. Atualizar o sistema (Charge ou Expense) para PAGO
       const table = candidate.type === 'charge' ? 'charges' : 'expenses';
       const { error: sysError } = await supabase
         .from(table)
@@ -87,10 +85,9 @@ const Reconciliation = () => {
       
       if (sysError) throw sysError;
 
-      // 2. Marcar a linha do extrato como CONCILIADA
       await supabase.from('bank_transactions').update({ status: 'reconciled' }).eq('id', activeTrx.id);
 
-      showSuccess("Lançamento conciliado e baixado no sistema!");
+      showSuccess("Lançamento conciliado!");
       setIsMatchOpen(false);
       fetchData();
     } catch (err: any) { showError(err.message); } finally { setMatching(false); }

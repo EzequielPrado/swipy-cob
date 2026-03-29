@@ -51,6 +51,7 @@ const Dashboard = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
+    d.setDate(1); // Segurança contra virada de mês
     d.setMonth(d.getMonth() - 6);
     for(let i=0; i<12; i++) {
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -58,7 +59,7 @@ const Dashboard = () => {
       options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
       d.setMonth(d.getMonth() + 1);
     }
-    return options;
+    return options.reverse();
   }, []);
 
   const [finance, setFinance] = useState({
@@ -100,22 +101,23 @@ const Dashboard = () => {
       const currentTotalCash = swipyBalance + manualBalance;
 
       // 3. Buscar Movimentações do Período
-      const [chargesRes, expensesRes, subsRes, categoriesRes] = await Promise.all([
+      const [chargesRes, expensesRes, subsRes] = await Promise.all([
         supabase.from('charges').select('amount, status, due_date').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate),
         supabase.from('expenses').select('amount, status, due_date, chart_of_accounts(name)').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate),
-        supabase.from('subscriptions').select('amount').eq('status', 'active').eq('user_id', user.id),
-        supabase.from('chart_of_accounts').select('id, name').eq('user_id', user.id).eq('type', 'expense')
+        supabase.from('subscriptions').select('amount').eq('status', 'active').eq('user_id', user.id)
       ]);
 
       const mrr = subsRes.data?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
 
       let inPaid = 0, inPending = 0, outPaid = 0, outPending = 0;
       chargesRes.data?.forEach(c => { if (c.status === 'pago') inPaid += Number(c.amount); else inPending += Number(c.amount); });
-      expensesRes.data?.forEach(e => { if (e.status === 'pago') outPaid += Number(e.amount); else outPending += Number(e.amount); });
-
+      
       // Composição de Despesas
       const expMap: Record<string, number> = {};
-      expensesRes.data?.forEach(e => {
+      expensesRes.data?.forEach((e: any) => {
+        if (e.status === 'pago') outPaid += Number(e.amount); else outPending += Number(e.amount);
+        
+        // Correção TS: Acessando name através de cast de tipo any para o join
         const catName = e.chart_of_accounts?.name || 'Não Categorizada';
         expMap[catName] = (expMap[catName] || 0) + Number(e.amount);
       });
@@ -126,7 +128,6 @@ const Dashboard = () => {
       let runningBalance = currentTotalCash;
       const today = new Date();
       
-      // Buscar faturas pendentes GLOBAIS (não só do mês selecionado) para projeção real
       const { data: allPendingIn } = await supabase.from('charges').select('amount, due_date').eq('user_id', user.id).neq('status', 'pago').gte('due_date', today.toISOString());
       const { data: allPendingOut } = await supabase.from('expenses').select('amount, due_date').eq('user_id', user.id).neq('status', 'pago').gte('due_date', today.toISOString());
 
@@ -197,7 +198,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-           {/* GRÁFICO 1: COMPARATIVO */}
            <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
               <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><TrendingUp size={16} className="text-orange-500" /> Realizado vs. Projetado</h3>
               <div className="h-[300px]">
@@ -215,7 +215,6 @@ const Dashboard = () => {
               </div>
            </div>
 
-           {/* GRÁFICO 2: PROJEÇÃO DE CAIXA */}
            <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
               <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><Activity size={16} className="text-blue-500" /> Projeção de Saldo (Próximos 30 dias)</h3>
               <div className="h-[300px]">
@@ -231,7 +230,6 @@ const Dashboard = () => {
               </div>
            </div>
 
-           {/* GRÁFICO 3: DISTRIBUIÇÃO DE DESPESAS */}
            <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
               <h3 className="text-xs font-black text-apple-black uppercase tracking-widest mb-10 flex items-center gap-2"><PieChartIcon size={16} className="text-red-500" /> Composição de Gastos (Plano de Contas)</h3>
               <div className="h-[350px] flex items-center">
@@ -254,7 +252,6 @@ const Dashboard = () => {
               </div>
            </div>
 
-           {/* INDICADORES DE MRR E CARTEIRA */}
            <div className="space-y-6">
               <div className="bg-apple-black p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><Wallet size={100} className="text-orange-500" /></div>
