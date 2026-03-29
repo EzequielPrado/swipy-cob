@@ -49,10 +49,19 @@ const Integrations = () => {
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
   const handleConnectNuvemshop = () => {
-    // Aqui no futuro enviaremos para o fluxo OAuth da Nuvemshop
-    // Por enquanto simularemos o início do processo
-    window.open('https://www.nuvemshop.com.br/apps/central-de-vendas', '_blank');
-    showSuccess("Fluxo de autorização iniciado. Configure seu App ID nas Secrets.");
+    // URL Real de autorização da Nuvemshop (Exemplo)
+    // Você precisa criar um App no painel de parceiros da Nuvemshop para ter o CLIENT_ID
+    const CLIENT_ID = 'SEU_CLIENT_ID'; 
+    const REDIRECT_URI = `${window.location.origin}/integrations/nuvemshop/callback`;
+    const authUrl = `https://www.nuvemshop.com.br/apps/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code`;
+    
+    // Se não tiver ClientID ainda, mostramos o aviso para evitar o 404
+    if (CLIENT_ID === 'SEU_CLIENT_ID') {
+       showError("Configure seu Client ID da Nuvemshop nas configurações do App.");
+       return;
+    }
+
+    window.location.href = authUrl;
   };
 
   return (
@@ -147,12 +156,8 @@ const Integrations = () => {
            <div>
               <h4 className="text-lg font-black text-orange-600 uppercase tracking-widest mb-1">Como funciona?</h4>
               <p className="text-sm text-orange-800 font-medium leading-relaxed">
-                Ao conectar sua loja, o Swipy passa a monitorar novos pedidos em tempo real. Cada venda na Nuvemshop cria automaticamente um **Orçamento** ou **Cobrança** no seu ERP, baixando o estoque e registrando o cliente na sua base de CRM.
+                Para conectar, você precisa registrar este App no **Painel de Parceiros da Nuvemshop**. Lá você receberá um `Client ID` e um `Client Secret`. Sem essas chaves, a Nuvemshop não reconhecerá a tentativa de conexão.
               </p>
-              <div className="mt-6 flex gap-4">
-                 <button className="text-[10px] font-black text-orange-600 underline uppercase tracking-widest">Documentação Técnica</button>
-                 <button className="text-[10px] font-black text-orange-600 underline uppercase tracking-widest">Ajuda Nuvemshop</button>
-              </div>
            </div>
         </div>
       </div>

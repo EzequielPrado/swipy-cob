@@ -63,6 +63,7 @@ import Suppliers from "./pages/Suppliers";
 import SupplierDetail from "./pages/SupplierDetail";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
+import NuvemshopCallback from "./pages/integrations/NuvemshopCallback";
 
 // Admin
 import UserManagement from "./pages/admin/UserManagement";
@@ -146,6 +147,9 @@ const App = () => (
               <Route path="/fornecedores/:id" element={<ProtectedRoute><SupplierDetail /></ProtectedRoute>} />
               <Route path="/configuracoes" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/configuracoes/integracoes" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
+              
+              {/* CALLBACKS INTEGRACOES */}
+              <Route path="/integrations/nuvemshop/callback" element={<ProtectedRoute><NuvemshopCallback /></ProtectedRoute>} />
 
               {/* ADMIN */}
               <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
