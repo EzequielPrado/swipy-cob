@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   ArrowRight,
   Trash2,
-  Cloud
+  Cloud,
+  PlayCircle
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -96,6 +97,107 @@ const Integrations = () => {
     }
   };
 
+  // Função para simular uma venda da Nuvemshop (para fins de teste)
+  const handleSimulateOrder = async () => {
+    if (!effectiveUserId) return;
+    setLoading(true);
+    try {
+      const fakeOrderId = Math.floor(100000 + Math.random() * 900000);
+      const taxId = "11122233344"; // CPF Falso
+
+      // 1. Cria ou recupera Cliente
+      let customerId;
+      const { data: existingCust } = await supabase.from('customers').select('id').eq('user_id', effectiveUserId).eq('tax_id', taxId).maybeSingle();
+      
+      if (existingCust) {
+        customerId = existingCust.id;
+      } else {
+        const { data: newCust, error: custErr } = await supabase.from('customers').insert({
+          user_id: effectiveUserId,
+          name: 'João Nuvemshop (Teste)',
+          email: 'joao.teste@email.com',
+          phone: '11999999999',
+          tax_id: taxId,
+          address: {
+            street: 'Rua das Flores',
+            number: '123',
+            complement: 'Apto 42',
+            neighborhood: 'Jardim Primavera',
+            city: 'São Paulo',
+            state: 'SP',
+            zip: '01234-567',
+            country: 'BR'
+          },
+          status: 'em dia'
+        }).select().single();
+        if (custErr) throw custErr;
+        customerId = newCust.id;
+      }
+
+      // 2. Cria ou recupera Produto
+      let productId;
+      const { data: existingProd } = await supabase.from('products').select('id').eq('user_id', effectiveUserId).eq('sku', 'TESTE-01').maybeSingle();
+      if (existingProd) {
+        productId = existingProd.id;
+      } else {
+        const { data: newProd } = await supabase.from('products').insert({
+          user_id: effectiveUserId,
+          name: 'Produto Teste Nuvemshop',
+          sku: 'TESTE-01',
+          price: 199.90,
+          category: 'E-commerce',
+          stock_quantity: 10
+        }).select().single();
+        productId = newProd.id;
+      }
+
+      // 3. Cria o Pedido (Quote)
+      const { data: quote, error: quoteErr } = await supabase.from('quotes').insert({
+        user_id: effectiveUserId,
+        customer_id: customerId,
+        total_amount: 199.90,
+        status: 'picking' // Pago -> Vai direto para Separação Logística
+      }).select().single();
+      if (quoteErr) throw quoteErr;
+
+      // 4. Cria os itens do pedido
+      await supabase.from('quote_items').insert({
+        quote_id: quote.id,
+        product_id: productId,
+        quantity: 1,
+        unit_price: 199.90,
+        total_price: 199.90
+      });
+
+      // 5. Cria a Cobrança (Charge) vinculada
+      await supabase.from('charges').insert({
+        user_id: effectiveUserId,
+        customer_id: customerId,
+        quote_id: quote.id,
+        amount: 199.90,
+        description: `Pedido E-commerce #${fakeOrderId} (SIMULAÇÃO)`,
+        status: 'pago',
+        method: 'pix',
+        due_date: new Date().toISOString().split('T')[0],
+        correlation_id: `nuvem_${fakeOrderId}`
+      });
+
+      // 6. Notificação
+      await supabase.from('notifications').insert({
+        user_id: effectiveUserId,
+        title: 'Nova Venda E-commerce',
+        message: `Pedido simulado #${fakeOrderId} de João Nuvemshop importado com sucesso!`,
+        type: 'success'
+      });
+
+      showSuccess("Pedido simulado! Acesse a tela de Vendas para conferir.");
+    } catch (err: any) {
+      showError("Erro na simulação: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isConnected = nuvemshopConn?.status === 'active';
 
   return (
@@ -120,12 +222,11 @@ const Integrations = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           
           <div className={cn(
-            "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[420px]",
+            "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[450px]",
             isConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-blue-500/30"
           )}>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8">
-                {/* ÍCONE NATIVO DA NUVEMSHOP */}
                 <div className="w-16 h-16 bg-[#2B41FF] rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-3">
                    <Cloud size={32} className="text-white" fill="currentColor" />
                 </div>
@@ -165,12 +266,20 @@ const Integrations = () => {
               {loading ? (
                  <div className="flex justify-center py-4"><Loader2 className="animate-spin text-apple-muted" /></div>
               ) : isConnected ? (
-                <button 
-                  onClick={handleDeleteIntegration}
-                  className="w-full bg-white text-red-500 font-black py-4 rounded-2xl border-2 border-red-50 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95"
-                >
-                  <Trash2 size={14} /> DESCONECTAR ESTA LOJA
-                </button>
+                <>
+                  <button 
+                    onClick={handleDeleteIntegration}
+                    className="w-full bg-white text-red-500 font-black py-3.5 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95"
+                  >
+                    <Trash2 size={14} /> DESCONECTAR ESTA LOJA
+                  </button>
+                  <button 
+                    onClick={handleSimulateOrder}
+                    className="w-full bg-orange-50 text-orange-600 font-black py-3.5 rounded-2xl border border-orange-200 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95 mt-3"
+                  >
+                    <PlayCircle size={14} /> SIMULAR VENDA TESTE
+                  </button>
+                </>
               ) : (
                 <button 
                   onClick={() => setIsNuvemModalOpen(true)}
