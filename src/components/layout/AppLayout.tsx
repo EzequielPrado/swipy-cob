@@ -50,7 +50,7 @@ const menuStructure = [
     ] 
   },
   { 
-    title: 'Estoque', 
+    title: 'Armazém', 
     moduleId: 'estoque', 
     icon: Package, 
     roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], 
