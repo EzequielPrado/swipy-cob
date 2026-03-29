@@ -15,7 +15,8 @@ import {
   PieChart,
   Calendar,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  Hash
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -145,8 +146,7 @@ const DRE = () => {
     const totalGrossRevenue = data.revenues.reduce((acc, curr) => acc + Number(curr.amount), 0);
     const totalExpenses = data.expenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
     
-    // Deduções (ex: Impostos) - Inferimos por nome ou código 1.9, 2.9 etc no futuro
-    // Por enquanto pegamos categorias que contenham "Imposto" no nome
+    // Deduções (ex: Impostos)
     const taxDeductions = data.expenses
       .filter(e => {
         const cat = categories.find(c => c.id === e.category_id);
@@ -156,7 +156,7 @@ const DRE = () => {
 
     const netRevenue = totalGrossRevenue - taxDeductions;
     const grossProfit = netRevenue - data.cpv;
-    const netProfit = grossProfit - (totalExpenses - taxDeductions); // Removemos impostos pois já foram deduzidos acima
+    const netProfit = grossProfit - (totalExpenses - taxDeductions);
 
     return {
       revenueByCat,
@@ -194,10 +194,9 @@ const DRE = () => {
       [{ content: "1. RECEITA OPERACIONAL BRUTA", styles: { fontStyle: 'bold' } }, currency.format(totals.totalGrossRevenue)],
     ];
 
-    // Detalhar Receitas por Categoria
     categories.filter(c => c.type === 'revenue').forEach(cat => {
       const val = totals.revenueByCat[cat.id] || 0;
-      if (val > 0) dreRows.push([`   (+) ${cat.name}`, currency.format(val)]);
+      if (val > 0) dreRows.push([`   (${cat.code}) ${cat.name}`, currency.format(val)]);
     });
 
     dreRows.push([{ content: "2. (-) DEDUÇÕES E IMPOSTOS", styles: { fontStyle: 'bold' } }, currency.format(-totals.taxDeductions)]);
@@ -207,10 +206,9 @@ const DRE = () => {
     
     dreRows.push([{ content: "6. (-) DESPESAS OPERACIONAIS", styles: { fontStyle: 'bold' } }, ""]);
     
-    // Detalhar Despesas por Categoria (exceto impostos que já foram no item 2)
     categories.filter(c => c.type === 'expense' && !c.name.toLowerCase().includes('imposto')).forEach(cat => {
       const val = totals.expenseByCat[cat.id] || 0;
-      if (val > 0) dreRows.push([`   (-) ${cat.name}`, currency.format(-val)]);
+      if (val > 0) dreRows.push([`   (${cat.code}) ${cat.name}`, currency.format(-val)]);
     });
 
     dreRows.push([{ content: "7. = LUCRO / PREJUÍZO LÍQUIDO", styles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: [249, 115, 22] } }, { content: currency.format(totals.netProfit), styles: { fontStyle: 'bold', textColor: [255, 255, 255], fillColor: [249, 115, 22] } }]);
@@ -226,16 +224,19 @@ const DRE = () => {
     doc.save(`DRE_${viewType}_${period?.replace(' ', '_')}.pdf`);
   };
 
-  const DRERow = ({ label, value, isTotal = false, negative = false, indent = false }: any) => (
+  const DRERow = ({ label, code, value, isTotal = false, negative = false, indent = false }: any) => (
     <div className={cn(
       "flex items-center justify-between py-4 px-8 border-b border-apple-border transition-all",
       isTotal ? "bg-apple-offWhite" : "hover:bg-apple-light/50",
       indent && "pl-14"
     )}>
-      <span className={cn(
-        "text-[10px] uppercase font-black tracking-widest",
-        isTotal ? "text-apple-black" : "text-apple-muted"
-      )}>{label}</span>
+      <div className="flex items-center gap-3">
+        {code && <span className="text-[9px] font-mono font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">{code}</span>}
+        <span className={cn(
+          "text-[10px] uppercase font-black tracking-widest",
+          isTotal ? "text-apple-black" : "text-apple-muted"
+        )}>{label}</span>
+      </div>
       <span className={cn(
         "text-sm font-black font-mono",
         isTotal ? "text-apple-black" : negative ? "text-red-500" : "text-apple-dark"
@@ -253,7 +254,7 @@ const DRE = () => {
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
               <FileSpreadsheet className="text-orange-500" size={32} /> DRE Gerencial
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Demonstrativo de Resultados baseado no seu Plano de Contas.</p>
+            <p className="text-apple-muted mt-1 font-medium">Demonstrativo de Resultados baseado na classificação do seu Plano de Contas.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
@@ -293,31 +294,31 @@ const DRE = () => {
           ) : (
             <>
               {/* SEÇÃO 1: RECEITA BRUTA */}
-              <DRERow label="1. Receita Operacional Bruta" value={totals.totalGrossRevenue} isTotal />
+              <DRERow label="1. Receita Operacional Bruta" code="1" value={totals.totalGrossRevenue} isTotal />
               {categories.filter(c => c.type === 'revenue').map(cat => {
                 const val = totals.revenueByCat[cat.id] || 0;
                 if (val === 0) return null;
-                return <DRERow key={cat.id} label={cat.name} value={val} indent />;
+                return <DRERow key={cat.id} label={cat.name} code={cat.code} value={val} indent />;
               })}
 
               {/* SEÇÃO 2: DEDUÇÕES */}
-              <DRERow label="2. (-) Deduções e Impostos S/ Vendas" value={totals.taxDeductions} negative />
+              <DRERow label="2. (-) Deduções e Impostos S/ Vendas" code="1.9" value={totals.taxDeductions} negative />
 
               {/* SEÇÃO 3: RECEITA LÍQUIDA */}
               <DRERow label="3. = Receita Operacional Líquida" value={totals.netRevenue} isTotal />
 
               {/* SEÇÃO 4: CPV */}
-              <DRERow label="4. (-) Custo das Mercadorias / Serv. (CPV)" value={totals.cpv} negative />
+              <DRERow label="4. (-) Custo das Mercadorias / Serv. (CPV)" code="4" value={totals.cpv} negative />
 
               {/* SEÇÃO 5: MARGEM BRUTA */}
               <DRERow label="5. = Resultado Operacional Bruto" value={totals.grossProfit} isTotal />
 
               {/* SEÇÃO 6: DESPESAS OPERACIONAIS */}
-              <DRERow label="6. (-) Despesas Operacionais (Fixas/Variáveis)" value={totals.totalExpenses - totals.taxDeductions} negative />
+              <DRERow label="6. (-) Despesas Operacionais (Fixas/Variáveis)" code="2" value={totals.totalExpenses - totals.taxDeductions} negative />
               {categories.filter(c => c.type === 'expense' && !c.name.toLowerCase().includes('imposto')).map(cat => {
                 const val = totals.expenseByCat[cat.id] || 0;
                 if (val === 0) return null;
-                return <DRERow key={cat.id} label={cat.name} value={val} indent negative />;
+                return <DRERow key={cat.id} label={cat.name} code={cat.code} value={val} indent negative />;
               })}
 
               {/* RESULTADO FINAL */}
@@ -344,9 +345,9 @@ const DRE = () => {
         <div className="bg-orange-50 border border-orange-100 p-6 rounded-[2rem] flex items-start gap-4">
            <Layers className="text-orange-500 shrink-0" size={24} />
            <div>
-              <p className="text-sm font-black text-orange-600 uppercase tracking-widest mb-1">Nota de Auditoria</p>
+              <p className="text-sm font-black text-orange-600 uppercase tracking-widest mb-1">Estrutura de Classificação</p>
               <p className="text-xs text-orange-800 leading-relaxed font-medium">
-                Este DRE utiliza o **Regime de Competência**. Valores de "Custo de Vendas (CPV)" são extraídos automaticamente da margem de custo cadastrada nos produtos vendidos no período, mesmo que a nota do fornecedor ainda não tenha sido paga.
+                Os códigos exibidos (Ex: 1.01, 2.05) seguem a hierarquia definida no seu **Plano de Contas**. Esta classificação ajuda a identificar rapidamente a origem de cada valor no balanço contábil.
               </p>
            </div>
         </div>
