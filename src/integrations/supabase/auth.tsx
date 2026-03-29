@@ -11,9 +11,9 @@ interface AuthContextType {
   isAdmin: boolean;
   systemRole: string;
   loading: boolean;
-  activeMerchant: any | null; // O cliente que o contador está visualizando
+  activeMerchant: any | null; 
   setActiveMerchant: (merchant: any | null) => void;
-  effectiveUserId: string | undefined; // ID usado para filtros (seja do contador ou do cliente selecionado)
+  effectiveUserId: string | undefined; 
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -39,7 +39,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeMerchant, setActiveMerchantState] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Recuperar cliente ativo do localStorage para persistir entre F5
   useEffect(() => {
     const saved = localStorage.getItem('swipy_active_merchant');
     if (saved) {

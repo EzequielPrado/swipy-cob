@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -27,9 +27,9 @@ const Settings = () => {
     notify_whatsapp_sales: true 
   });
 
-  useEffect(() => { if (user) fetchProfile(); }, [user]);
+  useEffect(() => { if (user) fetchLocalProfile(); }, [user]);
 
-  const fetchProfile = async () => {
+  const fetchLocalProfile = async () => {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').eq('id', user?.id).single();
     if (data) {
@@ -79,8 +79,12 @@ const Settings = () => {
       }).eq('id', user?.id);
 
       if (error) throw error;
+      
+      // CRÍTICO: Atualiza o perfil globalmente para que outros componentes vejam o novo slug
+      await refreshProfile();
+      
       showSuccess("Configurações salvas!");
-      fetchProfile();
+      fetchLocalProfile();
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
@@ -111,7 +115,7 @@ const Settings = () => {
                     <LinkIcon size={14} className="text-orange-500" /> URL do seu Portal de Agendamento
                   </Label>
                   <div className="flex items-center gap-2">
-                     <span className="text-[10px] font-black text-apple-muted bg-apple-offWhite px-3 py-3 rounded-xl border border-apple-border">swipy.sh/emp/</span>
+                     <span className="text-[10px] font-black text-apple-muted bg-apple-offWhite px-3 py-3 rounded-xl border border-apple-border">{window.location.origin}/emp/</span>
                      <Input 
                       value={formData.slug} 
                       onChange={(e) => setFormData({...formData, slug: e.target.value})} 
@@ -181,12 +185,12 @@ const Settings = () => {
                    <LinkIcon className="mx-auto text-orange-500 mb-2" size={24} />
                    <p className="text-[10px] font-black text-orange-600 mb-4">COMPARTILHE COM SEUS CLIENTES</p>
                    <a 
-                    href={`/emp/${formData.slug}`} 
+                    href={`${window.location.origin}/emp/${formData.slug}`} 
                     target="_blank" 
                     rel="noreferrer"
                     className="text-xs font-bold text-apple-black underline break-all"
                    >
-                     swipy.sh/emp/{formData.slug}
+                     {window.location.origin.replace('https://', '')}/emp/{formData.slug}
                    </a>
                 </div>
               </div>
