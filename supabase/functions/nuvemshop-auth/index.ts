@@ -48,25 +48,10 @@ serve(async (req) => {
     const storeId = tokenData.user_id.toString();
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
 
-    // 2. VALIDAR TOKEN (Teste simples na API da Nuvemshop)
-    // Nota: Usamos 'Authentication' com 'bearer' minúsculo, conforme docs da Nuvemshop
-    const checkRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/shop`, {
-      headers: { 
-        'Authentication': `bearer ${accessToken}`,
-        'User-Agent': 'Swipy ERP (suporte@swipy.com)'
-      }
-    });
+    console.log(`[nuvemshop-auth] Token gerado para loja ${storeId}. Registrando Webhook...`);
 
-    if (!checkRes.ok) {
-      const checkData = await checkRes.text();
-      console.error("[nuvemshop-auth] Token inválido ou sem permissão:", checkData);
-      throw new Error("Token gerado pela Nuvemshop foi rejeitado pela API.");
-    }
-
-    console.log(`[nuvemshop-auth] Token validado para loja ${storeId}. Registrando Webhook...`);
-
-    // 3. Registrar o Webhook
-    // IMPORTANTE: Nuvemshop exige o header 'Authentication' (não 'Authorization')
+    // 2. Registrar o Webhook
+    // IMPORTANTE: Nuvemshop exige o header 'Authentication' com 'bearer' minúsculo
     const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
       method: 'POST',
       headers: { 
@@ -90,7 +75,7 @@ serve(async (req) => {
       }
     }
 
-    // 4. Salvar Integração
+    // 3. Salvar Integração
     await supabaseAdmin
       .from('integrations')
       .delete()

@@ -21,7 +21,6 @@ serve(async (req) => {
 
     console.log(`[nuvemshop-uninstall] Iniciando remoção para o usuário ${user.id}`);
 
-    // 1. Buscar a integração atual
     const { data: integration } = await supabaseAdmin
       .from('integrations')
       .select('*')
@@ -33,20 +32,21 @@ serve(async (req) => {
       const { access_token, store_id, settings } = integration;
       const webhookId = settings?.webhook_id;
 
-      // 2. Tentar remover o Webhook na Nuvemshop (opcional, não trava se falhar)
       if (webhookId && access_token && store_id) {
         try {
           console.log(`[nuvemshop-uninstall] Removendo Webhook ${webhookId} na Nuvemshop...`);
           await fetch(`https://api.tiendanube.com/v1/${store_id}/webhooks/${webhookId}`, {
             method: 'DELETE',
-            headers: { 'Authorization': `bearer ${access_token}`, 'User-Agent': 'Swipy ERP' }
+            headers: { 
+              'Authentication': `bearer ${access_token}`, 
+              'User-Agent': 'Swipy ERP (suporte@swipy.com)' 
+            }
           });
         } catch (e) {
           console.error("[nuvemshop-uninstall] Erro ao remover webhook remoto:", e.message);
         }
       }
 
-      // 3. Deletar do Banco de Dados (usando Admin Client para ignorar RLS)
       const { error: dbError } = await supabaseAdmin
         .from('integrations')
         .delete()
