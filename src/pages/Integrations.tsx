@@ -6,25 +6,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   ShoppingBag, 
-  ExternalLink, 
   Loader2, 
   CheckCircle2, 
-  XCircle, 
   Zap,
   Globe,
-  Settings2,
   RefreshCw,
-  Info,
-  Link as LinkIcon
+  Store,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [integrations, setIntegrations] = useState<any[]>([]);
+  
+  const [storeSlug, setStoreSlug] = useState('');
+  const [showConnectForm, setShowConnectForm] = useState(false);
 
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
@@ -51,23 +52,13 @@ const Integrations = () => {
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
   const handleConnectNuvemshop = () => {
-    const CLIENT_ID = '28762'; 
-    const REDIRECT_URI = `${window.location.origin}/integrations/nuvemshop/callback`;
-    const authUrl = `https://www.nuvemshop.com.br/apps/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code`;
-    window.location.href = authUrl;
-  };
-
-  const handleRegisterWebhook = async () => {
-    setSyncing(true);
-    try {
-      // Chamada para uma função que registra o Webhook na API da Nuvemshop
-      // Usando o endpoint: POST /v1/{store_id}/webhooks
-      showSuccess("Sincronização em tempo real ativada!");
-    } catch (err: any) {
-      showError("Erro ao ativar Webhook.");
-    } finally {
-      setSyncing(false);
+    if (!storeSlug) {
+      showError("Por favor, digite o nome da sua loja.");
+      return;
     }
+    const cleanSlug = storeSlug.trim().toLowerCase().replace('.lojavirtualnuvem.com.br', '').replace('.tiendanube.com', '');
+    const authUrl = `https://${cleanSlug}.lojavirtualnuvem.com.br/admin/apps/28762/authorize`;
+    window.location.href = authUrl;
   };
 
   return (
@@ -91,7 +82,7 @@ const Integrations = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div className={cn(
             "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative",
-            nuvemshopConn?.status === 'active' ? "border-emerald-500/20" : "border-apple-border hover:border-orange-500/30"
+            nuvemshopConn?.status === 'active' ? "border-emerald-500/20 bg-emerald-50/5" : "border-apple-border hover:border-orange-500/30"
           )}>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8">
@@ -108,14 +99,19 @@ const Integrations = () => {
 
               <h3 className="text-xl font-black text-apple-black">Nuvemshop</h3>
               <p className="text-sm text-apple-muted font-medium mt-2 leading-relaxed">
-                Integração completa para sincronização de pedidos e clientes.
+                Sincronização em tempo real de pedidos e inteligência de estoque.
               </p>
 
               {nuvemshopConn?.status === 'active' && (
-                <div className="mt-8 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                   <p className="text-[10px] font-black text-emerald-600 uppercase mb-2">Status da Operação</p>
-                   <div className="flex items-center gap-2 text-xs font-bold text-apple-black">
+                <div className="mt-8 space-y-3 bg-white p-5 rounded-2xl border border-apple-border shadow-inner">
+                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+                     <ShieldCheck size={14} /> Ativo & Seguro
+                   </p>
+                   <div className="flex items-center gap-2 text-xs font-bold text-apple-dark">
                       <CheckCircle2 size={14} className="text-emerald-500" /> Webhook de Pedidos Ativo
+                   </div>
+                   <div className="flex items-center gap-2 text-xs font-bold text-apple-dark">
+                      <CheckCircle2 size={14} className="text-emerald-500" /> Sincronia de Inventário
                    </div>
                 </div>
               )}
@@ -123,22 +119,48 @@ const Integrations = () => {
 
             <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
               {nuvemshopConn?.status === 'active' ? (
-                <button 
-                  onClick={handleRegisterWebhook}
-                  disabled={syncing}
-                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl"
-                >
-                  {syncing ? <Loader2 className="animate-spin" /> : <><RefreshCw size={18} /> REFORÇAR SINCRONIA</>}
-                </button>
+                <div className="text-center">
+                   <p className="text-[10px] text-apple-muted font-bold uppercase italic">Sincronização automática ligada</p>
+                </div>
               ) : (
-                <button 
-                  onClick={handleConnectNuvemshop}
-                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Globe size={18} className="text-orange-500" /> CONECTAR LOJA
-                </button>
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                  {!showConnectForm ? (
+                    <button 
+                      onClick={() => setShowConnectForm(true)}
+                      className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Globe size={18} className="text-orange-500" /> CONECTAR LOJA
+                    </button>
+                  ) : (
+                    <div className="space-y-4 bg-apple-offWhite p-6 rounded-3xl border border-apple-border">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-apple-muted uppercase tracking-widest flex items-center gap-2">
+                          <Store size={12} /> Nome da sua Loja
+                        </Label>
+                        <Input 
+                          placeholder="ex: minha-loja" 
+                          value={storeSlug}
+                          onChange={(e) => setStoreSlug(e.target.value)}
+                          className="bg-white border-apple-border h-12 rounded-xl font-bold"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setShowConnectForm(false)} className="flex-1 bg-white border border-apple-border text-apple-black font-black py-3 rounded-xl text-xs">VOLTAR</button>
+                        <button onClick={handleConnectNuvemshop} className="flex-[2] bg-apple-black text-white font-black py-3 rounded-xl text-xs hover:bg-zinc-800">INSTALAR</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
+             <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
+                <ShoppingBag size={24} className="text-apple-muted" />
+             </div>
+             <h4 className="text-sm font-black text-apple-muted uppercase tracking-widest">Shopify & Mais</h4>
+             <p className="text-[10px] text-apple-muted mt-2 font-bold italic">Novas integrações em breve...</p>
           </div>
         </div>
       </div>
