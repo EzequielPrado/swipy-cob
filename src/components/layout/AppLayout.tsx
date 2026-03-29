@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
   Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench,
-  ReceiptText
+  ReceiptText, Layers
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -43,6 +43,7 @@ const menuStructure = [
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
       { label: 'Gestão de Contratos', path: '/financeiro/contratos' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
+      { label: 'Plano de Contas', path: '/financeiro/plano-contas' },
       { label: 'Contas Bancárias', path: '/financeiro/bancos' }
     ] 
   },

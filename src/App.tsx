@@ -46,6 +46,7 @@ import Expenses from "./pages/financial/Expenses";
 import SwipyAccount from "./pages/financial/SwipyAccount";
 import Fiscal from "./pages/financial/Fiscal";
 import DRE from "./pages/financial/DRE";
+import ChartOfAccounts from "./pages/financial/ChartOfAccounts";
 
 // RH
 import Employees from "./pages/hr/Employees";
@@ -74,7 +75,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return <>{children} </>;
 };
 
 const App = () => (
@@ -122,6 +123,7 @@ const App = () => (
               <Route path="/financeiro/pagar" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
               <Route path="/financeiro/fiscal" element={<ProtectedRoute><Fiscal /></ProtectedRoute>} />
               <Route path="/financeiro/dre" element={<ProtectedRoute><DRE /></ProtectedRoute>} />
+              <Route path="/financeiro/plano-contas" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
               <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
 
               {/* RH */}
