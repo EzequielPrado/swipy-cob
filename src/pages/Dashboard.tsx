@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError } from '@/utils/toast';
+import FinancialAgenda from '@/components/financial/FinancialAgenda';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -201,7 +202,7 @@ const Dashboard = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-8 pb-12">
+      <div className="flex flex-col gap-12 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-apple-black">Visão Financeira</h2>
@@ -279,7 +280,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* GRÁFICO */}
           <div className="lg:col-span-2 bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm min-h-[400px]">
             <h3 className="text-sm font-bold text-apple-black mb-6 flex items-center gap-2">
@@ -363,6 +364,11 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* AGENDA FINANCEIRA INTEGRADA */}
+        <div className="pt-8 border-t border-apple-border">
+           <FinancialAgenda />
         </div>
       </div>
     </AppLayout>

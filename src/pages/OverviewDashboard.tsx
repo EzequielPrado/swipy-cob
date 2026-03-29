@@ -23,6 +23,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { cn } from "@/lib/utils";
+import FinancialAgenda from '@/components/financial/FinancialAgenda';
 
 const OverviewDashboard = () => {
   const { effectiveUserId } = useAuth();
@@ -90,7 +91,6 @@ const OverviewDashboard = () => {
         const activeProd = ordersRes.data?.filter(o => o.status === 'in_progress').length || 0;
 
         // CÁLCULO DO SALDO CONSOLIDADO (API Woovi + Bancos Manuais)
-        // Ignoramos o valor no DB para contas do tipo 'swipy' pois o valor real vem da API
         const swipyApiBalance = (wooviRes?.balance?.total || 0) / 100;
         const manualBanksBalance = accountsRes.data?.filter(acc => acc.type !== 'swipy').reduce((acc, curr) => acc + Number(curr.balance || 0), 0) || 0;
         const consolidatedTotal = swipyApiBalance + manualBanksBalance;
@@ -124,7 +124,7 @@ const OverviewDashboard = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-8 pb-12">
+      <div className="space-y-12 pb-12">
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-apple-black">Visão Geral</h2>
@@ -355,7 +355,11 @@ const OverviewDashboard = () => {
                </div>
             </div>
           </div>
+        </div>
 
+        {/* AGENDA FINANCEIRA INTEGRADA */}
+        <div className="pt-8 border-t border-apple-border">
+           <FinancialAgenda title="Agenda do Negócio" description="Resumo diário de compromissos financeiros e operacionais." />
         </div>
       </div>
     </AppLayout>
