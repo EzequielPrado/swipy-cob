@@ -43,8 +43,7 @@ const menuStructure = [
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
       { label: 'Assinaturas', path: '/financeiro/assinaturas' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
-      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
-      { label: 'Raio-X de Performance', path: '/financeiro/performance' }
+      { label: 'Contas Bancárias', path: '/financeiro/bancos' }
     ] 
   },
   { 
