@@ -26,6 +26,7 @@ serve(async (req) => {
     const CLIENT_SECRET = "d7c43cd574f2a328361e7322a7ad5dabece3df60b47a3b3f";
 
     // 1. Trocar Código por Token
+    console.log(`[nuvemshop-auth] Trocando código pelo token...`);
     const tokenRes = await fetch('https://www.nuvemshop.com.br/apps/authorize/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,19 +39,38 @@ serve(async (req) => {
     })
 
     const tokenData = await tokenRes.json()
-    if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro ao obter token na Nuvemshop");
+    if (!tokenRes.ok) {
+      console.error("[nuvemshop-auth] Erro no Token Exchange:", tokenData);
+      throw new Error(tokenData.error_description || "Erro ao obter token na Nuvemshop");
+    }
 
     const accessToken = tokenData.access_token;
     const storeId = tokenData.user_id.toString();
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
 
-    console.log(`[nuvemshop-auth] Loja ${storeId} autenticada. Verificando Webhooks...`);
+    // 2. VALIDAR TOKEN (Teste simples na API da Nuvemshop)
+    // Nota: Usamos 'Authentication' com 'bearer' minúsculo, conforme docs da Nuvemshop
+    const checkRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/shop`, {
+      headers: { 
+        'Authentication': `bearer ${accessToken}`,
+        'User-Agent': 'Swipy ERP (suporte@swipy.com)'
+      }
+    });
 
-    // 2. Tentar registrar o Webhook (Ignorando se já existir)
+    if (!checkRes.ok) {
+      const checkData = await checkRes.text();
+      console.error("[nuvemshop-auth] Token inválido ou sem permissão:", checkData);
+      throw new Error("Token gerado pela Nuvemshop foi rejeitado pela API.");
+    }
+
+    console.log(`[nuvemshop-auth] Token validado para loja ${storeId}. Registrando Webhook...`);
+
+    // 3. Registrar o Webhook
+    // IMPORTANTE: Nuvemshop exige o header 'Authentication' (não 'Authorization')
     const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
       method: 'POST',
       headers: { 
-        'Authorization': `bearer ${accessToken}`, 
+        'Authentication': `bearer ${accessToken}`, 
         'Content-Type': 'application/json',
         'User-Agent': 'Swipy ERP (suporte@swipy.com)'
       },
@@ -61,23 +81,22 @@ serve(async (req) => {
     
     if (!regRes.ok) {
       const errorMsg = JSON.stringify(regData);
-      // Se o erro for que o webhook já está ativo, nós não paramos o processo!
+      // Se o erro for que o webhook já existe, não paramos o processo
       if (errorMsg.includes("already exists") || errorMsg.includes("webhook_already_active")) {
-        console.log(`[nuvemshop-auth] Webhook já estava ativo para a loja ${storeId}. Prosseguindo...`);
+        console.log(`[nuvemshop-auth] Webhook já estava configurado.`);
       } else {
-        console.error("[nuvemshop-auth] Erro real no registro do webhook:", regData);
-        throw new Error(`Falha ao registrar Webhook: ${regData.error || regData.message || errorMsg}`);
+        console.error("[nuvemshop-auth] Erro no registro do webhook:", regData);
+        throw new Error(`Nuvemshop negou o registro do Webhook: ${regData.error || regData.message || 'Unauthorized'}`);
       }
     }
 
-    // 3. Limpar registros antigos no ERP para evitar duplicidade de UI
+    // 4. Salvar Integração
     await supabaseAdmin
       .from('integrations')
       .delete()
       .eq('user_id', user.id)
       .eq('provider', 'nuvemshop');
 
-    // 4. Salvar Nova Integração no Banco de Dados
     const { error: dbError } = await supabaseAdmin
       .from('integrations')
       .insert({
