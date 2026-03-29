@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { customerId, amount, method, dueDate, userId, description, origin } = await req.json()
+    const { customerId, amount, method, dueDate, userId, description, origin, quoteId } = await req.json()
 
     const { data: profile } = await supabaseClient
       .from('profiles')
@@ -33,7 +33,7 @@ serve(async (req) => {
 
     if (!customer) throw new Error("Cliente não encontrado")
 
-    const correlationID = crypto.randomUUID()
+    const correlationID = quoteId || crypto.randomUUID()
 
     const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
       method: 'POST',
@@ -54,6 +54,7 @@ serve(async (req) => {
       .insert({
         user_id: userId,
         customer_id: customerId,
+        quote_id: quoteId || null, // Vínculo importante!
         amount,
         description,
         method,
@@ -68,71 +69,6 @@ serve(async (req) => {
       .select().single()
 
     if (chargeError) throw chargeError
-
-    // Gatilho imediato (Criada)
-    const { data: creationRule } = await supabaseClient
-      .from('billing_rules')
-      .select('*')
-      .eq('day_offset', -1)
-      .eq('is_active', true)
-      .single();
-
-    if (creationRule) {
-      try {
-        const merchantName = profile.company || profile.full_name || "Nossa Empresa";
-        const systemCheckoutUrl = `${origin}/pagar/${charge.id}`;
-        
-        const variables = creationRule.mapping.map((key: string) => {
-          if (key === 'customer_name') return customer.name;
-          if (key === 'merchant_name') return merchantName;
-          if (key === 'amount') return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(amount);
-          if (key === 'due_date') return new Date(dueDate).toLocaleDateString('pt-BR');
-          if (key === 'payment_id') return charge.id;
-          if (key === 'payment_link') return systemCheckoutUrl;
-          return '---';
-        });
-
-        let qrImageUrl = null;
-        if (creationRule.image_url === '{{qr_code}}' && charge.pix_qr_code) {
-          qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(charge.pix_qr_code)}&format=png&.png`;
-        } else if (creationRule.image_url && creationRule.image_url !== '{{qr_code}}') {
-          qrImageUrl = creationRule.image_url;
-        }
-
-        // RESOLUÇÃO DO BOTÃO: Se for payment_id, envia APENAS o ID para o final da URL
-        let buttonVariable = null;
-        if (creationRule.button_link_variable === 'payment_id') {
-          buttonVariable = charge.id;
-        } else if (creationRule.button_link_variable === 'payment_link') {
-          buttonVariable = systemCheckoutUrl;
-        }
-
-        const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': req.headers.get('Authorization') || `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`
-          },
-          body: JSON.stringify({
-            to: customer.phone,
-            templateName: creationRule.name,
-            language: creationRule.language || 'pt_BR',
-            imageUrl: qrImageUrl,
-            variables: variables,
-            buttonVariable: buttonVariable
-          })
-        });
-
-        await supabaseClient.from('notification_logs').insert({
-          charge_id: charge.id,
-          type: 'whatsapp',
-          status: waRes.ok ? 'success' : 'error',
-          message: waRes.ok ? `WhatsApp Inicial (${creationRule.label}) enviado` : 'Falha ao enviar WhatsApp inicial'
-        });
-      } catch (waErr: any) {
-        console.error("[create-woovi-charge] Erro WA:", waErr.message);
-      }
-    }
 
     return new Response(JSON.stringify(charge), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

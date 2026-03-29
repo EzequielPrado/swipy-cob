@@ -1,4 +1,3 @@
-Gera Cobrança -> Status 'waiting_payment'">
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 
@@ -30,11 +29,13 @@ serve(async (req) => {
     if (req.method === 'POST') {
       const { action } = await req.json()
       if (action === 'approve') {
-        // Marcamos como 'approved' (aceito pelo cliente), mas aguardando PIX
+        // Apenas marca como aprovado. O fluxo de produção/expedição SÓ inicia no webhook de pagamento.
         const { data: quote } = await supabaseAdmin.from('quotes').update({ status: 'approved' }).eq('id', quoteId).select().single();
         return new Response(JSON.stringify({ success: true, quote }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
     }
+    
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
