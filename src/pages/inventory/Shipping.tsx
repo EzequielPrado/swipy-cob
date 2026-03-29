@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { Truck, Loader2, Search, PackageCheck, Receipt, ArrowRight, User, Package, CheckCircle2, MapPin } from 'lucide-react';
+import { Truck, Loader2, Search, PackageCheck, Receipt, ArrowRight, User, Package, CheckCircle2, MapPin, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -20,6 +20,7 @@ const Shipping = () => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isShipModalOpen, setIsShipModalOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [invoicingId, setInvoicingId] = useState<string | null>(null);
   const [shipData, setShipData] = useState({ carrier: '', trackingCode: '' });
 
   const fetchQueue = async () => {
@@ -36,6 +37,39 @@ const Shipping = () => {
   };
 
   useEffect(() => { fetchQueue(); }, [user]);
+
+  const handleIssueInvoice = async (order: any) => {
+    setInvoicingId(order.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${session?.access_token}` 
+        },
+        body: JSON.stringify({ 
+          chargeId: order.id, 
+          customerId: order.customer_id, 
+          amount: order.total_amount, 
+          description: `Fatura ref. Pedido #${order.id.split('-')[0].toUpperCase()}` 
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Erro ao emitir nota");
+
+      // Avançar status para invoiced
+      await supabase.from('quotes').update({ status: 'invoiced' }).eq('id', order.id);
+      
+      showSuccess("Nota Fiscal emitida e enviada!");
+      fetchQueue();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setInvoicingId(null);
+    }
+  };
 
   const handleFinalShip = async () => {
     if (!shipData.carrier) return showError("Informe a transportadora");
@@ -141,12 +175,23 @@ const Shipping = () => {
                   </div>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-apple-border">
+                <div className="mt-8 pt-6 border-t border-apple-border space-y-3">
+                  {order.status === 'picking' && (
+                    <button 
+                      onClick={() => handleIssueInvoice(order)}
+                      disabled={invoicingId === order.id}
+                      className="w-full bg-blue-600 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10 active:scale-95 transition-all hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {invoicingId === order.id ? <Loader2 className="animate-spin" size={16} /> : <Receipt size={16} />}
+                      EMITIR NOTA FISCAL
+                    </button>
+                  )}
+                  
                   <button 
                     onClick={() => { setSelectedOrder(order); setIsShipModalOpen(true); }}
                     className="w-full bg-apple-black text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all group-hover:bg-orange-500"
                   >
-                    INFORMAR LOGÍSTICA <ArrowRight size={18} />
+                    DESPACHAR PEDIDO <ArrowRight size={18} />
                   </button>
                 </div>
               </div>
