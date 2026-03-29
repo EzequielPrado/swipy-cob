@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
   CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
-  CalendarDays, Banknote, PlayCircle, DollarSign, Factory, MapPin
+  CalendarDays, Banknote, PlayCircle, DollarSign, Factory, MapPin, ShoppingCart
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -21,6 +21,7 @@ const SalesList = () => {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [originFilter, setOriginFilter] = useState<'all' | 'nuvemshop' | 'pdv'>('all');
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
@@ -60,7 +61,8 @@ const SalesList = () => {
         quote_items(
           id, product_id, quantity, unit_price, total_price,
           products(name, sku, is_produced)
-        )
+        ),
+        charges(correlation_id)
       `)
       .eq('user_id', effectiveUserId)
       .gte('created_at', startDate)
@@ -78,11 +80,14 @@ const SalesList = () => {
   }, [effectiveUserId, selectedMonth]);
 
   const filteredSales = useMemo(() => {
-    return sales.filter(s => 
-      s.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.id.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [sales, searchTerm]);
+    return sales.filter(s => {
+      const isNuvem = s.charges?.some((c: any) => c.correlation_id?.startsWith('nuvem_'));
+      const matchesSearch = s.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || s.id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesOrigin = originFilter === 'all' || (originFilter === 'nuvemshop' && isNuvem) || (originFilter === 'pdv' && !isNuvem);
+      
+      return matchesSearch && matchesOrigin;
+    });
+  }, [sales, searchTerm, originFilter]);
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -119,18 +124,30 @@ const SalesList = () => {
           </div>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-          <input 
-            type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
-            placeholder="Buscar por cliente ou #ID..." 
-            className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-4 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none transition-all shadow-sm" 
-          />
+        <div className="flex flex-col md:flex-row gap-4 items-center bg-apple-white p-2 rounded-[2rem] border border-apple-border shadow-sm">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+            <input 
+              type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
+              placeholder="Buscar por cliente ou #ID..." 
+              className="w-full bg-transparent border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-0 outline-none transition-all text-apple-black" 
+            />
+          </div>
+          <div className="flex gap-2 p-1 overflow-x-auto w-full md:w-auto">
+            <button onClick={() => setOriginFilter('all')} className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all whitespace-nowrap", originFilter === 'all' ? "bg-orange-500 text-white shadow-sm" : "bg-apple-offWhite text-apple-muted hover:bg-apple-light")}>Todos</button>
+            <button onClick={() => setOriginFilter('nuvemshop')} className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-1.5 whitespace-nowrap", originFilter === 'nuvemshop' ? "bg-blue-600 text-white shadow-sm" : "bg-apple-offWhite text-apple-muted hover:bg-apple-light")}><Store size={12}/> Nuvemshop</button>
+            <button onClick={() => setOriginFilter('pdv')} className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all flex items-center gap-1.5 whitespace-nowrap", originFilter === 'pdv' ? "bg-emerald-600 text-white shadow-sm" : "bg-apple-offWhite text-apple-muted hover:bg-apple-light")}><ShoppingCart size={12}/> Balcão / PDV</button>
+          </div>
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={40} /></div>
+          ) : filteredSales.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-apple-muted opacity-40">
+               <ShoppingBag size={48} className="mb-4" />
+               <p className="font-bold italic">Nenhum pedido localizado.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -144,31 +161,43 @@ const SalesList = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-apple-border">
-                  {filteredSales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-apple-light transition-colors group">
-                      <td className="px-8 py-5">
-                        <p className="text-xs font-black text-apple-black font-mono uppercase">#{sale.id.split('-')[0]}</p>
-                        <p className="text-[10px] text-apple-muted mt-1 font-bold">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors">{sale.customers?.name || 'Venda PDV'}</p>
-                        <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1 mt-0.5"><Contact size={10} className="text-blue-500" /> {sale.employees?.full_name || 'Venda Direta'}</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border", getStatusDisplay(sale.status).color)}>
-                          {getStatusDisplay(sale.status).label}
-                        </span>
-                      </td>
-                      <td className="px-8 py-5 text-right font-black text-apple-black">
-                        {currencyFormatter.format(sale.total_amount)}
-                      </td>
-                      <td className="px-8 py-5 text-right">
-                        <button onClick={() => { setSelectedSale(sale); setIsDetailsOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl transition-all border border-apple-border shadow-sm">
-                          <Eye size={18}/>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredSales.map((sale) => {
+                    const isNuvemshop = sale.charges?.some((c: any) => c.correlation_id?.startsWith('nuvem_'));
+
+                    return (
+                      <tr key={sale.id} className="hover:bg-apple-light transition-colors group">
+                        <td className="px-8 py-5">
+                          <p className="text-xs font-black text-apple-black font-mono uppercase">#{sale.id.split('-')[0]}</p>
+                          <p className="text-[10px] text-apple-muted mt-1 font-bold">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
+                          {isNuvemshop && (
+                             <span className="mt-1.5 inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-white bg-blue-600 px-2 py-0.5 rounded shadow-sm">
+                                <Store size={10} /> Nuvemshop
+                             </span>
+                          )}
+                        </td>
+                        <td className="px-8 py-5">
+                          <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors">{sale.customers?.name || 'Venda PDV'}</p>
+                          <p className="text-[10px] text-apple-muted font-bold flex items-center gap-1 mt-0.5">
+                            <Contact size={10} className={isNuvemshop ? "text-blue-500" : "text-emerald-500"} /> 
+                            {isNuvemshop ? 'E-commerce' : (sale.employees?.full_name || 'Venda Direta')}
+                          </p>
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border", getStatusDisplay(sale.status).color)}>
+                            {getStatusDisplay(sale.status).label}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5 text-right font-black text-apple-black">
+                          {currencyFormatter.format(sale.total_amount)}
+                        </td>
+                        <td className="px-8 py-5 text-right">
+                          <button onClick={() => { setSelectedSale(sale); setIsDetailsOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl transition-all border border-apple-border shadow-sm">
+                            <Eye size={18}/>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

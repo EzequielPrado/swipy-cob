@@ -17,7 +17,8 @@ import {
   Users,
   Clock,
   CheckCircle2,
-  PlayCircle
+  PlayCircle,
+  Store
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,7 +61,7 @@ const OverviewDashboard = () => {
         // 2. Buscar Dados em paralelo
         const [subsRes, salesRes, productsRes, expensesRes, accountsRes, ordersRes, employeesRes, wooviRes] = await Promise.all([
           supabase.from('subscriptions').select('amount').eq('user_id', effectiveUserId).eq('status', 'active'),
-          supabase.from('quotes').select('*, customers(name)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }).limit(20),
+          supabase.from('quotes').select('*, customers(name), charges(correlation_id)').eq('user_id', effectiveUserId).order('created_at', { ascending: false }).limit(20),
           supabase.from('products').select('*').eq('user_id', effectiveUserId),
           supabase.from('expenses').select('amount').eq('user_id', effectiveUserId).eq('due_date', todayStr).neq('status', 'pago'),
           supabase.from('bank_accounts').select('balance, type').eq('user_id', effectiveUserId),
@@ -255,23 +256,30 @@ const OverviewDashboard = () => {
                 {stats.recentSales.length === 0 ? (
                   <p className="text-xs text-apple-muted italic py-4">Nenhuma venda registrada recentemente.</p>
                 ) : (
-                  stats.recentSales.map(sale => (
-                    <div key={sale.id} className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl flex items-center justify-between group hover:border-apple-dark transition-all">
-                      <div className="flex items-center gap-4 overflow-hidden">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center text-orange-500 shadow-sm group-hover:scale-105 transition-transform">
-                          <CheckCircle2 size={18} />
+                  stats.recentSales.map(sale => {
+                    const isNuvem = sale.charges?.some((c: any) => c.correlation_id?.startsWith('nuvem_'));
+
+                    return (
+                      <div key={sale.id} className="bg-apple-offWhite border border-apple-border p-4 rounded-2xl flex items-center justify-between group hover:border-apple-dark transition-all">
+                        <div className="flex items-center gap-4 overflow-hidden">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center text-orange-500 shadow-sm group-hover:scale-105 transition-transform">
+                            {isNuvem ? <Store size={18} className="text-blue-600" /> : <CheckCircle2 size={18} />}
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-sm font-bold text-apple-black truncate">{sale.customers?.name || 'Venda PDV'}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-[10px] text-apple-muted uppercase font-mono">Ref: #{sale.id.split('-')[0]}</p>
+                              {isNuvem && <span className="text-[8px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black uppercase tracking-widest">Nuvemshop</span>}
+                            </div>
+                          </div>
                         </div>
-                        <div className="overflow-hidden">
-                          <p className="text-sm font-bold text-apple-black truncate">{sale.customers?.name || 'Venda PDV'}</p>
-                          <p className="text-[10px] text-apple-muted uppercase font-mono mt-0.5">Ref: #{sale.id.split('-')[0]}</p>
+                        <div className="text-right shrink-0">
+                           <p className="text-sm font-black text-apple-black">{currencyFormatter.format(sale.total_amount)}</p>
+                           <p className="text-[9px] text-apple-muted font-bold uppercase mt-0.5">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                         <p className="text-sm font-black text-apple-black">{currencyFormatter.format(sale.total_amount)}</p>
-                         <p className="text-[9px] text-apple-muted font-bold uppercase mt-0.5">{new Date(sale.created_at).toLocaleDateString('pt-BR')}</p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
