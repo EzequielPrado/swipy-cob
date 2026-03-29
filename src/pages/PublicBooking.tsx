@@ -5,10 +5,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Wrench, Loader2, CheckCircle2, User, Phone, FileText, 
-  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe, Check
+  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe, Check, Users
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const PublicBooking = () => {
   const { slug } = useParams();
@@ -17,6 +19,7 @@ const PublicBooking = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<any>(null);
 
+  const [isIntermediary, setIsIntermediary] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     taxId: '',
@@ -24,7 +27,9 @@ const PublicBooking = () => {
     email: '',
     title: '',
     equipment: '',
-    description: ''
+    description: '',
+    finalCustomerName: '',
+    finalCustomerPhone: ''
   });
 
   useEffect(() => {
@@ -47,7 +52,7 @@ const PublicBooking = () => {
     setSubmitting(true);
 
     try {
-      // 1. Identificar ou Criar Cliente para este Lojista
+      // 1. Identificar ou Criar Solicitante (Pode ser uma Loja parceira)
       const cleanTaxId = formData.taxId.replace(/\D/g, '');
       
       let { data: customer } = await supabase
@@ -58,7 +63,6 @@ const PublicBooking = () => {
         .single();
 
       if (!customer) {
-        // Criar cliente lead automaticamente
         const { data: newCust, error: custErr } = await supabase
           .from('customers')
           .insert({
@@ -74,7 +78,7 @@ const PublicBooking = () => {
         customer = newCust;
       }
 
-      // 2. Criar a OS com origem 'web'
+      // 2. Criar a OS com dados de intermediação se houver
       const { data: os, error: osErr } = await supabase
         .from('service_orders')
         .insert({
@@ -84,22 +88,29 @@ const PublicBooking = () => {
           equipment_info: formData.equipment,
           description: formData.description,
           status: 'aberto',
-          origin: 'web'
+          origin: 'web',
+          is_intermediary: isIntermediary,
+          final_customer_name: isIntermediary ? formData.finalCustomerName : null,
+          final_customer_phone: isIntermediary ? formData.finalCustomerPhone : null
         })
         .select().single();
 
       if (osErr) throw osErr;
 
-      // 3. Log de Notificação para o Lojista
+      // 3. Notificação customizada
+      const msg = isIntermediary 
+        ? `${formData.name} enviou serviço para o cliente ${formData.finalCustomerName}` 
+        : `${formData.name} solicitou assistência para ${formData.title}.`;
+
       await supabase.from('notifications').insert({
         user_id: merchant.id,
-        title: 'Nova Solicitação via Portal!',
-        message: `${formData.name} solicitou assistência para ${formData.title}.`,
+        title: 'Novo Chamado Web!',
+        message: msg,
         type: 'info'
       });
 
       setSuccessData({ id: os.id, name: formData.name, title: formData.title });
-      showSuccess("Sua solicitação foi enviada com sucesso!");
+      showSuccess("Sua solicitação foi enviada!");
 
     } catch (err: any) {
       showError(err.message);
@@ -114,38 +125,18 @@ const PublicBooking = () => {
     <div className="min-h-screen bg-apple-light flex items-center justify-center p-6 font-sans text-center">
       <div className="w-full max-w-md bg-apple-white border border-apple-border rounded-[3rem] p-10 shadow-xl animate-in zoom-in duration-500 overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-2 bg-emerald-500" />
-        
         <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-100">
            <CheckCircle2 className="text-emerald-500" size={40} />
         </div>
-        
         <h2 className="text-2xl font-black text-apple-black mb-2">Sucesso, {successData.name.split(' ')[0]}!</h2>
         <p className="text-apple-muted font-medium mb-10 leading-relaxed">
-           Sua solicitação de **{successData.title}** foi registrada. Anote seu protocolo de atendimento:
+           Sua solicitação de **{successData.title}** foi registrada.
         </p>
-        
         <div className="bg-apple-offWhite p-6 rounded-2xl border border-apple-border mb-10 shadow-inner">
            <p className="text-[10px] font-black uppercase text-apple-muted mb-1 tracking-widest">Protocolo de Registro</p>
            <p className="text-3xl font-mono font-bold text-apple-black uppercase tracking-tighter">#{successData.id.split('-')[0]}</p>
         </div>
-
-        <div className="space-y-4 text-left bg-apple-light/50 p-6 rounded-2xl border border-apple-border mb-8">
-           <div className="flex gap-3">
-              <Check className="text-emerald-500 shrink-0" size={16} />
-              <p className="text-xs text-apple-dark font-medium">A equipe de **{merchant.company}** já foi notificada.</p>
-           </div>
-           <div className="flex gap-3">
-              <Check className="text-emerald-500 shrink-0" size={16} />
-              <p className="text-xs text-apple-dark font-medium">Entraremos em contato via WhatsApp ou E-mail.</p>
-           </div>
-        </div>
-
-        <button 
-          onClick={() => window.location.reload()}
-          className="w-full bg-apple-black text-white font-black py-5 rounded-2xl active:scale-95 transition-all shadow-xl hover:bg-zinc-800"
-        >
-          FECHAR E VOLTAR
-        </button>
+        <button onClick={() => window.location.reload()} className="w-full bg-apple-black text-white font-black py-5 rounded-2xl shadow-xl hover:bg-zinc-800">FECHAR E VOLTAR</button>
       </div>
     </div>
   );
@@ -159,21 +150,21 @@ const PublicBooking = () => {
             <span className="text-2xl font-black tracking-tight">{merchant.company}</span>
           </div>
           <h1 className="text-4xl font-black tracking-tighter mb-4">Solicitar Assistência</h1>
-          <p className="text-apple-muted font-medium">Preencha os detalhes abaixo para abrirmos sua ordem de serviço junto à **{merchant.company}**.</p>
+          <p className="text-apple-muted font-medium italic">Preencha os dados abaixo para registrar sua entrada.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-apple-white border border-apple-border rounded-[3rem] overflow-hidden shadow-sm animate-in slide-in-from-bottom-8 duration-1000">
            <div className="h-2 w-full bg-orange-500"></div>
            <div className="p-8 md:p-12 space-y-10">
               
-              <div className="space-y-6">
+              <div className="space-y-8">
                  <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <User size={14} /> 1. Seus Dados de Contato
+                    <User size={14} /> 1. Seus Dados (Solicitante)
                  </h3>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-apple-muted ml-1">Seu Nome Completo</label>
-                       <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Como devemos te chamar?" />
+                       <label className="text-xs font-bold text-apple-muted ml-1">Nome ou Loja Parceira</label>
+                       <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Quem está entregando o item?" />
                     </div>
                     <div className="space-y-2">
                        <label className="text-xs font-bold text-apple-muted ml-1">CPF ou CNPJ</label>
@@ -188,6 +179,33 @@ const PublicBooking = () => {
                        <input type="email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Para notificações" />
                     </div>
                  </div>
+
+                 {/* TOGGLE CLIENTE FINAL */}
+                 <div className="bg-orange-50/50 border border-orange-100 p-6 rounded-3xl space-y-6">
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3">
+                          <Users size={20} className="text-orange-500" />
+                          <div>
+                             <p className="text-sm font-bold text-apple-black">Solicitar para cliente final?</p>
+                             <p className="text-[10px] text-apple-muted font-medium">Ative se você estiver abrindo o chamado para outra pessoa.</p>
+                          </div>
+                       </div>
+                       <Switch checked={isIntermediary} onCheckedChange={setIsIntermediary} className="data-[state=checked]:bg-orange-500" />
+                    </div>
+
+                    {isIntermediary && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
+                         <div className="space-y-2">
+                            <label className="text-xs font-bold text-orange-600 ml-1">Nome do Cliente Final</label>
+                            <input required={isIntermediary} value={formData.finalCustomerName} onChange={e => setFormData({...formData, finalCustomerName: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Nome do dono do equipamento" />
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-xs font-bold text-orange-600 ml-1">WhatsApp do Cliente Final</label>
+                            <input value={formData.finalCustomerPhone} onChange={e => setFormData({...formData, finalCustomerPhone: e.target.value})} className="w-full bg-white border border-orange-200 rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="(00) 00000-0000" />
+                         </div>
+                      </div>
+                    )}
+                 </div>
               </div>
 
               <div className="space-y-6 pt-6 border-t border-apple-border">
@@ -197,33 +215,24 @@ const PublicBooking = () => {
                  <div className="space-y-4">
                     <div className="space-y-2">
                        <label className="text-xs font-bold text-apple-muted ml-1">O que precisa ser feito?</label>
-                       <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-bold" placeholder="Ex: Ajuste de armação, Troca de tela..." />
+                       <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-bold" placeholder="Ex: Conserto de Haste, Troca de Lente..." />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-apple-muted ml-1">Descrição do Equipamento (Modelo/Marca)</label>
-                       <input value={formData.equipment} onChange={e => setFormData({...formData, equipment: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Ex: Rayban Aviador Preto" />
+                       <label className="text-xs font-bold text-apple-muted ml-1">Equipamento (Marca/Modelo)</label>
+                       <input value={formData.equipment} onChange={e => setFormData({...formData, equipment: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20" placeholder="Ex: Rayban Aviador" />
                     </div>
                     <div className="space-y-2">
                        <label className="text-xs font-bold text-apple-muted ml-1">Relato do Problema / Observações</label>
-                       <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-2xl px-4 py-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 min-h-[120px]" placeholder="Conte-nos mais detalhes para agilizarmos o orçamento..." />
+                       <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-2xl px-4 py-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 min-h-[120px]" placeholder="Mais detalhes..." />
                     </div>
                  </div>
               </div>
 
-              <button 
-                type="submit" 
-                disabled={submitting}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-orange-500/10 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 text-base"
-              >
+              <button type="submit" disabled={submitting} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-black py-5 rounded-3xl transition-all shadow-xl shadow-orange-500/10 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 text-base">
                 {submitting ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={20} /> ENVIAR SOLICITAÇÃO</>}
               </button>
            </div>
         </form>
-
-        <div className="mt-12 flex items-center justify-center gap-3 opacity-40">
-           <ShieldCheck size={18} className="text-emerald-600" />
-           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-apple-muted">Sistema Oficial de Ordens de Serviço da {merchant.company}</p>
-        </div>
       </div>
     </div>
   );

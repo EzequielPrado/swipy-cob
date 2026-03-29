@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox, Users
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -125,7 +125,9 @@ const ServiceOrders = () => {
   };
 
   const filteredOrders = orders.filter(o => {
-    const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (o.final_customer_name && o.final_customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesOrigin = originFilter === 'all' || o.origin === originFilter;
     return matchesSearch && matchesOrigin;
   });
@@ -180,7 +182,7 @@ const ServiceOrders = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Cliente Solicitante</th><th className="px-8 py-5">Técnico</th><th className="px-8 py-5">Origem / Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Solicitante e Destino</th><th className="px-8 py-5">Técnico</th><th className="px-8 py-5">Origem / Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
@@ -188,7 +190,7 @@ const ServiceOrders = () => {
                 ) : filteredOrders.length === 0 ? (
                   <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic">
                      <Inbox size={48} className="mx-auto mb-4 opacity-10" />
-                     <p>Nenhuma ordem localizada com esses filtros.</p>
+                     <p>Nenhuma ordem localizada.</p>
                   </td></tr>
                 ) : (
                   filteredOrders.map((order) => (
@@ -196,25 +198,29 @@ const ServiceOrders = () => {
                       <td className="px-8 py-5">
                         <p className="text-[10px] font-black text-apple-muted font-mono uppercase">#{order.id.split('-')[0]}</p>
                         <p className="text-sm font-black text-apple-black group-hover:text-blue-600 transition-colors">{order.title}</p>
-                        <p className="text-[9px] text-apple-muted font-bold mt-0.5 italic">{order.equipment_info || 'Sem equipamento informado'}</p>
+                        <p className="text-[9px] text-apple-muted font-bold mt-0.5 italic">{order.equipment_info || 'Sem equipamento'}</p>
                       </td>
                       <td className="px-8 py-5">
-                        <Link to={`/clientes/${order.customers?.id}`} className="block group/link">
-                           <p className="text-sm font-black text-apple-black flex items-center gap-1.5 group-hover/link:text-orange-500">
-                             {order.customers?.name} 
-                             <ExternalLink size={12} className="opacity-0 group-hover/link:opacity-100" />
-                           </p>
-                           <p className="text-[10px] text-apple-muted font-bold">{order.customers?.phone || 'Sem telefone'}</p>
-                        </Link>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-2">
-                           <div className="w-7 h-7 rounded-full bg-apple-offWhite border border-apple-border flex items-center justify-center text-apple-muted">
-                              <UserCheck size={14} />
+                        <div className="space-y-1.5">
+                           <div className="flex items-center gap-2">
+                              <User size={12} className="text-orange-500" />
+                              <p className="text-sm font-bold text-apple-black">{order.customers?.name}</p>
                            </div>
-                           <p className="text-xs font-bold text-apple-dark">
-                              {order.employees?.full_name || 'Em Aberto'}
-                           </p>
+                           {order.is_intermediary && (
+                             <div className="bg-orange-50 border border-orange-100 p-2 rounded-lg flex items-center gap-2">
+                               <Users size={10} className="text-orange-600" />
+                               <div>
+                                 <p className="text-[9px] font-black uppercase text-orange-600 leading-none">Para Cliente Final:</p>
+                                 <p className="text-[10px] font-bold text-apple-dark mt-0.5">{order.final_customer_name}</p>
+                               </div>
+                             </div>
+                           )}
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-2 text-xs font-bold text-apple-muted">
+                           <UserCheck size={14} className="text-blue-500" />
+                           {order.employees?.full_name || 'Sem Técnico'}
                         </div>
                       </td>
                       <td className="px-8 py-5">
