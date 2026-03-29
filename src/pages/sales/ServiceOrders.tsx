@@ -39,8 +39,7 @@ const ServiceOrders = () => {
   const [employees, setEmployees] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
-    title: '', customerId: '', employeeId: '', description: '', priority: 'normal', estimatedCost: '',
-    billingType: 'imediato', billingDays: '30'
+    title: '', customerId: '', employeeId: '', description: '', priority: 'normal', estimatedCost: ''
   });
 
   const monthOptions = useMemo(() => {
@@ -97,22 +96,6 @@ const ServiceOrders = () => {
     fetchDeps();
   }, [effectiveUserId]);
 
-  // FUNÇÃO DE EDIÇÃO (CORREÇÃO)
-  const openEditModal = (order: any) => {
-    setEditingOrder(order);
-    setFormData({
-      title: order.title || '',
-      customerId: order.customer_id || '',
-      employeeId: order.employee_id || '',
-      description: order.description || '',
-      priority: order.priority || 'normal',
-      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00',
-      billingType: order.billing_type || 'imediato',
-      billingDays: (order.billing_days || 30).toString()
-    });
-    setIsModalOpen(true);
-  };
-
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
       const { error } = await supabase
@@ -121,17 +104,83 @@ const ServiceOrders = () => {
         .eq('id', id);
       
       if (error) throw error;
-      showSuccess(`Status atualizado!`);
+      showSuccess(`OS movida para ${newStatus.replace('_', ' ')}!`);
       fetchOrders();
     } catch (err: any) { showError(err.message); }
   };
 
+  const handleBatchBilling = async () => {
+    if (selectedOrders.length === 0) return;
+    const firstOrder = orders.find(o => o.id === selectedOrders[0]);
+    const differentCustomer = selectedOrders.some(id => orders.find(o => o.id === id).customer_id !== firstOrder.customer_id);
+    if (differentCustomer) return showError("Selecione ordens do mesmo cliente para faturar em lote.");
+
+    setSaving(true);
+    try {
+      const total = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost || 0), 0);
+      const { data: charge, error: chargeErr } = await supabase.from('charges').insert({
+        user_id: effectiveUserId,
+        customer_id: firstOrder.customer_id,
+        amount: total,
+        description: `Faturamento de ${selectedOrders.length} Ordens de Serviço`,
+        status: 'pendente',
+        due_date: new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
+        method: 'manual'
+      }).select().single();
+
+      if (chargeErr) throw chargeErr;
+
+      await supabase.from('service_orders').update({
+        status: 'concluido',
+        updated_at: new Date().toISOString()
+      }).in('id', selectedOrders);
+
+      showSuccess("Cobrança gerada com sucesso!");
+      setSelectedOrders([]);
+      fetchOrders();
+    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
+  };
+
+  const handleSingleBilling = async (order: any) => {
+    setSaving(true);
+    try {
+      const { error: chargeErr } = await supabase.from('charges').insert({
+        user_id: effectiveUserId,
+        customer_id: order.customer_id,
+        amount: order.estimated_cost,
+        description: `OS #${order.id.split('-')[0].toUpperCase()} - ${order.title}`,
+        status: 'pendente',
+        due_date: new Date().toISOString().split('T')[0],
+        method: 'manual'
+      });
+
+      if (chargeErr) throw chargeErr;
+
+      await supabase.from('service_orders').update({ status: 'concluido' }).eq('id', order.id);
+      showSuccess("Cobrança gerada para esta OS!");
+      fetchOrders();
+    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
+  };
+
+  const openEditModal = (order: any) => {
+    setEditingOrder(order);
+    setFormData({
+      title: order.title || '',
+      customerId: order.customer_id || '',
+      employeeId: order.employee_id || '',
+      description: order.description || '',
+      priority: order.priority || 'normal',
+      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00'
+    });
+    setIsModalOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta OS permanentemente?")) return;
+    if (!confirm("Excluir esta OS permanentemente?")) return;
     try {
       const { error } = await supabase.from('service_orders').delete().eq('id', id);
       if (error) throw error;
-      showSuccess("Ordem de serviço removida.");
+      showSuccess("Removida.");
       fetchOrders();
     } catch (err: any) { showError(err.message); }
   };
@@ -149,26 +198,15 @@ const ServiceOrders = () => {
         description: formData.description,
         priority: formData.priority,
         estimated_cost: cost,
-        billing_type: formData.billingType,
-        billing_days: parseInt(formData.billingDays) || 30,
       };
 
-      if (editingOrder) {
-        await supabase.from('service_orders').update(dataToSave).eq('id', editingOrder.id);
-        showSuccess("OS atualizada com sucesso!");
-      } else {
-        await supabase.from('service_orders').insert({ ...dataToSave, status: 'aberto', origin: 'manual' });
-        showSuccess("Nova OS aberta!");
-      }
+      if (editingOrder) await supabase.from('service_orders').update(dataToSave).eq('id', editingOrder.id);
+      else await supabase.from('service_orders').insert({ ...dataToSave, status: 'aberto', origin: 'manual' });
 
       setIsModalOpen(false);
-      setEditingOrder(null);
       fetchOrders();
-    } catch (err: any) { 
-      showError(err.message); 
-    } finally { 
-      setSaving(false); 
-    }
+      showSuccess("Salvo com sucesso!");
+    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
   const toggleSelect = (id: string) => setSelectedOrders(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -191,6 +229,8 @@ const ServiceOrders = () => {
     revenue: orders.reduce((acc, o) => acc + Number(o.estimated_cost || 0), 0)
   }), [orders]);
 
+  const selectedTotal = useMemo(() => selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id)?.estimated_cost || 0), 0), [selectedOrders, orders]);
+
   const getAttachmentUrl = (desc: string) => {
     if (!desc) return null;
     const match = desc.match(/\[Anexo enviado pelo cliente: (.*?)\]/);
@@ -204,9 +244,9 @@ const ServiceOrders = () => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Wrench className="text-orange-500" size={20} />
-              <span className="text-[10px] font-black uppercase text-apple-muted tracking-widest">Serviços {activeMerchant ? `• ${activeMerchant.company}` : ''}</span>
+              <span className="text-[10px] font-black uppercase text-apple-muted tracking-widest">Fluxo Operacional</span>
             </div>
-            <h2 className="text-3xl font-black tracking-tight text-apple-black">Painel de Ordens</h2>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black">Ordens de Serviço</h2>
           </div>
           <div className="flex flex-wrap items-center gap-3">
              <div className="bg-apple-white border border-apple-border rounded-xl px-4 py-2 flex items-center gap-3 shadow-sm">
@@ -216,15 +256,15 @@ const ServiceOrders = () => {
                    <SelectContent className="bg-apple-white border-apple-border">{monthOptions.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
                 </Select>
              </div>
-             <button onClick={() => { setEditingOrder(null); setFormData({title:'', customerId:'', employeeId:'', description:'', priority:'normal', estimatedCost:'0,00', billingType:'imediato', billingDays:'30'}); setIsModalOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"><Plus size={20} /> NOVA OS</button>
+             <button onClick={() => { setEditingOrder(null); setFormData({title:'', customerId:'', employeeId:'', description:'', priority:'normal', estimatedCost:'0,00'}); setIsModalOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg transition-all flex items-center gap-2 active:scale-95"><Plus size={20} /> NOVA OS</button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Aguardando Início</p><p className="text-3xl font-black text-apple-black">{stats.open}</p></div>
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-4 border-l-orange-500"><p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1">Em Execução</p><p className="text-3xl font-black text-apple-black">{stats.progress}</p></div>
-           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-4 border-l-emerald-500"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Concluídas (Mês)</p><p className="text-3xl font-black text-apple-black">{stats.done}</p></div>
-           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Volume Previsto</p><p className="text-3xl font-black text-blue-600">{currency.format(stats.revenue)}</p></div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-4 border-l-emerald-500"><p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Concluídas</p><p className="text-3xl font-black text-apple-black">{stats.done}</p></div>
+           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm"><p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Custo Estimado</p><p className="text-3xl font-black text-blue-600">{currency.format(stats.revenue)}</p></div>
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm min-h-[400px]">
@@ -244,10 +284,10 @@ const ServiceOrders = () => {
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-5 w-10"></th>
-                  <th className="px-8 py-5">Protocolo / Data</th>
-                  <th className="px-8 py-5">Solicitante / Anexo</th>
-                  <th className="px-8 py-5">Situação</th>
-                  <th className="px-8 py-5 text-right">Ações Rápidas</th>
+                  <th className="px-8 py-5">Protocolo / Assunto</th>
+                  <th className="px-8 py-5">Solicitante</th>
+                  <th className="px-8 py-5">Situação / Valor</th>
+                  <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
@@ -261,25 +301,25 @@ const ServiceOrders = () => {
                         <td className="px-8 py-5">
                           <p className="text-[10px] font-black text-apple-muted font-mono uppercase">#{order.id.split('-')[0]}</p>
                           <p className="text-sm font-black text-apple-black group-hover:text-orange-600 transition-colors">{order.title}</p>
-                          <p className="text-[9px] text-apple-muted font-bold mt-1 uppercase flex items-center gap-1"><Calendar size={10} /> {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
                         </td>
                         <td className="px-8 py-5">
                            <p className="text-sm font-bold text-apple-black">{order.customers?.name}</p>
                            {attachment && (
-                             <a href={attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 text-[9px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition-all"><Paperclip size={10} /> Abrir Arquivo/Foto</a>
+                             <a href={attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 text-[9px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition-all"><Paperclip size={10} /> Ver Anexo</a>
                            )}
                         </td>
                         <td className="px-8 py-5">
                            <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border w-fit block mb-1.5", 
                               order.status === 'aberto' ? "bg-blue-50 text-blue-600 border-blue-100" : 
                               order.status === 'em_progresso' ? "bg-orange-50 text-orange-600 border-orange-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                           )}>{order.status.replace('_', ' ')}</span>
+                           )}>{order.status}</span>
                            <p className="text-sm font-black text-apple-black">{currency.format(order.estimated_cost)}</p>
                         </td>
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-1">
-                             {order.status === 'aberto' && <button onClick={() => handleUpdateStatus(order.id, 'em_progresso')} className="p-2.5 bg-orange-50 text-orange-500 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm" title="Iniciar Execução"><PlayCircle size={18}/></button>}
-                             {order.status === 'em_progresso' && <button onClick={() => handleUpdateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Finalizar Serviço"><CheckCircle2 size={18}/></button>}
+                             {order.status === 'aberto' && <button onClick={() => handleUpdateStatus(order.id, 'em_progresso')} className="p-2.5 bg-orange-50 text-orange-500 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm" title="Iniciar"><PlayCircle size={18}/></button>}
+                             {order.status === 'em_progresso' && <button onClick={() => handleUpdateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Concluir"><CheckCircle2 size={18}/></button>}
+                             {order.status === 'concluido' && <button onClick={() => handleSingleBilling(order)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm" title="Faturar OS"><DollarSign size={18}/></button>}
                              <button onClick={() => openEditModal(order)} className="p-2.5 text-apple-muted hover:text-blue-500"><Edit3 size={18}/></button>
                              <button onClick={() => handleDelete(order.id)} className="p-2.5 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button>
                           </div>
@@ -292,14 +332,28 @@ const ServiceOrders = () => {
             </table>
           </div>
         </div>
+
+        {/* BARRA DE AÇÃO FLUTUANTE AJUSTADA */}
+        {selectedOrders.length > 0 && (
+          <div className="fixed bottom-24 lg:bottom-10 left-1/2 -translate-x-1/2 bg-apple-black text-white p-6 rounded-[2.5rem] shadow-2xl flex items-center gap-12 animate-in slide-in-from-bottom-10 duration-500 z-50 border border-white/10 w-[90%] md:w-auto max-w-2xl">
+             <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg"><Layers size={24}/></div>
+                <div className="hidden sm:block">
+                   <p className="text-sm font-black tracking-tight">{selectedOrders.length} Ordens Selecionadas</p>
+                   <p className="text-xs text-zinc-400 font-medium">Total: <span className="text-orange-400 font-bold">{currency.format(selectedTotal)}</span></p>
+                </div>
+             </div>
+             <div className="flex flex-1 md:flex-none justify-between md:justify-start gap-4">
+                <button onClick={() => setSelectedOrders([])} className="text-xs font-bold text-zinc-400 hover:text-white">Cancelar</button>
+                <button onClick={handleBatchBilling} disabled={saving} className="bg-white text-apple-black px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-2">
+                   {saving ? <Loader2 className="animate-spin" size={16} /> : <><CreditCard size={16} /> FATURAR EM LOTE</>}
+                </button>
+             </div>
+          </div>
+        )}
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsModalOpen(false);
-          setEditingOrder(null);
-        }
-      }}>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] p-0 overflow-hidden shadow-2xl rounded-[2.5rem]">
           <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
             <DialogTitle className="text-xl font-black flex items-center gap-3"><div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg">{editingOrder ? <Edit3 size={20} /> : <Plus size={20} />}</div>{editingOrder ? 'Ajustar Solicitação' : 'Novo Chamado de Atendimento'}</DialogTitle>
