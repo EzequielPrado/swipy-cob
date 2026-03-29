@@ -8,10 +8,12 @@ import {
   ArrowRightLeft, Search, Loader2, CheckCircle2, 
   ArrowUpCircle, ArrowDownCircle, Filter, Calendar, 
   Clock, Landmark, Info, ArrowUpRight, ArrowDownRight,
-  Wallet, Receipt, DollarSign, AlertCircle, Activity, Layers
+  Wallet, Receipt, DollarSign, AlertCircle, Activity, Layers,
+  CalendarDays
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Transactions = () => {
   const { effectiveUserId } = useAuth();
@@ -22,15 +24,52 @@ const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all'); // all, bank, receivable, payable
 
+  // Filtro de Mês
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    d.setMonth(d.getMonth() - 11); // Mostrar últimos 12 meses
+    for(let i=0; i<24; i++) { // Permitir ver 1 ano atrás e 1 ano à frente (projeção)
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
+      d.setMonth(d.getMonth() + 1);
+    }
+    return options.reverse();
+  }, []);
+
   const fetchData = async () => {
     if (!effectiveUserId) return;
     setLoading(true);
+    
+    const [year, month] = selectedMonth.split('-');
+    const startDate = `${year}-${month}-01`;
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const endDate = `${year}-${month}-${lastDay}`;
+
     try {
       const [accRes, trxRes, chargesRes, expensesRes] = await Promise.all([
         supabase.from('bank_accounts').select('id, name').eq('user_id', effectiveUserId),
-        supabase.from('bank_transactions').select('*, bank_accounts(name)').eq('user_id', effectiveUserId),
-        supabase.from('charges').select('*, customers(name)').eq('user_id', effectiveUserId),
-        supabase.from('expenses').select('*').eq('user_id', effectiveUserId)
+        supabase.from('bank_transactions')
+          .select('*, bank_accounts(name)')
+          .eq('user_id', effectiveUserId)
+          .gte('date', startDate)
+          .lte('date', endDate),
+        supabase.from('charges')
+          .select('*, customers(name)')
+          .eq('user_id', effectiveUserId)
+          .gte('due_date', startDate)
+          .lte('due_date', endDate),
+        supabase.from('expenses')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .gte('due_date', startDate)
+          .lte('due_date', endDate)
       ]);
 
       if (accRes.data) setAccounts(accRes.data);
@@ -82,7 +121,7 @@ const Transactions = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [effectiveUserId]);
+  useEffect(() => { fetchData(); }, [effectiveUserId, selectedMonth]);
 
   const filteredData = useMemo(() => {
     return unifiedData.filter(item => {
@@ -102,30 +141,45 @@ const Transactions = () => {
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
               <Activity className="text-orange-500" size={32} /> Fluxo Unificado
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Visão consolidada de extratos bancários, contas a pagar e a receber.</p>
+            <p className="text-apple-muted mt-1 font-medium">Visão consolidada por período de extratos, contas a pagar e a receber.</p>
           </div>
-          <div className="flex gap-2">
-             <Link 
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
+              <CalendarDays size={16} className="text-apple-muted mr-3" />
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value} className="focus:bg-apple-light">{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Link 
               to="/financeiro/conciliacao"
               className="bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
-             >
-                <CheckCircle2 size={16} /> Conciliar Bancos
-             </Link>
+            >
+              <CheckCircle2 size={16} /> Conciliar Bancos
+            </Link>
           </div>
         </div>
 
         {/* KPIs RÁPIDOS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Entradas (Mês)</p>
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Entradas (Período)</p>
               <p className="text-2xl font-black text-emerald-600">{currency.format(unifiedData.filter(i => i.type === 'IN').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
            </div>
            <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Saídas (Mês)</p>
+              <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Total Saídas (Período)</p>
               <p className="text-2xl font-black text-red-600">{currency.format(unifiedData.filter(i => i.type === 'OUT').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
            </div>
            <div className="bg-orange-500 p-6 rounded-[2rem] shadow-xl text-white">
-              <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Saldo Projetado</p>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Saldo Projetado no Mês</p>
               <p className="text-2xl font-black">{currency.format(unifiedData.filter(i => i.type === 'IN').reduce((acc, curr) => acc + Number(curr.amount), 0) - unifiedData.filter(i => i.type === 'OUT').reduce((acc, curr) => acc + Number(curr.amount), 0))}</p>
            </div>
         </div>
@@ -181,7 +235,7 @@ const Transactions = () => {
                 {loading ? (
                   <tr><td colSpan={5} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={40} /></td></tr>
                 ) : filteredData.length === 0 ? (
-                  <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic font-bold">Nenhum lançamento localizado.</td></tr>
+                  <tr><td colSpan={5} className="py-24 text-center text-apple-muted italic font-bold">Nenhum lançamento localizado para este mês.</td></tr>
                 ) : (
                   filteredData.map((item, idx) => (
                     <tr key={idx} className="hover:bg-apple-light transition-colors group">
