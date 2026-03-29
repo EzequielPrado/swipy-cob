@@ -108,7 +108,9 @@ const SalesList = () => {
   const advanceStatus = async (manualNextStage?: string) => {
     if (!selectedSale) return;
     
-    let nextStage = manualNextStage;
+    // IMPORTANTE: Se o argumento vier de um evento onClick, ele será um objeto.
+    // Garantimos que nextStage seja apenas string ou null.
+    let nextStage = typeof manualNextStage === 'string' ? manualNextStage : null;
     
     if (!nextStage) {
       const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
@@ -118,11 +120,9 @@ const SalesList = () => {
 
     setUpdatingStatus(true);
     try {
-      // 1. Atualizar status do pedido
       const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       if (error) throw error;
 
-      // 2. Se a etapa for PRODUÇÃO, gerar as ordens industriais
       if (nextStage === 'production') {
         const prodEntries = selectedSale.quote_items
           .filter((i: any) => i.products?.is_produced)
@@ -135,13 +135,11 @@ const SalesList = () => {
           }));
         
         if (prodEntries.length > 0) {
-          const { error: prodError } = await supabase.from('production_orders').insert(prodEntries);
-          if (prodError) throw prodError;
-          console.log(`[SalesList] ${prodEntries.length} ordens de produção geradas.`);
+          await supabase.from('production_orders').insert(prodEntries);
         }
       }
 
-      showSuccess(`Pedido avançado para ${nextStage}.`);
+      showSuccess(`Pedido avançado.`);
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
@@ -171,7 +169,7 @@ const SalesList = () => {
       if (!response.ok) throw new Error(result.error);
       const nextStage = 'invoiced';
       await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
-      showSuccess("Fatura emitida e enviada via WhatsApp!");
+      showSuccess("Fatura emitida!");
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
@@ -327,7 +325,7 @@ const SalesList = () => {
                          </div>
                        ) : (
                          FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && selectedSale.status !== 'approved' && (
-                           <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : advanceStatus} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
+                           <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : () => advanceStatus()} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
                              {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : (selectedSale.status === 'picking' ? "Emitir Fatura Oficial" : "Avançar Próxima Etapa")}
                            </button>
                          )
