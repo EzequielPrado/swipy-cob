@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox, Users, CreditCard, CalendarClock, CheckSquare, Square, Layers
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink, Inbox, Users, CreditCard, CalendarClock, CheckSquare, Square, Layers, RefreshCw
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -25,7 +25,6 @@ const ServiceOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [originFilter, setOriginFilter] = useState<'all' | 'web' | 'manual'>('all');
   
-  // Estados para Modal e Edição
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -51,26 +50,38 @@ const ServiceOrders = () => {
     setLoading(false);
   };
 
-  const fetchDependencies = async () => {
-    if (!effectiveUserId) return;
-    const [custRes, empRes] = await Promise.all([
-      supabase.from('customers').select('id, name').eq('user_id', effectiveUserId).order('name'),
-      supabase.from('employees').select('id, full_name').eq('user_id', effectiveUserId).eq('status', 'Ativo').order('full_name')
-    ]);
-    if (custRes.data) setCustomers(custRes.data);
-    if (empRes.data) setEmployees(empRes.data);
-  };
-
   useEffect(() => {
     fetchOrders();
-    fetchDependencies();
+    
+    // ATIVAÇÃO REALTIME: Escutar novas OS (especialmente as do portal)
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'service_orders',
+        filter: `user_id=eq.${effectiveUserId}` 
+      }, (payload) => {
+        console.log("Mudança detectada nas OS:", payload);
+        fetchOrders(); // Recarrega a lista automaticamente
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [effectiveUserId]);
 
-  const openAddModal = () => {
-    setEditingOrder(null);
-    setFormData({ title: '', customerId: '', employeeId: '', equipmentInfo: '', description: '', priority: 'normal', estimatedCost: '', billingType: 'imediato', billingDays: '30' });
-    setIsModalOpen(true);
-  };
+  useEffect(() => {
+    if (!effectiveUserId) return;
+    const fetchDeps = async () => {
+      const [custRes, empRes] = await Promise.all([
+        supabase.from('customers').select('id, name').eq('user_id', effectiveUserId).order('name'),
+        supabase.from('employees').select('id, full_name').eq('user_id', effectiveUserId).eq('status', 'Ativo').order('full_name')
+      ]);
+      if (custRes.data) setCustomers(custRes.data);
+      if (empRes.data) setEmployees(empRes.data);
+    };
+    fetchDeps();
+  }, [effectiveUserId]);
 
   const openEditModal = (order: any) => {
     setEditingOrder(order);
@@ -81,23 +92,47 @@ const ServiceOrders = () => {
       equipmentInfo: order.equipment_info || '',
       description: order.description || '',
       priority: order.priority || 'normal',
-      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '',
+      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00',
       billingType: order.billing_type || 'imediato',
       billingDays: (order.billing_days || 30).toString()
     });
     setIsModalOpen(true);
   };
 
-  const handleSharePortal = () => {
-    const slug = activeMerchant?.slug || profile?.slug;
-    if (!slug) {
-      showError("Configure seu endereço personalizado em 'Personalização'.");
-      navigate('/configuracoes');
-      return;
-    }
-    const url = `${window.location.origin}/emp/${slug}`;
-    navigator.clipboard.writeText(url);
-    showSuccess("Link do Portal copiado!");
+  const handleBatchBilling = async () => {
+    if (selectedOrders.length === 0) return;
+    const firstOrder = orders.find(o => o.id === selectedOrders[0]);
+    const differentCustomer = selectedOrders.some(id => orders.find(o => o.id === id).customer_id !== firstOrder.customer_id);
+    if (differentCustomer) return showError("Selecione ordens do mesmo parceiro.");
+
+    try {
+      setLoading(true);
+      const totalAmount = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost), 0);
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+
+      const { data: charge, error: chargeErr } = await supabase.from('charges').insert({
+        user_id: effectiveUserId,
+        customer_id: firstOrder.customer_id,
+        amount: totalAmount,
+        description: `Lote Consolidado: ${selectedOrders.length} Serviços Realizados`,
+        status: 'pendente',
+        due_date: dueDate.toISOString().split('T')[0],
+        method: 'pix'
+      }).select().single();
+
+      if (chargeErr) throw chargeErr;
+
+      await supabase.from('service_orders').update({
+        status: 'concluido',
+        charge_id: charge.id,
+        completion_date: new Date().toISOString()
+      }).in('id', selectedOrders);
+
+      showSuccess("Fatura de lote gerada!");
+      setSelectedOrders([]);
+      fetchOrders();
+    } catch (err: any) { showError(err.message); } finally { setLoading(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,63 +155,14 @@ const ServiceOrders = () => {
 
       if (editingOrder) {
         await supabase.from('service_orders').update(dataToSave).eq('id', editingOrder.id);
-        showSuccess("OS atualizada com sucesso!");
+        showSuccess("OS Atualizada!");
       } else {
         await supabase.from('service_orders').insert({ ...dataToSave, status: 'aberto', origin: 'manual' });
-        showSuccess("Nova OS registrada!");
+        showSuccess("OS Criada!");
       }
-
       setIsModalOpen(false);
       fetchOrders();
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
-  };
-
-  const handleBatchBilling = async () => {
-    if (selectedOrders.length === 0) return;
-    
-    // Validar se são do mesmo cliente para o faturamento em lote
-    const firstOrder = orders.find(o => o.id === selectedOrders[0]);
-    const differentCustomer = selectedOrders.some(id => orders.find(o => o.id === id).customer_id !== firstOrder.customer_id);
-    
-    if (differentCustomer) {
-      return showError("Selecione apenas ordens do mesmo parceiro para faturamento em lote.");
-    }
-
-    try {
-      setLoading(true);
-      const totalAmount = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost), 0);
-      
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30); // Padrão 30 dias para faturamento em lote
-
-      // 1. Criar Cobrança Consolidada no Financeiro
-      const { data: charge, error: chargeErr } = await supabase.from('charges').insert({
-        user_id: effectiveUserId,
-        customer_id: firstOrder.customer_id,
-        amount: totalAmount,
-        description: `Fechamento Consolidado - ${selectedOrders.length} Serviços Realizados`,
-        status: 'pendente',
-        due_date: dueDate.toISOString().split('T')[0],
-        method: 'pix'
-      }).select().single();
-
-      if (chargeErr) throw chargeErr;
-
-      // 2. Atualizar todas as OS do lote para concluídas e vincular à nova cobrança
-      await supabase.from('service_orders').update({
-        status: 'concluido',
-        charge_id: charge.id,
-        completion_date: new Date().toISOString()
-      }).in('id', selectedOrders);
-
-      showSuccess(`Lote faturado! Cobrança de ${currency.format(totalAmount)} gerada.`);
-      setSelectedOrders([]);
-      fetchOrders();
-    } catch (err: any) { showError(err.message); } finally { setLoading(false); }
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelectedOrders(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const getStatusStyle = (status: string) => {
@@ -190,13 +176,13 @@ const ServiceOrders = () => {
 
   const filteredOrders = orders.filter(o => {
     const matchesSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (o.final_customer_name && o.final_customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
+                          o.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesOrigin = originFilter === 'all' || o.origin === originFilter;
     return matchesSearch && matchesOrigin;
   });
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const webPendingCount = orders.filter(o => o.origin === 'web' && o.status === 'aberto').length;
 
   return (
     <AppLayout>
@@ -206,32 +192,42 @@ const ServiceOrders = () => {
             <div className="flex items-center gap-2 mb-1">
               <Wrench className="text-blue-500" size={20} />
               <span className="text-[10px] font-black uppercase text-apple-muted tracking-widest">
-                Módulo de Assistência {activeMerchant ? `• ${activeMerchant.company}` : ''}
+                Gestão de Serviços {activeMerchant ? `• ${activeMerchant.company}` : ''}
               </span>
             </div>
             <h2 className="text-3xl font-black tracking-tight text-apple-black">Painel de Ordens</h2>
           </div>
           <div className="flex gap-3">
-            {selectedOrders.length > 0 && (
-              <button 
-                onClick={handleBatchBilling}
-                className="bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4 duration-300"
-              >
-                <Layers size={16} /> Faturar {selectedOrders.length} Itens em Lote
-              </button>
-            )}
-            <button onClick={handleSharePortal} className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl border border-apple-border shadow-sm flex items-center gap-2 transition-all active:scale-95">
-              <Share2 size={16} className="text-orange-500" /> Link do Portal
-            </button>
-            <button onClick={openAddModal} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"><Plus size={20} /> NOVA OS</button>
+             {selectedOrders.length > 0 && (
+               <button onClick={handleBatchBilling} className="bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top-4 duration-300">
+                 <Layers size={16} /> Faturar {selectedOrders.length} em Lote
+               </button>
+             )}
+             <button onClick={fetchOrders} className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted shadow-sm hover:bg-apple-light transition-all">
+                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+             </button>
+             <button onClick={() => { setEditingOrder(null); setFormData({title:'', customerId:'', employeeId:'', equipmentInfo:'', description:'', priority:'normal', estimatedCost:'', billingType:'imediato', billingDays:'30'}); setIsModalOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"><Plus size={20} /> NOVA OS</button>
           </div>
         </div>
+
+        {webPendingCount > 0 && (
+           <div className="bg-purple-600 p-4 rounded-2xl flex items-center justify-between text-white shadow-xl shadow-purple-600/20 animate-in fade-in zoom-in duration-500">
+              <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><Globe size={20} /></div>
+                 <div>
+                    <p className="text-xs font-black uppercase tracking-widest leading-none">Novas Solicitações Web</p>
+                    <p className="text-[10px] opacity-80 mt-1">Existem {webPendingCount} ordens vindas do portal aguardando triagem.</p>
+                 </div>
+              </div>
+              <button onClick={() => setOriginFilter('web')} className="bg-white text-purple-600 text-[9px] font-black uppercase px-4 py-2 rounded-lg hover:bg-apple-light transition-all">FILTRAR AGORA</button>
+           </div>
+        )}
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex flex-col md:flex-row gap-6 items-center justify-between">
              <div className="relative w-full md:w-96">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
-                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar OS, cliente ou parceiro..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar OS ou parceiro..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
              </div>
              
              <div className="flex bg-apple-white border border-apple-border p-1 rounded-xl shadow-inner">
@@ -245,10 +241,10 @@ const ServiceOrders = () => {
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-5 w-10"></th>
-                  <th className="px-8 py-5">Protocolo / Serviço</th>
-                  <th className="px-8 py-5">Parceiro / Solicitante</th>
-                  <th className="px-8 py-5">Faturamento / Valor</th>
-                  <th className="px-8 py-5 text-right">Gestão</th>
+                  <th className="px-8 py-5">Protocolo / Origem</th>
+                  <th className="px-8 py-5">Solicitante e Destino</th>
+                  <th className="px-8 py-5">Valor / Regra</th>
+                  <th className="px-8 py-5 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
@@ -269,7 +265,12 @@ const ServiceOrders = () => {
                       <td className="px-8 py-5">
                         <p className="text-[10px] font-black text-apple-muted font-mono uppercase">#{order.id.split('-')[0]}</p>
                         <p className="text-sm font-black text-apple-black group-hover:text-orange-600 transition-colors">{order.title}</p>
-                        <p className="text-[9px] text-apple-muted font-bold mt-0.5">{order.equipment_info || 'Equipamento não informado'}</p>
+                        <span className={cn(
+                          "inline-flex items-center gap-1 mt-1 text-[8px] font-black uppercase px-2 py-0.5 rounded border",
+                          order.origin === 'web' ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-apple-light text-apple-muted border-apple-border"
+                        )}>
+                           {order.origin === 'web' ? <Globe size={8} /> : <Wrench size={8} />} {order.origin === 'web' ? 'Portal Web' : 'Balcão'}
+                        </span>
                       </td>
                       <td className="px-8 py-5">
                         <div className="space-y-1">
@@ -277,20 +278,20 @@ const ServiceOrders = () => {
                            {order.is_intermediary && (
                              <div className="bg-orange-50 border border-orange-100 px-2.5 py-1 rounded-lg flex items-center gap-2 w-fit">
                                 <Users size={10} className="text-orange-600" />
-                                <span className="text-[9px] font-black text-orange-600 uppercase">Final: {order.final_customer_name}</span>
+                                <span className="text-[9px] font-black text-orange-600 uppercase">P/ {order.final_customer_name}</span>
                              </div>
                            )}
                         </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex flex-col gap-1">
-                           <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border w-fit shadow-sm", getStatusStyle(order.status))}>{order.status}</span>
-                           <p className="text-sm font-black text-apple-black mt-1">{currency.format(order.estimated_cost)}</p>
+                           <p className="text-sm font-black text-apple-black">{currency.format(order.estimated_cost)}</p>
+                           <span className="text-[9px] font-bold text-apple-muted uppercase">{order.billing_type === 'faturado' ? `Faturado ${order.billing_days} dias` : 'À Vista'}</span>
                         </div>
                       </td>
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                           <button onClick={() => openEditModal(order)} className="p-3 text-apple-muted hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all" title="Editar OS"><Edit3 size={18}/></button>
+                           <button onClick={() => openEditModal(order)} className="p-3 text-apple-muted hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all" title="Editar / Vincular Parceiro"><Edit3 size={18}/></button>
                            <button onClick={() => { if(confirm("Deseja excluir permanentemente?")) fetchOrders(); }} className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18}/></button>
                         </div>
                       </td>
@@ -310,7 +311,7 @@ const ServiceOrders = () => {
               <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                 {editingOrder ? <Edit3 size={20} /> : <Plus size={20} />}
               </div>
-              {editingOrder ? 'Ajustar Ordem de Serviço' : 'Registrar Nova OS'}
+              {editingOrder ? 'Ajustar Ordem de Serviço' : 'Nova Ordem de Serviço'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
@@ -318,7 +319,7 @@ const ServiceOrders = () => {
             <div className="space-y-4">
                <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Serviço Solicitado</Label><Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" /></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Solicitante (Loja/Parceiro)</Label>
+                  <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Solicitante (Parceiro)</Label>
                     <Select value={formData.customerId} onValueChange={v => setFormData({...formData, customerId: v})}>
                       <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Vincular parceiro..." /></SelectTrigger>
                       <SelectContent className="bg-apple-white border-apple-border">{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
@@ -345,25 +346,6 @@ const ServiceOrders = () => {
                     <Label className="text-[9px] font-bold text-apple-muted">Prazo (Dias)</Label>
                     <Input placeholder="30" value={formData.billingDays} onChange={e => setFormData({...formData, billingDays: e.target.value})} className="bg-white h-11 rounded-xl border-orange-200" />
                   </div>
-               </div>
-               <p className="text-[9px] text-orange-600 font-medium italic">Dica: Use "Faturado em Lote" para parceiros que pagam tudo no final do mês.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Técnico Atribuído</Label>
-                <Select value={formData.employeeId} onValueChange={v => setFormData({...formData, employeeId: v})}>
-                  <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl"><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                  <SelectContent className="bg-apple-white border-apple-border">{employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>
-                </Select>
-               </div>
-               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Prioridade</Label>
-                <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v})}>
-                  <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl font-bold"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-apple-white border-apple-border">
-                     <SelectItem value="normal">Normal</SelectItem>
-                     <SelectItem value="urgente">Urgente 🔥</SelectItem>
-                  </SelectContent>
-                </Select>
                </div>
             </div>
 
