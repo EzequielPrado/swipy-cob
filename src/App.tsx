@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -44,7 +46,6 @@ import Expenses from "./pages/financial/Expenses";
 import SwipyAccount from "./pages/financial/SwipyAccount";
 import Fiscal from "./pages/financial/Fiscal";
 import DRE from "./pages/financial/DRE";
-import FinancialCalendar from "./pages/financial/FinancialCalendar";
 import PerformanceReport from "./pages/financial/PerformanceReport";
 
 // RH
@@ -115,7 +116,6 @@ const App = () => (
 
               {/* FINANCEIRO */}
               <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/financeiro/calendario" element={<ProtectedRoute><FinancialCalendar /></ProtectedRoute>} />
               <Route path="/financeiro/performance" element={<ProtectedRoute><PerformanceReport /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />

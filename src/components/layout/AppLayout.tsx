@@ -44,7 +44,6 @@ const menuStructure = [
       { label: 'Assinaturas', path: '/financeiro/assinaturas' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
       { label: 'Contas Bancárias', path: '/financeiro/bancos' },
-      { label: 'Agenda Financeira', path: '/financeiro/calendario' },
       { label: 'Raio-X de Performance', path: '/financeiro/performance' }
     ] 
   },
