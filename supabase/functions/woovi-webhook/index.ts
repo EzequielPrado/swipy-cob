@@ -30,13 +30,39 @@ serve(async (req) => {
         .single();
 
       if (charge && charge.quote_id) {
-        // 2. Marcar o Orçamento como PAGO (Nova etapa intermediária)
+        // 2. Buscar itens do pedido para saber o destino (Produção ou Separação)
+        const { data: items } = await supabaseClient
+          .from('quote_items')
+          .select('*, products(is_produced)')
+          .eq('quote_id', charge.quote_id);
+
+        const hasProduction = items?.some((i: any) => i.products?.is_produced);
+        const nextStatus = hasProduction ? 'production' : 'picking';
+
+        // 3. Atualizar status do Orçamento
         await supabaseClient
           .from('quotes')
-          .update({ status: 'paid' })
+          .update({ status: nextStatus })
           .eq('id', charge.quote_id);
           
-        console.log(`[webhook] Pedido ${charge.quote_id} marcado como PAGO.`);
+        // 4. Se for produção, criar as ordens industriais
+        if (hasProduction && items) {
+          const prodEntries = items
+            .filter((i: any) => i.products?.is_produced)
+            .map((i: any) => ({
+              user_id: charge.user_id,
+              product_id: i.product_id,
+              quote_id: charge.quote_id,
+              quantity: i.quantity,
+              status: 'pending'
+            }));
+          
+          if (prodEntries.length > 0) {
+            await supabaseClient.from('production_orders').insert(prodEntries);
+          }
+        }
+
+        console.log(`[webhook] Pedido ${charge.quote_id} movido para ${nextStatus} e processado.`);
       }
     }
 

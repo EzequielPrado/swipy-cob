@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet, ReceiptText } from 'lucide-react';
+import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet, ReceiptText, Factory, PackageSearch } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -54,10 +54,38 @@ const ChargeDetail = () => {
       // 2. Atualizar Status da Cobrança
       await supabase.from('charges').update({ status: 'pago', bank_account_id: selectedAccountId }).eq('id', id);
       
-      // 3. SE HOUVER PEDIDO VINCULADO: Marcar pedido como PAGO para seguir o fluxo
+      // 3. LOGICA DE FLUXO AUTOMÁTICO PARA O PEDIDO
       if (charge.quote_id) {
-        await supabase.from('quotes').update({ status: 'paid' }).eq('id', charge.quote_id);
-        console.log(`[manual-pay] Pedido ${charge.quote_id} sincronizado como pago.`);
+        // Buscar itens do orçamento para saber se tem produção
+        const { data: items } = await supabase
+          .from('quote_items')
+          .select('*, products(is_produced)')
+          .eq('quote_id', charge.quote_id);
+
+        const hasProduction = items?.some((i: any) => i.products?.is_produced);
+        const nextStatus = hasProduction ? 'production' : 'picking';
+
+        // Atualizar status do pedido
+        await supabase.from('quotes').update({ status: nextStatus }).eq('id', charge.quote_id);
+
+        // Se for produção, criar ordens de produção
+        if (hasProduction && items) {
+          const prodEntries = items
+            .filter((i: any) => i.products?.is_produced)
+            .map((i: any) => ({
+              user_id: charge.user_id,
+              product_id: i.product_id,
+              quote_id: charge.quote_id,
+              quantity: i.quantity,
+              status: 'pending'
+            }));
+          
+          if (prodEntries.length > 0) {
+            await supabase.from('production_orders').insert(prodEntries);
+          }
+        }
+
+        console.log(`[manual-pay] Pedido ${charge.quote_id} movido para ${nextStatus} automaticamente.`);
       }
 
       // 4. Registrar Log
@@ -65,10 +93,10 @@ const ChargeDetail = () => {
         charge_id: id, 
         type: 'payment', 
         status: 'success', 
-        message: 'Fatura marcada como PAGA manualmente. Pedido sincronizado no fluxo.' 
+        message: 'Fatura PAGA. Pedido encaminhado automaticamente para o operacional.' 
       });
 
-      showSuccess("Baixa realizada e pedido liberado no fluxo!"); 
+      showSuccess("Pagamento confirmado e fluxo operacional iniciado!"); 
       setIsPayModalOpen(false); 
       fetchDetails();
     } catch (err: any) { 
