@@ -67,7 +67,7 @@ const SalesList = () => {
         customers(name, email, phone),
         employees(full_name),
         quote_items(
-          id, quantity, unit_price, total_price,
+          id, product_id, quantity, unit_price, total_price,
           products(name, sku, is_produced)
         )
       `)
@@ -118,9 +118,11 @@ const SalesList = () => {
 
     setUpdatingStatus(true);
     try {
+      // 1. Atualizar status do pedido
       const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       if (error) throw error;
 
+      // 2. Se a etapa for PRODUÇÃO, gerar as ordens industriais
       if (nextStage === 'production') {
         const prodEntries = selectedSale.quote_items
           .filter((i: any) => i.products?.is_produced)
@@ -133,11 +135,13 @@ const SalesList = () => {
           }));
         
         if (prodEntries.length > 0) {
-          await supabase.from('production_orders').insert(prodEntries);
+          const { error: prodError } = await supabase.from('production_orders').insert(prodEntries);
+          if (prodError) throw prodError;
+          console.log(`[SalesList] ${prodEntries.length} ordens de produção geradas.`);
         }
       }
 
-      showSuccess(`Pedido avançado para etapa operacional.`);
+      showSuccess(`Pedido avançado para ${nextStage}.`);
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
@@ -156,7 +160,12 @@ const SalesList = () => {
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-invoice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ chargeId: selectedSale.id, customerId: selectedSale.customer_id, amount: selectedSale.total_amount, description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}` })
+        body: JSON.stringify({ 
+          chargeId: selectedSale.id, 
+          customerId: selectedSale.customer_id, 
+          amount: selectedSale.total_amount, 
+          description: `Fatura ref. Pedido #${selectedSale.id.split('-')[0].toUpperCase()}` 
+        })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
