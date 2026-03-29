@@ -97,6 +97,22 @@ const ServiceOrders = () => {
     fetchDeps();
   }, [effectiveUserId]);
 
+  // FUNÇÃO DE EDIÇÃO (CORREÇÃO)
+  const openEditModal = (order: any) => {
+    setEditingOrder(order);
+    setFormData({
+      title: order.title || '',
+      customerId: order.customer_id || '',
+      employeeId: order.employee_id || '',
+      description: order.description || '',
+      priority: order.priority || 'normal',
+      estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00',
+      billingType: order.billing_type || 'imediato',
+      billingDays: (order.billing_days || 30).toString()
+    });
+    setIsModalOpen(true);
+  };
+
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     try {
       const { error } = await supabase
@@ -105,7 +121,7 @@ const ServiceOrders = () => {
         .eq('id', id);
       
       if (error) throw error;
-      showSuccess(`OS movida para ${newStatus.replace('_', ' ')}!`);
+      showSuccess(`Status atualizado!`);
       fetchOrders();
     } catch (err: any) { showError(err.message); }
   };
@@ -118,38 +134,6 @@ const ServiceOrders = () => {
       showSuccess("Ordem de serviço removida.");
       fetchOrders();
     } catch (err: any) { showError(err.message); }
-  };
-
-  const handleBatchBilling = async () => {
-    if (selectedOrders.length === 0) return;
-    const firstOrder = orders.find(o => o.id === selectedOrders[0]);
-    const differentCustomer = selectedOrders.some(id => orders.find(o => o.id === id).customer_id !== firstOrder.customer_id);
-    if (differentCustomer) return showError("Selecione ordens do mesmo parceiro para faturar em lote.");
-
-    try {
-      setSaving(true);
-      const total = selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id).estimated_cost || 0), 0);
-      const { data: charge, error: chargeErr } = await supabase.from('charges').insert({
-        user_id: effectiveUserId,
-        customer_id: firstOrder.customer_id,
-        amount: total,
-        description: `Lote Consolidado: ${selectedOrders.length} Ordens de Serviço`,
-        status: 'pendente',
-        due_date: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
-        method: 'manual'
-      }).select().single();
-
-      if (chargeErr) throw chargeErr;
-
-      await supabase.from('service_orders').update({
-        status: 'concluido',
-        updated_at: new Date().toISOString()
-      }).in('id', selectedOrders);
-
-      showSuccess("Faturamento em lote gerado com sucesso!");
-      setSelectedOrders([]);
-      fetchOrders();
-    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,13 +153,22 @@ const ServiceOrders = () => {
         billing_days: parseInt(formData.billingDays) || 30,
       };
 
-      if (editingOrder) await supabase.from('service_orders').update(dataToSave).eq('id', editingOrder.id);
-      else await supabase.from('service_orders').insert({ ...dataToSave, status: 'aberto', origin: 'manual' });
+      if (editingOrder) {
+        await supabase.from('service_orders').update(dataToSave).eq('id', editingOrder.id);
+        showSuccess("OS atualizada com sucesso!");
+      } else {
+        await supabase.from('service_orders').insert({ ...dataToSave, status: 'aberto', origin: 'manual' });
+        showSuccess("Nova OS aberta!");
+      }
 
       setIsModalOpen(false);
+      setEditingOrder(null);
       fetchOrders();
-      showSuccess("Dados salvos!");
-    } catch (err: any) { showError(err.message); } finally { setSaving(false); }
+    } catch (err: any) { 
+      showError(err.message); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const toggleSelect = (id: string) => setSelectedOrders(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -190,6 +183,7 @@ const ServiceOrders = () => {
   }, [orders, searchTerm, originFilter]);
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  
   const stats = useMemo(() => ({
     open: orders.filter(o => o.status === 'aberto').length,
     progress: orders.filter(o => o.status === 'em_progresso').length,
@@ -197,9 +191,6 @@ const ServiceOrders = () => {
     revenue: orders.reduce((acc, o) => acc + Number(o.estimated_cost || 0), 0)
   }), [orders]);
 
-  const selectedTotal = useMemo(() => selectedOrders.reduce((acc, id) => acc + Number(orders.find(o => o.id === id)?.estimated_cost || 0), 0), [selectedOrders, orders]);
-
-  // Função para extrair anexo da descrição
   const getAttachmentUrl = (desc: string) => {
     if (!desc) return null;
     const match = desc.match(/\[Anexo enviado pelo cliente: (.*?)\]/);
@@ -288,7 +279,7 @@ const ServiceOrders = () => {
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-1">
                              {order.status === 'aberto' && <button onClick={() => handleUpdateStatus(order.id, 'em_progresso')} className="p-2.5 bg-orange-50 text-orange-500 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm" title="Iniciar Execução"><PlayCircle size={18}/></button>}
-                             {order.status === 'em_progresso' && <button onClick={() => handleUpdateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Finalizar Serviço"><CheckCircle2 size={18}/></button>}
+                             {order.status === 'em_progresso' && <button onClick={() => handleUpdateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Finalizar Serviço"><CheckCircle2 size={18}/></button>}
                              <button onClick={() => openEditModal(order)} className="p-2.5 text-apple-muted hover:text-blue-500"><Edit3 size={18}/></button>
                              <button onClick={() => handleDelete(order.id)} className="p-2.5 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button>
                           </div>
@@ -301,16 +292,14 @@ const ServiceOrders = () => {
             </table>
           </div>
         </div>
-
-        {selectedOrders.length > 0 && (
-          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-apple-black text-white p-6 rounded-[2.5rem] shadow-2xl flex items-center gap-12 animate-in slide-in-from-bottom-10 duration-500 z-50 border border-white/10">
-             <div className="flex items-center gap-4"><div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg"><Layers size={24}/></div><div><p className="text-sm font-black tracking-tight">{selectedOrders.length} Ordens Selecionadas</p><p className="text-xs text-zinc-400 font-medium">Total: <span className="text-orange-400 font-bold">{currency.format(selectedTotal)}</span></p></div></div>
-             <div className="flex gap-4"><button onClick={() => setSelectedOrders([])} className="text-xs font-bold text-zinc-400 hover:text-white">Cancelar</button><button onClick={handleBatchBilling} disabled={saving} className="bg-white text-apple-black px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all flex items-center gap-2">{saving ? <Loader2 className="animate-spin" size={16} /> : <><CreditCard size={16} /> FATURAR EM LOTE</>}</button></div>
-          </div>
-        )}
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <Dialog open={isModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsModalOpen(false);
+          setEditingOrder(null);
+        }
+      }}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] p-0 overflow-hidden shadow-2xl rounded-[2.5rem]">
           <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
             <DialogTitle className="text-xl font-black flex items-center gap-3"><div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg">{editingOrder ? <Edit3 size={20} /> : <Plus size={20} />}</div>{editingOrder ? 'Ajustar Solicitação' : 'Novo Chamado de Atendimento'}</DialogTitle>
