@@ -38,34 +38,15 @@ serve(async (req) => {
     })
 
     const tokenData = await tokenRes.json()
-    if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro na Nuvemshop");
+    if (!tokenRes.ok) throw new Error(tokenData.error_description || "Erro ao obter token na Nuvemshop");
 
     const accessToken = tokenData.access_token;
     const storeId = tokenData.user_id.toString();
     const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/nuvemshop-webhook`;
 
-    console.log(`[nuvemshop-auth] Iniciando limpeza de webhooks para a loja ${storeId}`);
+    console.log(`[nuvemshop-auth] Loja ${storeId} autenticada. Verificando Webhooks...`);
 
-    // 2. BUSCAR E LIMPAR WEBHOOKS EXISTENTES (Para evitar o erro "Webhook already active")
-    const listRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
-      headers: { 'Authorization': `bearer ${accessToken}`, 'User-Agent': 'Swipy ERP (suporte@swipy.com)' }
-    });
-
-    if (listRes.ok) {
-      const existingWebhooks = await listRes.json();
-      for (const wh of existingWebhooks) {
-        // Se o webhook já aponta para o nosso sistema, nós removemos para renovar
-        if (wh.url === webhookUrl) {
-          console.log(`[nuvemshop-auth] Removendo webhook antigo ID: ${wh.id}`);
-          await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks/${wh.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `bearer ${accessToken}`, 'User-Agent': 'Swipy ERP' }
-          });
-        }
-      }
-    }
-
-    // 3. Registrar o Novo Webhook
+    // 2. Tentar registrar o Webhook (Ignorando se já existir)
     const regRes = await fetch(`https://api.tiendanube.com/v1/${storeId}/webhooks`, {
       method: 'POST',
       headers: { 
@@ -77,22 +58,26 @@ serve(async (req) => {
     });
 
     const regData = await regRes.json();
+    
     if (!regRes.ok) {
-      console.error("[nuvemshop-auth] Erro ao registrar webhook:", regData);
-      // Se por algum motivo ainda der erro de "já existe", não vamos travar o processo todo
-      if (!regData.error?.includes("already exists")) {
-         throw new Error(JSON.stringify(regData.error) || "Falha ao registrar Webhook na Nuvemshop.");
+      const errorMsg = JSON.stringify(regData);
+      // Se o erro for que o webhook já está ativo, nós não paramos o processo!
+      if (errorMsg.includes("already exists") || errorMsg.includes("webhook_already_active")) {
+        console.log(`[nuvemshop-auth] Webhook já estava ativo para a loja ${storeId}. Prosseguindo...`);
+      } else {
+        console.error("[nuvemshop-auth] Erro real no registro do webhook:", regData);
+        throw new Error(`Falha ao registrar Webhook: ${regData.error || regData.message || errorMsg}`);
       }
     }
 
-    // 4. Limpar integrações antigas no nosso banco
+    // 3. Limpar registros antigos no ERP para evitar duplicidade de UI
     await supabaseAdmin
       .from('integrations')
       .delete()
       .eq('user_id', user.id)
       .eq('provider', 'nuvemshop');
 
-    // 5. Salvar Nova Integração
+    // 4. Salvar Nova Integração no Banco de Dados
     const { error: dbError } = await supabaseAdmin
       .from('integrations')
       .insert({
@@ -103,7 +88,7 @@ serve(async (req) => {
         status: 'active',
         settings: {
           connected_at: new Date().toISOString(),
-          webhook_id: regData.id
+          webhook_id: regData.id || 'existing'
         }
       })
 
