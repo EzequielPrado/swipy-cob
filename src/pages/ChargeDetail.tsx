@@ -45,16 +45,37 @@ const ChargeDetail = () => {
     if (!selectedAccountId) return showError("Selecione a conta.");
     setActionLoading('paid');
     try {
+      // 1. Atualizar Saldo do Banco
       const { data: account } = await supabase.from('bank_accounts').select('balance').eq('id', selectedAccountId).single();
       if (account) {
         await supabase.from('bank_accounts').update({ balance: Number(account.balance || 0) + Number(charge.amount || 0) }).eq('id', selectedAccountId);
       }
+      
+      // 2. Atualizar Status da Cobrança
       await supabase.from('charges').update({ status: 'pago', bank_account_id: selectedAccountId }).eq('id', id);
-      await supabase.from('notification_logs').insert({ charge_id: id, type: 'payment', status: 'success', message: 'Fatura marcada como PAGA pelo lojista.' });
-      showSuccess("Baixa realizada!"); 
+      
+      // 3. SE HOUVER PEDIDO VINCULADO: Marcar pedido como PAGO para seguir o fluxo
+      if (charge.quote_id) {
+        await supabase.from('quotes').update({ status: 'paid' }).eq('id', charge.quote_id);
+        console.log(`[manual-pay] Pedido ${charge.quote_id} sincronizado como pago.`);
+      }
+
+      // 4. Registrar Log
+      await supabase.from('notification_logs').insert({ 
+        charge_id: id, 
+        type: 'payment', 
+        status: 'success', 
+        message: 'Fatura marcada como PAGA manualmente. Pedido sincronizado no fluxo.' 
+      });
+
+      showSuccess("Baixa realizada e pedido liberado no fluxo!"); 
       setIsPayModalOpen(false); 
       fetchDetails();
-    } catch (err: any) { showError(err.message); } finally { setActionLoading(null); }
+    } catch (err: any) { 
+      showError(err.message); 
+    } finally { 
+      setActionLoading(null); 
+    }
   };
 
   const handleResendWhatsApp = async () => {
