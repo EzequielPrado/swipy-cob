@@ -23,15 +23,42 @@ const BankAccounts = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [importModal, setImportModal] = useState({ isOpen: false, accountId: '', accountName: '' });
-
   const [formData, setFormData] = useState({ name: '', type: 'corrente', balance: '0' });
 
   const fetchAccounts = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase.from('bank_accounts').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
-    if (data) setAccounts(data);
-    setLoading(false);
+    try {
+      const { data: dbAccounts } = await supabase.from('bank_accounts').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
+      
+      if (!dbAccounts) return;
+
+      // Buscar saldo da API Woovi se houver conta do tipo swipy
+      const hasSwipy = dbAccounts.some(acc => acc.type === 'swipy');
+      let apiBalance = 0;
+
+      if (hasSwipy) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
+        const apiData = await response.json();
+        if (apiData.balance) {
+          apiBalance = apiData.balance.total / 100;
+        }
+      }
+
+      const enriched = dbAccounts.map(acc => ({
+        ...acc,
+        balance: acc.type === 'swipy' ? apiBalance : acc.balance
+      }));
+
+      setAccounts(enriched);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchAccounts(); }, [user]);
@@ -40,10 +67,19 @@ const BankAccounts = () => {
     e.preventDefault();
     try {
       const balanceNum = parseFloat(formData.balance.replace(',', '.'));
-      const payload = { user_id: user?.id, name: formData.name, type: formData.type, balance: isNaN(balanceNum) ? 0 : balanceNum };
+      const payload = { 
+        user_id: user?.id, 
+        name: formData.name, 
+        type: formData.type, 
+        balance: formData.type === 'swipy' ? 0 : (isNaN(balanceNum) ? 0 : balanceNum) 
+      };
+      
       if (editingId) await supabase.from('bank_accounts').update(payload).eq('id', editingId);
       else await supabase.from('bank_accounts').insert(payload);
-      showSuccess("Conta salva!"); setIsModalOpen(false); fetchAccounts();
+      
+      showSuccess("Conta salva!"); 
+      setIsModalOpen(false); 
+      fetchAccounts();
     } catch (err: any) { showError(err.message); }
   };
 
@@ -66,7 +102,7 @@ const BankAccounts = () => {
              <Link to="/financeiro/conciliacao" className="bg-apple-white border border-apple-border text-apple-black font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-2 hover:bg-apple-light shadow-sm">
                 <History size={18} className="text-orange-500" /> Conciliação Pendente
              </Link>
-             <button onClick={() => { setEditingId(null); setFormData({ name: '', type: 'corrente', balance: '0' }); setIsModalOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm"><Plus size={18} /> Nova Conta</button>
+             <button onClick={() => { setEditingId(null); setFormData({ name: 'Swipy Conta', type: 'corrente', balance: '0' }); setIsModalOpen(true); }} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm"><Plus size={18} /> Nova Conta</button>
           </div>
         </div>
 
@@ -128,7 +164,7 @@ const BankAccounts = () => {
                     )}>
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(acc.balance)}
                     </p>
-                    {isSwipy && <p className="text-[9px] text-orange-400 font-bold mt-1 uppercase">Atualizado agora</p>}
+                    {isSwipy && <p className="text-[9px] text-orange-400 font-bold mt-1 uppercase">Atualizado via Woovi</p>}
                   </div>
                 </div>
               );
@@ -153,22 +189,31 @@ const BankAccounts = () => {
             {!editingId && (
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-apple-muted">Tipo de Conta</Label>
-                <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v})}>
+                <Select value={formData.type} onValueChange={v => setFormData({...formData, type: v, name: v === 'swipy' ? 'Swipy Conta' : formData.name})}>
                   <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-apple-white border-apple-border">
                     <SelectItem value="corrente">Conta Corrente</SelectItem>
                     <SelectItem value="poupanca">Poupança</SelectItem>
-                    <SelectItem value="investimento">Investimentos</SelectItem>
                     <SelectItem value="caixa">Dinheiro em Espécie (Caixa)</SelectItem>
+                    <SelectItem value="swipy">Swipy (Conta Integrada do Sistema)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-apple-muted">Saldo Inicial (R$)</Label>
-              <Input value={formData.balance} onChange={e => setFormData({...formData, balance: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" />
-            </div>
+            {formData.type !== 'swipy' ? (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-apple-muted">Saldo Inicial (R$)</Label>
+                <Input value={formData.balance} onChange={e => setFormData({...formData, balance: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" />
+              </div>
+            ) : (
+              <div className="bg-orange-50 border border-orange-100 p-4 rounded-2xl flex items-start gap-3">
+                 <ShieldCheck className="text-orange-500 shrink-0" size={18} />
+                 <p className="text-[10px] text-orange-800 leading-relaxed font-medium">
+                   O saldo desta conta será puxado automaticamente da sua carteira Woovi. Não é necessário informar saldo inicial.
+                 </p>
+              </div>
+            )}
             
             <DialogFooter>
               <button type="submit" className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95">
