@@ -12,13 +12,14 @@ import {
   Globe,
   RefreshCw,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
@@ -53,19 +54,35 @@ const Integrations = () => {
 
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
-  // Função que monta a URL corretamente e redireciona
   const handleRedirectToNuvemshop = () => {
     if (!storeName.trim()) {
       showError("Por favor, digite o nome da sua loja.");
       return;
     }
     
-    // Limpa o nome da loja (remove espaços e caracteres especiais)
     const cleanStoreName = storeName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     const CLIENT_ID = "28762";
     
     const authUrl = `https://${cleanStoreName}.lojavirtualnuvem.com.br/admin/apps/${CLIENT_ID}/authorize`;
     window.location.href = authUrl;
+  };
+
+  const handleDeleteIntegration = async (id: string) => {
+    if (!confirm("Tem certeza que deseja desconectar esta loja? Os pedidos deixarão de ser sincronizados.")) return;
+    
+    try {
+      const { error } = await supabase
+        .from('integrations' as any)
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      showSuccess("Integração removida!");
+      fetchIntegrations();
+    } catch (err: any) {
+      showError(err.message);
+    }
   };
 
   return (
@@ -127,8 +144,16 @@ const Integrations = () => {
 
             <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
               {nuvemshopConn?.status === 'active' ? (
-                <div className="text-center">
-                   <p className="text-[10px] text-apple-muted font-bold uppercase italic">Sincronização automática ligada</p>
+                <div className="space-y-3">
+                   <div className="text-center">
+                      <p className="text-[10px] text-apple-muted font-bold uppercase italic">Sincronização automática ligada</p>
+                   </div>
+                   <button 
+                    onClick={() => handleDeleteIntegration(nuvemshopConn.id)}
+                    className="w-full bg-red-50 text-red-600 font-bold py-3 rounded-xl hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95"
+                   >
+                     <Trash2 size={14} /> DESCONECTAR LOJA
+                   </button>
                 </div>
               ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
@@ -143,7 +168,6 @@ const Integrations = () => {
             </div>
           </div>
 
-          {/* CARD SHOPIFY */}
           <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
              <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
                 <ShoppingBag size={24} className="text-apple-muted" />
@@ -154,7 +178,6 @@ const Integrations = () => {
         </div>
       </div>
 
-      {/* MODAL PARA DIGITAR O NOME DA LOJA */}
       <Dialog open={isNuvemModalOpen} onOpenChange={setIsNuvemModalOpen}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
