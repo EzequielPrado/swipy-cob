@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
-import { Loader2, CheckCircle2, ShieldCheck, ShoppingBag } from 'lucide-react';
+import { Loader2, CheckCircle2, ShieldCheck, XCircle } from 'lucide-react';
 import { showSuccess, showError } from '@/utils/toast';
 
 const NuvemshopCallback = () => {
@@ -15,31 +15,26 @@ const NuvemshopCallback = () => {
 
   useEffect(() => {
     const code = searchParams.get('code');
-    
     if (code && user) {
       finalizeConnection(code);
-    } else if (!code) {
-       setStatus('error');
-       showError("Código de autorização não encontrado.");
     }
   }, [user, searchParams]);
 
   const finalizeConnection = async (code: string) => {
     try {
-      // Aqui chamaríamos uma Edge Function para trocar o CODE pelo ACCESS_TOKEN real
-      // Por enquanto, vamos simular a ativação na tabela integrations
+      const { data: { session } } = await supabase.auth.getSession();
       
-      const { error } = await supabase
-        .from('integrations' as any)
-        .upsert({
-          user_id: user?.id,
-          provider: 'nuvemshop',
-          status: 'active',
-          store_id: 'loja_exemplo_123', // Seria retornado pela API
-          settings: { connected_at: new Date().toISOString() }
-        });
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/nuvemshop-auth`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ code })
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
 
       setStatus('success');
       showSuccess("Nuvemshop conectada com sucesso!");
@@ -48,7 +43,7 @@ const NuvemshopCallback = () => {
     } catch (err: any) {
       console.error(err);
       setStatus('error');
-      showError("Falha ao finalizar integração.");
+      showError(err.message || "Falha ao finalizar integração.");
     }
   };
 
@@ -59,8 +54,8 @@ const NuvemshopCallback = () => {
         {status === 'processing' && (
           <div className="space-y-6">
             <Loader2 className="animate-spin text-orange-500 mx-auto" size={48} />
-            <h2 className="text-2xl font-black text-apple-black tracking-tight">Sincronizando Loja...</h2>
-            <p className="text-apple-muted font-medium">Estamos validando suas credenciais com a Nuvemshop.</p>
+            <h2 className="text-2xl font-black text-apple-black tracking-tight">Finalizando Conexão...</h2>
+            <p className="text-apple-muted font-medium">Estamos salvando seu token com segurança.</p>
           </div>
         )}
 
@@ -69,25 +64,19 @@ const NuvemshopCallback = () => {
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
                <CheckCircle2 className="text-emerald-500" size={40} />
             </div>
-            <h2 className="text-2xl font-black text-apple-black tracking-tight">Conexão Estabelecida!</h2>
-            <p className="text-apple-muted font-medium">Sua loja Nuvemshop agora está integrada ao Swipy ERP.</p>
-            <div className="pt-6">
-               <div className="flex items-center justify-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 py-3 rounded-2xl border border-emerald-100">
-                  <ShieldCheck size={14} /> Fluxo de Pedidos Ativado
-               </div>
-            </div>
+            <h2 className="text-2xl font-black text-apple-black tracking-tight">Loja Vinculada!</h2>
+            <p className="text-apple-muted font-medium">Aguarde, estamos te redirecionando.</p>
           </div>
         )}
 
         {status === 'error' && (
           <div className="space-y-6">
             <XCircle className="text-red-500 mx-auto" size={48} />
-            <h2 className="text-2xl font-black text-apple-black tracking-tight">Ops! Algo falhou.</h2>
-            <p className="text-apple-muted font-medium">Não conseguimos completar a autorização.</p>
-            <button onClick={() => navigate('/configuracoes/integracoes')} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl mt-4">VOLTAR E TENTAR NOVAMENTE</button>
+            <h2 className="text-2xl font-black text-apple-black tracking-tight">Erro na Conexão</h2>
+            <p className="text-apple-muted font-medium text-sm">Não foi possível validar o token da Nuvemshop.</p>
+            <button onClick={() => navigate('/configuracoes/integracoes')} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl mt-4">TENTAR NOVAMENTE</button>
           </div>
         )}
-
       </div>
     </div>
   );

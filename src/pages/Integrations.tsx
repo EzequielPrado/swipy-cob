@@ -49,18 +49,11 @@ const Integrations = () => {
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
   const handleConnectNuvemshop = () => {
-    // URL Real de autorização da Nuvemshop (Exemplo)
-    // Você precisa criar um App no painel de parceiros da Nuvemshop para ter o CLIENT_ID
-    const CLIENT_ID = 'SEU_CLIENT_ID'; 
+    // App ID Real fornecido: 28762
+    const CLIENT_ID = '28762'; 
     const REDIRECT_URI = `${window.location.origin}/integrations/nuvemshop/callback`;
     const authUrl = `https://www.nuvemshop.com.br/apps/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code`;
     
-    // Se não tiver ClientID ainda, mostramos o aviso para evitar o 404
-    if (CLIENT_ID === 'SEU_CLIENT_ID') {
-       showError("Configure seu Client ID da Nuvemshop nas configurações do App.");
-       return;
-    }
-
     window.location.href = authUrl;
   };
 
@@ -139,7 +132,6 @@ const Integrations = () => {
             </div>
           </div>
 
-          {/* CARD PLACEHOLDER PARA FUTURAS */}
           <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
              <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
                 <ShoppingBag size={24} className="text-apple-muted" />
@@ -147,18 +139,6 @@ const Integrations = () => {
              <h4 className="text-sm font-black text-apple-muted uppercase tracking-widest">Shopify & Mais</h4>
              <p className="text-[10px] text-apple-muted mt-2 font-bold italic">Novas integrações em breve...</p>
           </div>
-        </div>
-
-        <div className="bg-orange-50 border border-orange-100 p-8 rounded-[2.5rem] flex items-start gap-5">
-           <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
-              <Info className="text-orange-500" size={24} />
-           </div>
-           <div>
-              <h4 className="text-lg font-black text-orange-600 uppercase tracking-widest mb-1">Como funciona?</h4>
-              <p className="text-sm text-orange-800 font-medium leading-relaxed">
-                Para conectar, você precisa registrar este App no **Painel de Parceiros da Nuvemshop**. Lá você receberá um `Client ID` e um `Client Secret`. Sem essas chaves, a Nuvemshop não reconhecerá a tentativa de conexão.
-              </p>
-           </div>
         </div>
       </div>
     </AppLayout>
