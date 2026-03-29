@@ -6,7 +6,7 @@ import { useNavigate, Link, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { ArrowLeft, Plus, Trash2, Save, Calculator, Loader2, Tag, Truck } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Loader2, Tag, Truck, UserCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import AddProductModal from '@/components/inventory/AddProductModal';
@@ -20,9 +20,11 @@ const QuoteBuilder = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
 
   const [customerId, setCustomerId] = useState('');
+  const [sellerId, setSellerId] = useState('none');
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -36,20 +38,23 @@ const QuoteBuilder = () => {
   const loadInitialData = async () => {
     if (!user) return;
     setDataLoading(true);
-    const [custRes, prodRes] = await Promise.all([
+    const [custRes, prodRes, empRes] = await Promise.all([
       supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
-      supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name')
+      supabase.from('products').select('id, name, price, stock_quantity').eq('user_id', user.id).order('name'),
+      supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
     ]);
 
     if (custRes.data) setCustomers(custRes.data);
     if (prodRes.data) setProducts(prodRes.data);
+    if (empRes.data) setEmployees(empRes.data);
 
-    if (id && !customerId) { // Apenas carregar quote no primeiro load
+    if (id) {
       const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).single();
       const { data: itemsData } = await supabase.from('quote_items').select('*').eq('quote_id', id);
 
       if (quote) {
-        setCustomerId(quote.customer_id);
+        setCustomerId(quote.customer_id || '');
+        setSellerId(quote.seller_id || 'none');
         setExpiresAt(quote.expires_at ? quote.expires_at.split('T')[0] : '');
 
         if (itemsData && itemsData.length > 0) {
@@ -117,26 +122,43 @@ const QuoteBuilder = () => {
     
     setLoading(true);
     try {
+      const payload = {
+        user_id: user?.id,
+        customer_id: customerId,
+        seller_id: sellerId === 'none' ? null : sellerId,
+        total_amount: totalAmount,
+        expires_at: expiresAt,
+        status: 'draft'
+      };
+
+      let quoteIdForItems = id;
+
       if (id) {
         const { error: quoteError } = await supabase
           .from('quotes')
-          .update({ customer_id: customerId, total_amount: totalAmount, expires_at: expiresAt })
+          .update(payload)
           .eq('id', id);
 
         if (quoteError) throw quoteError;
         await supabase.from('quote_items').delete().eq('quote_id', id);
-        const quoteItemsToInsert = items.map(item => ({ quote_id: id, product_id: item.productId, quantity: item.quantity, unit_price: item.unitPrice, total_price: item.quantity * item.unitPrice }));
-        const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
-        if (itemsError) throw itemsError;
-        showSuccess("Orçamento atualizado!");
       } else {
-        const { data: quote, error: quoteError } = await supabase.from('quotes').insert({ user_id: user?.id, customer_id: customerId, total_amount: totalAmount, expires_at: expiresAt, status: 'draft' }).select().single();
+        const { data: quote, error: quoteError } = await supabase.from('quotes').insert(payload).select().single();
         if (quoteError) throw quoteError;
-        const quoteItemsToInsert = items.map(item => ({ quote_id: quote.id, product_id: item.productId, quantity: item.quantity, unit_price: item.unitPrice, total_price: item.quantity * item.unitPrice }));
-        const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
-        if (itemsError) throw itemsError;
-        showSuccess("Orçamento criado!");
+        quoteIdForItems = quote.id;
       }
+
+      const quoteItemsToInsert = items.map(item => ({
+        quote_id: quoteIdForItems,
+        product_id: item.productId,
+        quantity: item.quantity,
+        unit_price: item.unitPrice,
+        total_price: item.quantity * item.unitPrice
+      }));
+
+      const { error: itemsError } = await supabase.from('quote_items').insert(quoteItemsToInsert);
+      if (itemsError) throw itemsError;
+
+      showSuccess(id ? "Orçamento atualizado!" : "Orçamento criado!");
       navigate('/vendas/orcamentos');
     } catch (err: any) {
       showError(err.message);
@@ -250,6 +272,22 @@ const QuoteBuilder = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                  <UserCheck size={14} className="text-blue-500" /> Vendedor Responsável
+                </label>
+                <Select value={sellerId} onValueChange={setSellerId}>
+                  <SelectTrigger className="bg-apple-offWhite border-apple-border h-14 rounded-xl text-sm font-bold">
+                    <SelectValue placeholder="Selecione o vendedor..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-apple-white border-apple-border text-apple-black">
+                    <SelectItem value="none">Venda Direta / Sem Vendedor</SelectItem>
+                    {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em]">Validade da Proposta</label>
                 <Input 
