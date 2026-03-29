@@ -24,7 +24,7 @@ const PublicBooking = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const [formData, setFormData] = useState({
-    name: '', taxId: '', phone: '', email: '', title: '', equipment: '', description: '',
+    name: '', taxId: '', phone: '', email: '', title: '', description: '',
     finalCustomerName: '', finalCustomerPhone: ''
   });
 
@@ -78,7 +78,7 @@ const PublicBooking = () => {
           .insert({
             user_id: merchant.id,
             name: formData.name,
-            tax_id: cleanTaxId,
+            tax_id: cleanTaxID,
             email: formData.email,
             phone: formData.phone,
             status: 'em dia'
@@ -105,7 +105,6 @@ const PublicBooking = () => {
           user_id: merchant.id,
           customer_id: customerId,
           title: formData.title,
-          equipment_info: formData.equipment,
           description: formData.description + (fileUrl ? `\n\n[Anexo enviado pelo cliente: ${fileUrl}]` : ''),
           status: 'aberto',
           origin: 'web',
@@ -153,7 +152,7 @@ const PublicBooking = () => {
         </div>
         
         <h2 className="text-3xl font-black text-apple-black mb-2 tracking-tighter">Pedido Enviado!</h2>
-        <p className="text-[#86868B] font-medium leading-relaxed mb-10">Tudo certo, **{successData.name.split(' ')[0]}**. Sua solicitação de assistência técnica foi recebida.</p>
+        <p className="text-[#86868B] font-medium leading-relaxed mb-10">Tudo certo, **{successData.name.split(' ')[0]}**. Sua solicitação foi recebida.</p>
         
         <div className="bg-[#F5F5F7] p-8 rounded-3xl border border-apple-border mb-10 shadow-inner relative">
            <div className="absolute top-4 right-4 opacity-5"><ClipboardList size={40} /></div>
@@ -189,8 +188,8 @@ const PublicBooking = () => {
             )}
             <span className="text-lg font-black tracking-tighter">{merchant.company}</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter text-apple-black leading-tight">Solicitar Assistência.</h1>
-          <p className="text-[#86868B] text-lg font-medium">Conte-nos o que aconteceu e nós cuidaremos do resto.</p>
+          <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter text-apple-black leading-tight">Solicitar Atendimento.</h1>
+          <p className="text-[#86868B] text-lg font-medium">Conte-nos o que precisa e nós cuidaremos do resto.</p>
         </div>
 
         {/* FORMULÁRIO MAGNÉTICO */}
@@ -267,34 +266,25 @@ const PublicBooking = () => {
                     </div>
                     <div>
                        <h3 className="text-lg font-black text-apple-black leading-none">O que precisa ser feito?</h3>
-                       <p className="text-[11px] text-[#86868B] font-bold uppercase tracking-widest mt-1">Detalhes técnicos do chamado</p>
+                       <p className="text-[11px] text-[#86868B] font-bold uppercase tracking-widest mt-1">Detalhes do chamado</p>
                     </div>
                  </div>
 
                  <div className="space-y-6">
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-[#86868B] ml-2">Título do Problema</label>
-                       <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-[#F5F5F7] border border-apple-border rounded-2xl px-5 py-4 text-sm outline-none font-black text-apple-black focus:ring-4 focus:ring-orange-500/10" placeholder="Ex: iPhone com tela quebrada, Notebook não liga..." />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                          <label className="text-xs font-bold text-[#86868B] ml-2">Equipamento (Marca/Modelo)</label>
-                          <div className="relative">
-                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted"><Smartphone size={18} /></div>
-                             <input value={formData.equipment} onChange={e => setFormData({...formData, equipment: e.target.value})} className="w-full bg-[#F5F5F7] border border-apple-border rounded-2xl pl-12 pr-5 py-4 text-sm outline-none" placeholder="Ex: Dell Inspiron 15" />
-                          </div>
-                       </div>
+                       <label className="text-xs font-bold text-[#86868B] ml-2">Assunto / Título</label>
+                       <input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full bg-[#F5F5F7] border border-apple-border rounded-2xl px-5 py-4 text-sm outline-none font-black text-apple-black focus:ring-4 focus:ring-orange-500/10" placeholder="Ex: Ajuste de contrato, Dúvida técnica..." />
                     </div>
                     <div className="space-y-2">
                        <label className="text-xs font-bold text-[#86868B] ml-2">Descrição detalhada</label>
-                       <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-[#F5F5F7] border border-apple-border rounded-[2rem] px-6 py-5 text-sm outline-none min-h-[150px] font-medium leading-relaxed" placeholder="Descreva aqui o que está acontecendo com o máximo de detalhes possível..." />
+                       <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-[#F5F5F7] border border-apple-border rounded-[2rem] px-6 py-5 text-sm outline-none min-h-[150px] font-medium leading-relaxed" placeholder="Descreva aqui sua solicitação com o máximo de detalhes possível..." />
                     </div>
                  </div>
 
                  {/* UPLOAD DE ARQUIVO PREMIUM */}
                  <div className="space-y-3">
                     <label className="text-xs font-bold text-apple-black ml-2 flex items-center gap-2">
-                       <Paperclip size={14} className="text-orange-500" /> Anexar fotos ou documentos (Opcional)
+                       <Paperclip size={14} className="text-orange-500" /> Anexar arquivos ou documentos (Opcional)
                     </label>
                     <div 
                       onClick={() => fileInputRef.current?.click()}
@@ -352,7 +342,7 @@ const PublicBooking = () => {
         {/* RODAPÉ DO PORTAL */}
         <div className="mt-16 pt-8 border-t border-apple-border flex flex-col items-center gap-6 opacity-60 pb-12">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#86868B] text-center">
-            {merchant.company} — Prestação de Serviços & Tecnologia
+            {merchant.company} — Tecnologia & Soluções Financeiras
           </p>
           <div className="flex gap-8 text-[9px] font-bold text-apple-muted uppercase tracking-widest">
              <Link to="/login" className="hover:text-apple-black transition-colors">Acesso Restrito</Link>

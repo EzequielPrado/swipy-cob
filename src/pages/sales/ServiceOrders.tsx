@@ -38,7 +38,7 @@ const ServiceOrders = () => {
 
   // Dados do Formulário
   const [formData, setFormData] = useState({
-    title: '', customerId: '', employeeId: '', equipmentInfo: '', description: '', priority: 'normal', estimatedCost: '',
+    title: '', customerId: '', employeeId: '', description: '', priority: 'normal', estimatedCost: '',
     billingType: 'imediato', billingDays: '30'
   });
 
@@ -85,7 +85,7 @@ const ServiceOrders = () => {
   const openCreateModal = () => {
     setEditingOrder(null);
     setFormData({
-      title: '', customerId: '', employeeId: '', equipmentInfo: '', description: '', priority: 'normal', estimatedCost: '0,00',
+      title: '', customerId: '', employeeId: '', description: '', priority: 'normal', estimatedCost: '0,00',
       billingType: 'imediato', billingDays: '30'
     });
     setIsModalOpen(true);
@@ -97,7 +97,6 @@ const ServiceOrders = () => {
       title: order.title || '',
       customerId: order.customer_id || '',
       employeeId: order.employee_id || '',
-      equipmentInfo: order.equipment_info || '',
       description: order.description || '',
       priority: order.priority || 'normal',
       estimatedCost: order.estimated_cost?.toString().replace('.', ',') || '0,00',
@@ -120,7 +119,6 @@ const ServiceOrders = () => {
         employee_id: formData.employeeId || null,
         title: formData.title,
         description: formData.description,
-        equipment_info: formData.equipmentInfo,
         priority: formData.priority,
         estimated_cost: cost,
         billing_type: formData.billingType,
@@ -186,7 +184,6 @@ const ServiceOrders = () => {
               <tbody className="divide-y divide-apple-border">
                 {loading ? (<tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>) : filteredOrders.length === 0 ? (<tr><td colSpan={5} className="py-24 text-center text-apple-muted italic"><p>Nenhuma OS localizada.</p></td></tr>) : (
                   filteredOrders.map((order) => {
-                    // Tentar extrair URL de anexo da descrição
                     const attachmentMatch = order.description?.match(/\[Anexo enviado pelo cliente: (.*?)\]/);
                     const attachmentUrl = attachmentMatch ? attachmentMatch[1] : null;
 
@@ -201,13 +198,13 @@ const ServiceOrders = () => {
                           </p>
                           <span className={cn("inline-flex items-center gap-1 mt-1 text-[8px] font-black uppercase px-2 py-0.5 rounded border", order.origin === 'web' ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-apple-light text-apple-muted border-apple-border")}>{order.origin === 'web' ? 'Portal Web' : 'Balcão'}</span>
                         </td>
-                        <td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{order.customers?.name}</p><p className="text-[10px] text-apple-muted font-medium mt-0.5 truncate max-w-[150px]">{order.equipment_info || '---'}</p></td>
+                        <td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{order.customers?.name}</p><p className="text-[10px] text-apple-muted font-medium mt-0.5 truncate max-w-[150px]">ID: {order.customers?.tax_id || '---'}</p></td>
                         <td className="px-8 py-5"><p className="text-sm font-black text-apple-black">{currency.format(order.estimated_cost)}</p><span className="text-[9px] font-bold text-apple-muted uppercase">{order.billing_type === 'faturado' ? 'Em Lote' : 'À Vista'}</span></td>
                         <td className="px-8 py-5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                              {attachmentUrl && <a href={attachmentUrl} target="_blank" rel="noreferrer" className="p-3 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"><FileText size={18}/></a>}
                              <button onClick={() => openEditModal(order)} className="p-3 text-apple-muted hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all" title="Ver Detalhes"><Edit3 size={18}/></button>
-                             <button onClick={() => { if(confirm("Remover?")) fetchOrders(); }} className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18}/></button>
+                             <button onClick={() => { if(confirm("Remover?")) fetchOrders(); }} className="p-3 text-apple-muted hover:text-red-500 hover:bg-red-100 rounded-xl transition-all"><Trash2 size={18}/></button>
                           </div>
                         </td>
                       </tr>
@@ -225,7 +222,7 @@ const ServiceOrders = () => {
           <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
             <DialogTitle className="text-xl font-black flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">{editingOrder ? <Edit3 size={20} /> : <Plus size={20} />}</div>
-              {editingOrder ? 'Ajustar Ordem de Serviço' : 'Nova Ordem de Serviço'}
+              {editingOrder ? 'Ajustar Solicitação' : 'Novo Chamado de Atendimento'}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
@@ -236,8 +233,7 @@ const ServiceOrders = () => {
                   <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Custo Estimado (R$)</Label><Input value={formData.estimatedCost} onChange={e => setFormData({...formData, estimatedCost: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-apple-black" /></div>
                </div>
             </div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Equipamento / Modelo</Label><Input value={formData.equipmentInfo} onChange={e => setFormData({...formData, equipmentInfo: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Relato do Defeito / Notas</Label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-2xl p-4 h-24 outline-none text-sm font-medium focus:ring-2 focus:ring-orange-500/20" /></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Relato do Cliente / Notas Internas</Label><textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full bg-apple-offWhite border border-apple-border rounded-2xl p-4 h-24 outline-none text-sm font-medium focus:ring-2 focus:ring-orange-500/20" /></div>
             <DialogFooter className="pt-4 border-t border-apple-border"><button type="submit" disabled={saving} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">{saving ? <Loader2 className="animate-spin" /> : editingOrder ? <CheckCircle2 size={18} /> : <Wrench size={18} />}{editingOrder ? 'ATUALIZAR DADOS' : 'CONFIRMAR ABERTURA'}</button></DialogFooter>
           </form>
         </DialogContent>
