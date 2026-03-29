@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
   CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
-  CalendarDays
+  CalendarDays, Banknote, PlayCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const FULFILLMENT_STAGES = [
   { id: 'approved', label: 'Aprovado', icon: CheckCircle2 },
+  { id: 'paid', label: 'Pago', icon: Banknote },
   { id: 'production', label: 'Produção', icon: Wrench },
   { id: 'picking', label: 'Separação', icon: PackageSearch },
   { id: 'invoiced', label: 'Faturado', icon: Receipt },
@@ -44,7 +45,7 @@ const SalesList = () => {
       options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
       d.setMonth(d.getMonth() + 1);
     }
-    return options;
+    return options.reverse();
   }, []);
   
   const [selectedSale, setSelectedSale] = useState<any>(null);
@@ -67,7 +68,7 @@ const SalesList = () => {
         employees(full_name),
         quote_items(
           id, quantity, unit_price, total_price,
-          products(name, sku)
+          products(name, sku, is_produced)
         )
       `)
       .eq('user_id', user.id)
@@ -93,19 +94,6 @@ const SalesList = () => {
     );
   }, [sales, searchTerm]);
 
-  const metrics = useMemo(() => {
-    const approvedSales = sales.filter(s => s.status !== 'draft');
-    const totalVolume = approvedSales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
-    const avgTicket = approvedSales.length > 0 ? totalVolume / approvedSales.length : 0;
-
-    return {
-      totalOrders: approvedSales.length,
-      totalVolume,
-      avgTicket,
-      pendingQuotes: sales.filter(s => s.status === 'draft').length
-    };
-  }, [sales]);
-
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const openDetails = (sale: any) => {
@@ -113,18 +101,40 @@ const SalesList = () => {
     setIsDetailsOpen(true);
   };
 
-  const advanceStatus = async () => {
+  const advanceStatus = async (manualNextStage?: string) => {
     if (!selectedSale) return;
-    const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
-    if (currentIndex === -1 || currentIndex >= FULFILLMENT_STAGES.length - 1) return;
+    
+    let nextStage = manualNextStage;
+    
+    if (!nextStage) {
+      const currentIndex = FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status);
+      if (currentIndex === -1 || currentIndex >= FULFILLMENT_STAGES.length - 1) return;
+      nextStage = FULFILLMENT_STAGES[currentIndex + 1].id;
+    }
 
-    const nextStage = FULFILLMENT_STAGES[currentIndex + 1].id;
     setUpdatingStatus(true);
-
     try {
       const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       if (error) throw error;
-      showSuccess(`Pedido avançado para: ${FULFILLMENT_STAGES[currentIndex + 1].label}`);
+
+      // Se moveu para produção, criar as ordens de produção
+      if (nextStage === 'production') {
+        const prodEntries = selectedSale.quote_items
+          .filter((i: any) => i.products?.is_produced)
+          .map((i: any) => ({
+            user_id: user?.id,
+            product_id: i.product_id,
+            quote_id: selectedSale.id,
+            quantity: i.quantity,
+            status: 'pending'
+          }));
+        
+        if (prodEntries.length > 0) {
+          await supabase.from('production_orders').insert(prodEntries);
+        }
+      }
+
+      showSuccess(`Pedido avançado para etapa operacional.`);
       const updatedSale = { ...selectedSale, status: nextStage };
       setSelectedSale(updatedSale);
       setSales(prev => prev.map(s => s.id === updatedSale.id ? updatedSale : s));
@@ -163,6 +173,8 @@ const SalesList = () => {
   const getStatusDisplay = (status: string) => {
     if (status === 'draft') return { label: 'Em Aberto (Orçamento)', color: 'bg-orange-50 text-orange-600 border-orange-100' };
     if (status === 'completed') return { label: 'Concluído (PDV)', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    if (status === 'paid') return { label: 'Pagamento Confirmado', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+    
     const stage = FULFILLMENT_STAGES.find(s => s.id === status);
     if (!stage) return { label: status, color: 'bg-apple-light text-apple-muted border-apple-border' };
     return { label: stage.label, color: 'bg-blue-50 text-blue-600 border-blue-100' };
@@ -186,25 +198,6 @@ const SalesList = () => {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
-            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-emerald-500" /> Volume Faturado</h3>
-            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.totalVolume)}</p>
-          </div>
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Store size={16} className="text-orange-500" /> Pedidos Totais</h3>
-            <p className="text-3xl font-black text-apple-black">{metrics.totalOrders}</p>
-          </div>
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Receipt size={16} className="text-blue-500" /> Ticket Médio</h3>
-            <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(metrics.avgTicket)}</p>
-          </div>
-          <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm">
-            <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2"><Calendar size={16} className="text-orange-400" /> Negociações</h3>
-            <p className="text-3xl font-black text-apple-black">{metrics.pendingQuotes}</p>
           </div>
         </div>
 
@@ -289,11 +282,26 @@ const SalesList = () => {
                         );
                       })}
                     </div>
+                    
                     <div className="mt-14 flex justify-center">
-                       {FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && (
-                         <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : advanceStatus} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
-                           {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : (selectedSale.status === 'picking' ? "Emitir Fatura Oficial" : "Avançar Próxima Etapa")}
-                         </button>
+                       {selectedSale.status === 'paid' ? (
+                         <div className="flex gap-4">
+                            {selectedSale.quote_items.some((i: any) => i.products?.is_produced) ? (
+                              <button onClick={() => advanceStatus('production')} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
+                                {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <><Factory size={16} /> Liberar para Produção</>}
+                              </button>
+                            ) : (
+                              <button onClick={() => advanceStatus('picking')} disabled={updatingStatus} className="bg-blue-600 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 transition-all shadow-sm">
+                                {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : <><PackageSearch size={16} /> Liberar para Separação</>}
+                              </button>
+                            )}
+                         </div>
+                       ) : (
+                         FULFILLMENT_STAGES.findIndex(s => s.id === selectedSale.status) < FULFILLMENT_STAGES.length - 1 && selectedSale.status !== 'approved' && (
+                           <button onClick={selectedSale.status === 'picking' ? handleInvoiceAndAdvance : advanceStatus} disabled={updatingStatus} className="bg-orange-500 text-white px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-orange-600 transition-all shadow-sm">
+                             {updatingStatus ? <Loader2 size={14} className="animate-spin" /> : (selectedSale.status === 'picking' ? "Emitir Fatura Oficial" : "Avançar Próxima Etapa")}
+                           </button>
+                         )
                        )}
                     </div>
                   </div>
