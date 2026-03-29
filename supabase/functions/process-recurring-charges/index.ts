@@ -16,18 +16,27 @@ serve(async (req) => {
     )
 
     const today = new Date();
-    const currentDay = today.getDate();
+    const currentDayOfMonth = today.getDate();
+    const currentDayOfWeek = today.getDay(); // 0 (Dom) a 6 (Sáb)
     const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
 
-    const { data: subscriptions } = await supabaseClient
+    console.log(`[process-recurring-charges] Iniciando processamento. Hoje: Dia ${currentDayOfMonth}, Dia da Semana ${currentDayOfWeek}`);
+
+    // Busca contratos ativos que devem ser gerados hoje
+    // Lógica: (Mensal AND dia do mês) OR (Semanal AND dia da semana)
+    const { data: subscriptions, error: fetchError } = await supabaseClient
       .from('subscriptions')
       .select('*, customers (*)')
       .eq('status', 'active')
-      .eq('generation_day', currentDay);
+      .or(`and(frequency.eq.monthly,generation_day.eq.${currentDayOfMonth}),and(frequency.eq.weekly,generation_weekday.eq.${currentDayOfWeek})`);
+
+    if (fetchError) throw fetchError;
 
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ message: "Nada para hoje" }), { headers: corsHeaders });
+      return new Response(JSON.stringify({ message: "Nenhum contrato para processar hoje" }), { headers: corsHeaders });
     }
+
+    console.log(`[process-recurring-charges] Encontrados ${subscriptions.length} contratos para hoje.`);
 
     const userIds = [...new Set(subscriptions.map(s => s.user_id))];
     const { data: profiles } = await supabaseClient
@@ -35,19 +44,32 @@ serve(async (req) => {
       .select('id, woovi_api_key, company, full_name')
       .in('id', userIds);
 
+    let processedCount = 0;
+
     for (const sub of subscriptions) {
       try {
         const profile = profiles?.find(p => p.id === sub.user_id);
-        if (!profile?.woovi_api_key) continue;
+        if (!profile?.woovi_api_key) {
+          console.warn(`[process-recurring-charges] Token Woovi ausente para o lojista ${sub.user_id}`);
+          continue;
+        }
 
-        let dueDate = new Date(today.getFullYear(), today.getMonth(), sub.due_day);
-        if (sub.due_day < sub.generation_day) dueDate.setMonth(dueDate.getMonth() + 1);
-        const dueDateStr = dueDate.toISOString().split('T')[0];
+        // Calcula data de vencimento (Padrão: 3 dias após a geração se não definido, ou usa o due_day para mensais)
+        let dueDateStr;
+        if (sub.frequency === 'weekly') {
+          const dueDate = new Date(today);
+          dueDate.setDate(today.getDate() + 3); // Vence em 3 dias
+          dueDateStr = dueDate.toISOString().split('T')[0];
+        } else {
+          let dueDate = new Date(today.getFullYear(), today.getMonth(), sub.due_day);
+          if (sub.due_day < sub.generation_day) dueDate.setMonth(dueDate.getMonth() + 1);
+          dueDateStr = dueDate.toISOString().split('T')[0];
+        }
 
         const correlationID = crypto.randomUUID();
-        
-        // Se a assinatura tiver descrição personalizada, usa ela. Caso contrário, usa o padrão.
-        const description = sub.description || `Assinatura Recorrente - Mês ${today.getMonth() + 1}`;
+        const description = sub.description || `Fatura Contrato ${sub.contract_number || ''} - ${sub.frequency === 'weekly' ? 'Semanal' : 'Mensal'}`;
+
+        console.log(`[process-recurring-charges] Gerando cobrança para ${sub.customers.name} no valor de ${sub.amount}`);
 
         const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
           method: 'POST',
@@ -79,44 +101,24 @@ serve(async (req) => {
         }).select().single();
 
         if (charge) {
-          try {
-             const merchantName = profile.company || profile.full_name || "Nossa Empresa";
-             const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(wooviData.charge.brCode)}&.png`;
-             const internalCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
-
-             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` },
-                body: JSON.stringify({
-                  to: sub.customers.phone,
-                  templateName: 'boleto1',
-                  language: 'pt_BR',
-                  imageUrl: qrImageUrl,
-                  variables: [
-                    sub.customers.name, 
-                    merchantName, 
-                    new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(sub.amount),
-                    internalCheckoutUrl
-                  ],
-                  buttonVariable: charge.id
-                })
-             });
-
-             await supabaseClient.from('notification_logs').insert({
-               charge_id: charge.id,
-               type: 'whatsapp',
-               status: waRes.ok ? 'success' : 'error',
-               message: waRes.ok ? `Assinatura enviada por WhatsApp: ${description}` : 'Erro ao enviar WhatsApp da assinatura'
-             });
-
-          } catch (waErr) { console.error("Erro WA:", waErr); }
+          processedCount++;
+          // Registro de Log de Notificação (Simples)
+          await supabaseClient.from('notification_logs').insert({
+            charge_id: charge.id,
+            type: 'system',
+            status: 'success',
+            message: `Cobrança recorrente gerada automaticamente via contrato ${sub.contract_number || '---'}`
+          });
         }
 
-      } catch (err) { console.error("Erro sub:", err); }
+      } catch (err) { 
+        console.error(`[process-recurring-charges] Erro no contrato ${sub.id}:`, err.message); 
+      }
     }
 
-    return new Response(JSON.stringify({ processed: true }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ processed: true, count: processedCount }), { headers: corsHeaders });
   } catch (error: any) {
+    console.error("[process-recurring-charges] Erro Crítico:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
   }
 })

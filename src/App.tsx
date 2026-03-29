@@ -38,7 +38,7 @@ import Production from "./pages/industry/Production";
 
 // Financeiro
 import Dashboard from "./pages/Dashboard";
-import Subscriptions from "./pages/Subscriptions";
+import Contracts from "./pages/financial/Contracts";
 import Charges from "./pages/Charges";
 import ChargeDetail from "./pages/ChargeDetail";
 import BankAccounts from "./pages/financial/BankAccounts";
@@ -117,7 +117,7 @@ const App = () => (
               <Route path="/financeiro/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas" element={<ProtectedRoute><Charges /></ProtectedRoute>} />
               <Route path="/financeiro/cobrancas/:id" element={<ProtectedRoute><ChargeDetail /></ProtectedRoute>} />
-              <Route path="/financeiro/assinaturas" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+              <Route path="/financeiro/contratos" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
               <Route path="/financeiro/bancos" element={<ProtectedRoute><BankAccounts /></ProtectedRoute>} />
               <Route path="/financeiro/pagar" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
               <Route path="/financeiro/fiscal" element={<ProtectedRoute><Fiscal /></ProtectedRoute>} />

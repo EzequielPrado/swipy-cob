@@ -41,7 +41,7 @@ const menuStructure = [
     submenus: [
       { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
       { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
-      { label: 'Assinaturas', path: '/financeiro/assinaturas' },
+      { label: 'Gestão de Contratos', path: '/financeiro/contratos' },
       { label: 'Contas a Pagar', path: '/financeiro/pagar' },
       { label: 'Contas Bancárias', path: '/financeiro/bancos' }
     ] 
