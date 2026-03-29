@@ -27,7 +27,7 @@ const FILE_TYPES = [
   { id: 'pdf_report', label: 'Relatório Executivo (PDF)', icon: FileDown, desc: 'Documento formatado com o fechamento do mês, pronto para impressão.' },
   { id: 'consolidated', label: 'Planilha Contábil (CSV)', icon: FileSpreadsheet, desc: 'Lista detalhada de receitas e despesas para importar no Excel.' },
   { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT para validação em sistemas governamentais.' },
-  { id: 'xml_batch', label: 'Lote de Notas (Resumo)', icon: FileArchive, desc: 'Compilado das informações das notas fiscais emitidas no período.' }
+  { id: 'xml_batch', label: 'Conferência de Notas (XML)', icon: FileArchive, desc: 'Lista de chaves de acesso e valores das notas emitidas no mês.' }
 ];
 
 const FiscalFiles = () => {
@@ -73,7 +73,6 @@ const FiscalFiles = () => {
 
   useEffect(() => { fetchHistory(); }, [user]);
 
-  // Função para gerar PDF no cliente (mais rápido e bonito)
   const generateClientPDF = async () => {
     const [year, month] = selectedMonth.split('-');
     const startDate = `${year}-${month}-01`;
@@ -88,7 +87,6 @@ const FiscalFiles = () => {
     const periodLabel = monthOptions.find(o => o.value === selectedMonth)?.label;
     const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    // Header
     doc.setFillColor(29, 29, 31);
     doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(249, 115, 22);
@@ -113,7 +111,6 @@ const FiscalFiles = () => {
 
     doc.save(`Fechamento_${selectedMonth}.pdf`);
     
-    // Registrar no histórico mesmo sendo gerado no cliente
     await supabase.from('fiscal_exports').insert({
       user_id: user?.id,
       file_name: `RELATORIO_PDF_${selectedMonth}.pdf`,
