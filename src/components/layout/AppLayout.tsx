@@ -50,15 +50,6 @@ const menuStructure = [
     ] 
   },
   { 
-    title: 'Indústria', 
-    moduleId: 'industria', 
-    icon: Factory, 
-    roles: ['Admin', 'Estoque'], 
-    submenus: [
-      { label: 'Controle de Produção', path: '/industria/producao' }
-    ] 
-  },
-  { 
     title: 'Estoque', 
     moduleId: 'estoque', 
     icon: Package, 
@@ -66,6 +57,7 @@ const menuStructure = [
     submenus: [
       { label: 'Produtos', path: '/estoque/produtos' }, 
       { label: 'Movimentações', path: '/estoque/movimentacoes' },
+      { label: 'Controle de Produção', path: '/industria/producao' },
       { label: 'Expedição (Logística)', path: '/estoque/expedicao' }
     ] 
   },
