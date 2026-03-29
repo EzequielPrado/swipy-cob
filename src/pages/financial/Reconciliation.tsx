@@ -7,10 +7,11 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { 
   ArrowRightLeft, Search, Loader2, CheckCircle2, 
   ArrowUpCircle, ArrowDownCircle, Link as LinkIcon,
-  XCircle, Filter, Calendar
+  XCircle, Filter, Calendar, Info, Building2, User
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const Reconciliation = () => {
   const { user } = useAuth();
@@ -18,6 +19,12 @@ const Reconciliation = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState('all');
+
+  // Controle do Match
+  const [isMatchOpen, setIsMatchOpen] = useState(false);
+  const [activeTrx, setActiveTrx] = useState<any>(null);
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [matching, setMatching] = useState(false);
 
   const fetchData = async () => {
     if (!user) return;
@@ -39,10 +46,54 @@ const Reconciliation = () => {
 
   useEffect(() => { fetchData(); }, [user]);
 
-  const handleAutoMatch = (trx: any) => {
-    // Aqui no futuro implementaremos a lógica de buscar despesas/cobranças 
-    // com o mesmo valor e data aproximada.
-    showSuccess("Buscando sugestões de conciliação...");
+  const openMatchFinder = async (trx: any) => {
+    setActiveTrx(trx);
+    setCandidates([]);
+    setIsMatchOpen(true);
+    setMatching(true);
+
+    try {
+      // Se for CRÉDITO, busca em CHARGES (Contas a Receber)
+      // Se for DÉBITO, busca em EXPENSES (Contas a Pagar)
+      if (trx.type === 'credit') {
+        const { data } = await supabase
+          .from('charges')
+          .select('id, amount, due_date, description, customers(name)')
+          .eq('user_id', user?.id)
+          .eq('status', 'pendente')
+          .eq('amount', trx.amount);
+        if (data) setCandidates(data.map(c => ({ ...c, type: 'charge', name: c.customers?.name || 'Venda Avulsa' })));
+      } else {
+        const { data } = await supabase
+          .from('expenses')
+          .select('id, amount, due_date, description')
+          .eq('user_id', user?.id)
+          .eq('status', 'pendente')
+          .eq('amount', trx.amount);
+        if (data) setCandidates(data.map(e => ({ ...e, type: 'expense', name: e.description })));
+      }
+    } catch (err) { console.error(err); } finally { setMatching(false); }
+  };
+
+  const confirmMatch = async (candidate: any) => {
+    setMatching(true);
+    try {
+      // 1. Atualizar o sistema (Charge ou Expense) para PAGO
+      const table = candidate.type === 'charge' ? 'charges' : 'expenses';
+      const { error: sysError } = await supabase
+        .from(table)
+        .update({ status: 'pago', bank_account_id: activeTrx.bank_account_id })
+        .eq('id', candidate.id);
+      
+      if (sysError) throw sysError;
+
+      // 2. Marcar a linha do extrato como CONCILIADA
+      await supabase.from('bank_transactions').update({ status: 'reconciled' }).eq('id', activeTrx.id);
+
+      showSuccess("Lançamento conciliado e baixado no sistema!");
+      setIsMatchOpen(false);
+      fetchData();
+    } catch (err: any) { showError(err.message); } finally { setMatching(false); }
   };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -62,13 +113,9 @@ const Reconciliation = () => {
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase text-apple-muted">Filtrar Conta:</span>
-              <select 
-                value={selectedAccountId}
-                onChange={(e) => setSelectedAccountId(e.target.value)}
-                className="bg-apple-white border border-apple-border rounded-xl px-4 py-2 text-xs font-bold focus:ring-1 focus:ring-orange-500 outline-none"
-              >
-                <option value="all">Todas as Contas</option>
+              <span className="text-[10px] font-black uppercase text-apple-muted">Conta:</span>
+              <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="bg-apple-white border-apple-border rounded-xl px-4 py-2 text-xs font-bold focus:ring-1 focus:ring-orange-500 outline-none shadow-sm">
+                <option value="all">Todas</option>
                 {accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
               </select>
             </div>
@@ -84,14 +131,14 @@ const Reconciliation = () => {
                   <th className="px-8 py-5">Data / Banco</th>
                   <th className="px-8 py-5">Descrição no Extrato</th>
                   <th className="px-8 py-5">Valor</th>
-                  <th className="px-8 py-5 text-right">Ação de Conciliação</th>
+                  <th className="px-8 py-5 text-right">Conciliação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
                   <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
                 ) : transactions.length === 0 ? (
-                  <tr><td colSpan={4} className="py-20 text-center text-apple-muted italic">Tudo conciliado por aqui! Importe um novo extrato para começar.</td></tr>
+                  <tr><td colSpan={4} className="py-20 text-center text-apple-muted italic">Tudo conciliado! Importe um novo extrato em Contas Bancárias.</td></tr>
                 ) : (
                   transactions
                     .filter(t => selectedAccountId === 'all' || t.bank_account_id === selectedAccountId)
@@ -101,28 +148,18 @@ const Reconciliation = () => {
                          <p className="text-sm font-black text-apple-black">{new Date(trx.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
                          <p className="text-[9px] text-apple-muted font-bold uppercase tracking-tighter">{trx.bank_accounts?.name}</p>
                       </td>
+                      <td className="px-8 py-5"><p className="text-sm font-bold text-apple-dark italic">"{trx.description}"</p></td>
                       <td className="px-8 py-5">
-                        <p className="text-sm font-bold text-apple-dark italic">"{trx.description}"</p>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-2">
-                           {trx.type === 'credit' ? (
-                             <span className="text-base font-black text-emerald-600">+{currency.format(trx.amount)}</span>
-                           ) : (
-                             <span className="text-base font-black text-red-600">-{currency.format(trx.amount)}</span>
-                           )}
-                        </div>
+                         {trx.type === 'credit' ? (
+                           <span className="text-base font-black text-emerald-600">+{currency.format(trx.amount)}</span>
+                         ) : (
+                           <span className="text-base font-black text-red-600">-{currency.format(trx.amount)}</span>
+                         )}
                       </td>
                       <td className="px-8 py-5 text-right">
-                         <div className="flex items-center justify-end gap-2">
-                            <button 
-                              onClick={() => handleAutoMatch(trx)}
-                              className="bg-apple-offWhite hover:bg-orange-500 hover:text-white border border-apple-border px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all shadow-sm flex items-center gap-1.5"
-                            >
-                              <LinkIcon size={12} /> Vincular Lançamento
-                            </button>
-                            <button className="p-2 text-apple-muted hover:text-red-500 transition-all"><XCircle size={18} /></button>
-                         </div>
+                         <button onClick={() => openMatchFinder(trx)} className="bg-apple-black hover:bg-zinc-800 text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ml-auto active:scale-95">
+                           <LinkIcon size={12} /> BUSCAR MATCH
+                         </button>
                       </td>
                     </tr>
                   ))
@@ -132,6 +169,42 @@ const Reconciliation = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={isMatchOpen} onOpenChange={setIsMatchOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[500px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl font-black">Lançamentos Sugeridos</DialogTitle>
+            {activeTrx && <p className="text-xs text-apple-muted font-bold mt-2">Buscando correspondência para <span className="text-orange-500">{currency.format(activeTrx.amount)}</span></p>}
+          </DialogHeader>
+          
+          <div className="p-8 space-y-6 max-h-[400px] overflow-y-auto custom-scrollbar">
+             {matching ? (
+               <div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-500" /></div>
+             ) : candidates.length === 0 ? (
+               <div className="text-center py-12">
+                  <Info className="mx-auto text-apple-muted mb-4 opacity-20" size={40} />
+                  <p className="text-sm font-bold text-apple-muted italic">Nenhum lançamento com valor EXATO encontrado no sistema.</p>
+                  <button className="mt-6 text-[10px] font-black text-orange-600 uppercase tracking-widest border border-orange-200 px-4 py-2 rounded-xl">Criar Lançamento Rápido</button>
+               </div>
+             ) : (
+               <div className="space-y-3">
+                  {candidates.map((cand) => (
+                    <div key={cand.id} className="p-5 bg-apple-offWhite border border-apple-border rounded-2xl flex items-center justify-between group hover:border-orange-500 transition-all">
+                       <div>
+                          <p className="text-sm font-black text-apple-black">{cand.name}</p>
+                          <p className="text-[10px] text-apple-muted font-bold uppercase mt-1">Previsão: {new Date(cand.due_date).toLocaleDateString('pt-BR')}</p>
+                       </div>
+                       <button onClick={() => confirmMatch(cand)} className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase px-4 py-2.5 rounded-xl shadow-lg active:scale-95">VINCULAR</button>
+                    </div>
+                  ))}
+               </div>
+             )}
+          </div>
+          <div className="p-6 bg-apple-offWhite border-t border-apple-border text-center text-[9px] text-apple-muted font-bold uppercase tracking-widest">
+            A conciliação garante o controle real do seu fluxo de caixa.
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 };

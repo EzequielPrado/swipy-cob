@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, DollarSign, Calendar, FileText } from 'lucide-react';
+import { Loader2, DollarSign, Calendar, FileText, Layers } from 'lucide-react';
 
 interface AddChargeModalProps {
   isOpen: boolean;
@@ -20,8 +20,11 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  
   const [formData, setFormData] = useState({
     customerId: '',
+    categoryId: '',
     amount: '',
     description: '',
     method: 'pix',
@@ -30,34 +33,30 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
 
   useEffect(() => {
     if (isOpen && user) {
-      fetchCustomers();
+      fetchData();
     }
   }, [isOpen, user]);
 
-  const fetchCustomers = async () => {
-    const { data, error } = await supabase
-      .from('customers')
-      .select('id, name')
-      .eq('user_id', user?.id) // FILTRO ADICIONADO AQUI
-      .order('name');
+  const fetchData = async () => {
+    const [custRes, catRes] = await Promise.all([
+      supabase.from('customers').select('id, name').eq('user_id', user?.id).order('name'),
+      supabase.from('chart_of_accounts').select('id, name').eq('user_id', user?.id).eq('type', 'revenue').order('name')
+    ]);
     
-    if (!error && data) {
-      setCustomers(data);
+    if (custRes.data) setCustomers(custRes.data);
+    if (catRes.data) {
+      setCategories(catRes.data);
+      if (catRes.data.length > 0) setFormData(prev => ({ ...prev, categoryId: catRes.data[0].id }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.customerId) {
-      showError("Selecione um cliente");
-      return;
-    }
+    if (!formData.customerId) return showError("Selecione um cliente");
 
     setLoading(true);
 
     try {
-      if (!user) throw new Error("Usuário não autenticado");
-
       const origin = window.location.origin;
 
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
@@ -72,7 +71,7 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
           description: formData.description,
           method: formData.method,
           dueDate: formData.dueDate,
-          userId: user.id,
+          userId: user?.id,
           origin: origin
         })
       });
@@ -80,16 +79,13 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Erro ao criar cobrança");
 
-      showSuccess('Cobrança gerada com sucesso!');
+      // Atualizar a categoria no registro recém criado (A edge function cria o registro base)
+      await supabase.from('charges').update({ category_id: formData.categoryId }).eq('id', result.id);
+
+      showSuccess('Cobrança gerada e categorizada!');
       onSuccess();
       onClose();
-      setFormData({
-        customerId: '',
-        amount: '',
-        description: '',
-        method: 'pix',
-        dueDate: new Date().toISOString().split('T')[0]
-      });
+      setFormData({ customerId: '', categoryId: '', amount: '', description: '', method: 'pix', dueDate: new Date().toISOString().split('T')[0] });
     } catch (error: any) {
       showError(error.message);
     } finally {
@@ -99,82 +95,51 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[450px]">
+      <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2.5rem] shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">Nova Cobrança</DialogTitle>
+          <DialogTitle className="text-xl font-black">Nova Cobrança Pix</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-6 py-4">
           <div className="space-y-2">
-            <Label htmlFor="customer">Cliente</Label>
-            <Select 
-              onValueChange={(val) => setFormData({...formData, customerId: val})}
-              value={formData.customerId}
-            >
-              <SelectTrigger className="bg-zinc-950 border-zinc-800 h-11">
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Cliente / Pagador</Label>
+            <Select onValueChange={(val) => setFormData({...formData, customerId: val})} value={formData.customerId}>
+              <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione um cliente" /></SelectTrigger>
+              <SelectContent className="bg-apple-white border-apple-border">
+                {customers.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição / Referência</Label>
-            <div className="relative">
-              <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-              <Input 
-                id="description" 
-                placeholder="Ex: Honorário Contábil - Mês 05"
-                className="bg-zinc-950 border-zinc-800 h-11 pl-9"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-            </div>
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1 flex items-center gap-1.5"><Layers size={12} className="text-orange-500" /> Categoria de Receita</Label>
+            <Select onValueChange={(val) => setFormData({...formData, categoryId: val})} value={formData.categoryId}>
+              <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Como classificar esse ganho?" /></SelectTrigger>
+              <SelectContent className="bg-apple-white border-apple-border">
+                {categories.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Descrição / Referência</Label>
+            <Input id="description" placeholder="Ex: Mensalidade, Venda de Produto..." className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Valor (R$)</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-                <Input 
-                  id="amount" 
-                  required
-                  placeholder="0,00"
-                  className="bg-zinc-950 border-zinc-800 h-11 pl-9"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                />
-              </div>
+              <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Valor (R$)</Label>
+              <Input required placeholder="0,00" className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-orange-500" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="dueDate">Vencimento</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-                <Input 
-                  id="dueDate" 
-                  type="date"
-                  required
-                  className="bg-zinc-950 border-zinc-800 h-11 pl-9"
-                  value={formData.dueDate}
-                  onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
-                />
-              </div>
+              <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Vencimento</Label>
+              <Input type="date" required className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.dueDate} onChange={(e) => setFormData({...formData, dueDate: e.target.value})} />
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-orange-500 text-zinc-950 font-bold py-3 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
-            >
-              {loading && <Loader2 className="animate-spin" size={18} />}
-              Gerar Cobrança
+          <DialogFooter className="pt-4 border-t border-apple-border">
+            <button type="submit" disabled={loading} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl transition-all shadow-xl active:scale-95">
+              {loading ? <Loader2 className="animate-spin" /> : "GERAR COBRANÇA PIX"}
             </button>
           </DialogFooter>
         </form>
