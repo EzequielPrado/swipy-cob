@@ -13,7 +13,8 @@ import {
   RefreshCcw,
   FileSpreadsheet,
   Layers,
-  FileDown
+  FileDown,
+  Clock
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ const FILE_TYPES = [
 ];
 
 const FiscalFiles = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveUserId } = useAuth(); // Importante: usar effectiveUserId
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
@@ -58,12 +59,12 @@ const FiscalFiles = () => {
   }, []);
 
   const fetchHistory = async () => {
-    if (!user) return;
+    if (!effectiveUserId) return;
     setHistoryLoading(true);
     const { data } = await supabase
       .from('fiscal_exports')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', effectiveUserId)
       .order('created_at', { ascending: false })
       .limit(10);
     
@@ -71,16 +72,17 @@ const FiscalFiles = () => {
     setHistoryLoading(false);
   };
 
-  useEffect(() => { fetchHistory(); }, [user]);
+  useEffect(() => { fetchHistory(); }, [effectiveUserId]);
 
   const generateClientPDF = async () => {
+    if (!effectiveUserId) return;
     const [year, month] = selectedMonth.split('-');
     const startDate = `${year}-${month}-01`;
     const endDate = new Date(Number(year), Number(month), 0).toISOString().split('T')[0];
 
     const [revRes, expRes] = await Promise.all([
-      supabase.from('charges').select('*, customers(name)').eq('user_id', user?.id).gte('due_date', startDate).lte('due_date', endDate),
-      supabase.from('expenses').select('*').eq('user_id', user?.id).gte('due_date', startDate).lte('due_date', endDate)
+      supabase.from('charges').select('*, customers(name)').eq('user_id', effectiveUserId).gte('due_date', startDate).lte('due_date', endDate),
+      supabase.from('expenses').select('*').eq('user_id', effectiveUserId).gte('due_date', startDate).lte('due_date', endDate)
     ]);
 
     const doc = new jsPDF();
@@ -94,12 +96,19 @@ const FiscalFiles = () => {
     doc.text("FECHAMENTO CONTÁBIL", 14, 20);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text(`${profile?.company?.toUpperCase() || 'EMPRESA'} | ${periodLabel?.toUpperCase()}`, 14, 30);
+    
+    // Pegar nome da empresa correta se estiver na sessão de contador
+    const company = profile?.is_admin && effectiveUserId !== user?.id ? "Visualização Auditoria" : (profile?.company || 'Sua Empresa');
+    doc.text(`${company.toUpperCase()} | ${periodLabel?.toUpperCase()}`, 14, 30);
 
     const body = [
       ... (revRes.data || []).map(r => [new Date(r.due_date).toLocaleDateString('pt-BR'), 'RECEITA', r.customers?.name || 'Venda', currency.format(r.amount), r.status.toUpperCase()]),
       ... (expRes.data || []).map(e => [new Date(e.due_date).toLocaleDateString('pt-BR'), 'DESPESA', e.description, currency.format(e.amount), e.status.toUpperCase()])
     ];
+
+    if (body.length === 0) {
+      body.push(['-', '-', 'Nenhuma movimentação no período', '-', '-']);
+    }
 
     autoTable(doc, {
       head: [['DATA', 'TIPO', 'DESCRIÇÃO / ENTIDADE', 'VALOR', 'STATUS']],
@@ -112,7 +121,7 @@ const FiscalFiles = () => {
     doc.save(`Fechamento_${selectedMonth}.pdf`);
     
     await supabase.from('fiscal_exports').insert({
-      user_id: user?.id,
+      user_id: effectiveUserId,
       file_name: `RELATORIO_PDF_${selectedMonth}.pdf`,
       file_type: 'pdf_report',
       period: selectedMonth,
@@ -137,7 +146,11 @@ const FiscalFiles = () => {
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/generate-fiscal-file`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ type: selectedType, period: selectedMonth })
+        body: JSON.stringify({ 
+          type: selectedType, 
+          period: selectedMonth,
+          targetUserId: effectiveUserId // Enviando o ID da empresa alvo
+        })
       });
 
       if (!response.ok) throw new Error("Erro no servidor.");
