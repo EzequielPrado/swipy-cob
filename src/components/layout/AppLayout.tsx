@@ -84,13 +84,8 @@ const menuStructure = [
     title: 'Swipy Conta', 
     icon: Wallet, 
     path: '/conta-swipy', 
-    roles: ['Admin', 'Financeiro', 'Contador'] 
-  },
-  { 
-    title: 'Personalização', 
-    icon: Palette, 
-    path: '/configuracoes', 
-    roles: ['Admin'] 
+    roles: ['Admin', 'Financeiro', 'Contador'],
+    dividerAfter: true 
   },
   { 
     title: 'Cadastros', 
@@ -100,6 +95,12 @@ const menuStructure = [
       { label: 'Clientes', path: '/clientes' }, 
       { label: 'Fornecedores', path: '/fornecedores' }
     ] 
+  },
+  { 
+    title: 'Personalização', 
+    icon: Palette, 
+    path: '/configuracoes', 
+    roles: ['Admin'] 
   },
   { 
     title: 'Minha Carteira', 
@@ -181,31 +182,36 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-10">
           <nav className="space-y-1">
             <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
-            {visibleMenus.map((item) => {
+            {visibleMenus.map((item, idx) => {
               const hasSubmenus = !!item.submenus;
               const isOpen = openMenus.includes(item.title);
               const isChildActive = hasSubmenus && item.submenus!.some(sub => location.pathname === sub.path);
 
               return (
-                <div key={item.title} className="mb-1">
-                  {hasSubmenus ? (
-                    <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all", (isChildActive || isOpen) ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
-                      <div className="flex items-center gap-3"><item.icon size={18} className={cn((isChildActive || isOpen) ? "text-orange-500" : "text-apple-muted")} />{item.title}</div>
-                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                  ) : (
-                    <Link to={item.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === item.path ? "bg-orange-50/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
-                      <item.icon size={18} className={cn(location.pathname === item.path ? "text-orange-500" : "text-apple-muted")} />{item.title}
-                    </Link>
+                <React.Fragment key={item.title}>
+                  <div className="mb-1">
+                    {hasSubmenus ? (
+                      <button onClick={() => toggleMenu(item.title)} className={cn("w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all", (isChildActive || isOpen) ? "text-apple-black bg-apple-offWhite font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
+                        <div className="flex items-center gap-3"><item.icon size={18} className={cn((isChildActive || isOpen) ? "text-orange-500" : "text-apple-muted")} />{item.title}</div>
+                        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                    ) : (
+                      <Link to={item.path!} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", location.pathname === item.path ? "bg-orange-50/10 text-orange-600 font-semibold" : "text-apple-muted hover:text-apple-black hover:bg-apple-offWhite")}>
+                        <item.icon size={18} className={cn(location.pathname === item.path ? "text-orange-500" : "text-apple-muted")} />{item.title}
+                      </Link>
+                    )}
+                    {hasSubmenus && isOpen && (
+                      <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1 animate-in slide-in-from-top-1 duration-200">
+                        {item.submenus!.map(sub => (
+                          <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black")}>{sub.label}</Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {(item as any).dividerAfter && (
+                    <div className="h-px bg-apple-border my-4 mx-3" />
                   )}
-                  {hasSubmenus && isOpen && (
-                    <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1 animate-in slide-in-from-top-1 duration-200">
-                      {item.submenus!.map(sub => (
-                        <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black")}>{sub.label}</Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                </React.Fragment>
               );
             })}
           </nav>
