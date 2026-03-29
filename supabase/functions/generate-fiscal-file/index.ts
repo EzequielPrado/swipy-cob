@@ -25,9 +25,10 @@ serve(async (req) => {
     const endDate = new Date(Number(year), Number(month), 0).toISOString().split('T')[0]
 
     // 1. Criar registro de exportação
+    const fileExt = type === 'sintegra' ? 'txt' : 'csv';
     const { data: exportRecord, error: insertError } = await supabaseAdmin.from('fiscal_exports').insert({
       user_id: user.id,
-      file_name: `${type.toUpperCase()}_${period.replace('-', '_')}.txt`,
+      file_name: `${type.toUpperCase()}_${period.replace('-', '_')}.${fileExt}`,
       file_type: type,
       period: period,
       status: 'processing'
@@ -38,52 +39,83 @@ serve(async (req) => {
     // 2. Buscar dados do Lojista
     const { data: profile } = await supabaseAdmin.from('profiles').select('*').eq('id', user.id).single()
     
-    // Buscar vendas (cobranças pagas)
-    const { data: sales } = await supabaseAdmin.from('charges')
-      .select('*, customers(*)')
-      .eq('user_id', user.id)
-      .eq('status', 'pago')
-      .gte('due_date', startDate)
-      .lte('due_date', endDate)
-
     let content = "";
+    let contentType = "text/plain; charset=utf-8";
 
-    if (type === 'sintegra') {
-      // REGISTRO 10 - Mestre
+    if (type === 'consolidated') {
+      // GERAR CSV PARA O CONTADOR
+      contentType = "text/csv; charset=utf-8";
+      
+      // UTF-8 BOM para o Excel abrir com acentuação correta
+      content = "\uFEFF";
+      
+      // Cabeçalho do CSV
+      content += "Data;Tipo;Entidade;Documento;Descricao;Categoria;Valor;Status\r\n";
+
+      // 1. Buscar Receitas (Cobranças)
+      const { data: revenues } = await supabaseAdmin.from('charges')
+        .select('*, customers(name, tax_id), chart_of_accounts(name)')
+        .eq('user_id', user.id)
+        .gte('due_date', startDate)
+        .lte('due_date', endDate);
+
+      revenues?.forEach(r => {
+        const date = new Date(r.due_date).toLocaleDateString('pt-BR');
+        const amount = r.amount.toString().replace('.', ',');
+        content += `${date};RECEITA;${r.customers?.name || 'Venda PDV'};${r.customers?.tax_id || ''};${r.description || ''};${r.chart_of_accounts?.name || 'Venda'};${amount};${r.status}\r\n`;
+      });
+
+      // 2. Buscar Despesas
+      const { data: expenses } = await supabaseAdmin.from('expenses')
+        .select('*, suppliers(name, tax_id), chart_of_accounts(name)')
+        .eq('user_id', user.id)
+        .gte('due_date', startDate)
+        .lte('due_date', endDate);
+
+      expenses?.forEach(e => {
+        const date = new Date(e.due_date).toLocaleDateString('pt-BR');
+        const amount = e.amount.toString().replace('.', ',');
+        content += `${date};DESPESA;${e.suppliers?.name || 'Diverso'};${e.suppliers?.tax_id || ''};${e.description};${e.chart_of_accounts?.name || 'Geral'};${amount};${e.status}\r\n`;
+      });
+
+    } else if (type === 'sintegra') {
+      // Lógica Sintegra (Simplificada)
       const cnpj = (profile?.cpf || '00000000000000').replace(/\D/g, '').padEnd(14, '0')
       const ie = 'ISENTO'.padEnd(14, ' ')
       const razao = (profile?.company || 'EMPRESA SEM RAZAO').padEnd(35, ' ').substring(0, 35)
       const cidade = (profile?.trade_name || 'CIDADE').padEnd(30, ' ').substring(0, 30)
-      const uf = 'SP'
       
-      content += `10${cnpj}${ie}${razao}${cidade}${uf}211\r\n`
-
-      // REGISTRO 11 - Complementar
+      content += `10${cnpj}${ie}${razao}${cidade}SP211\r\n`
       content += `11${' '.padEnd(124, ' ')}\r\n`
 
-      // REGISTRO 50 - Notas (Simuladas)
+      const { data: sales } = await supabaseAdmin.from('charges')
+        .select('*, customers(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'pago')
+        .gte('due_date', startDate)
+        .lte('due_date', endDate);
+
       sales?.forEach(sale => {
         const doc = sale.customers?.tax_id?.replace(/\D/g, '').padStart(14, '0') || '00000000000000'
         const data = sale.due_date.replace(/-/g, '')
         const valor = Math.round(sale.amount * 100).toString().padStart(13, '0')
-        content += `50${doc}${ie}${data}${uf}551000001000${valor}0000000000000000\r\n`
+        content += `50${doc}${ie}${data}SP551000001000${valor}0000000000000000\r\n`
       })
 
-      // REGISTRO 90 - Totalizador
       const totalCount = (sales?.length || 0) + 3
       content += `90${cnpj}${ie}99${totalCount.toString().padStart(8, '0')}000\r\n`
     } else {
-      content = "Relatório de Inventário - Dados de estoque em processamento.";
+      content = "Tipo de exportação não suportado nesta versão enxuta.";
     }
 
     // 3. Salvar no Storage
-    const fileName = `${user.id}/${exportRecord.id}.txt`
+    const fileName = `${user.id}/${exportRecord.id}.${fileExt}`
     const { error: uploadError } = await supabaseAdmin.storage.from('fiscal_files').upload(fileName, content, {
-      contentType: 'text/plain; charset=utf-8',
+      contentType: contentType,
       upsert: true
     })
 
-    if (uploadError) throw new Error("Falha ao salvar arquivo no Storage: " + uploadError.message);
+    if (uploadError) throw new Error("Falha ao salvar no Storage: " + uploadError.message);
 
     const { data: { publicUrl } } = supabaseAdmin.storage.from('fiscal_files').getPublicUrl(fileName)
 

@@ -7,14 +7,14 @@ import {
   Download, 
   Loader2, 
   CalendarDays, 
-  ShieldCheck, 
   FileText, 
   CheckCircle2, 
-  AlertTriangle,
   History,
   Package,
   Clock,
-  RefreshCcw
+  RefreshCcw,
+  FileSpreadsheet,
+  Layers
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -23,9 +23,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 
 const FILE_TYPES = [
-  { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT posicional para validação na SEFAZ.' },
-  { id: 'xml_batch', label: 'Lote de XMLs (NF-e)', icon: FileArchive, desc: 'Compactado com todos os XMLs de notas do mês.' },
-  { id: 'inventory', label: 'Livro de Inventário (P7)', icon: Package, desc: 'Posição de estoque para fechamento de balanço.' }
+  { id: 'consolidated', label: 'Relatório Auxiliar (Excel/CSV)', icon: FileSpreadsheet, desc: 'Lista completa de receitas e despesas com categorias, ideal para o contador.' },
+  { id: 'sintegra', label: 'Sintegra (Arquivo Magnético)', icon: FileText, desc: 'Arquivo .TXT posicional para validação em sistemas governamentais.' },
+  { id: 'xml_batch', label: 'Lote de XMLs (Simulado)', icon: FileArchive, desc: 'Compactado com os registros de notas emitidas no período.' }
 ];
 
 const FiscalFiles = () => {
@@ -33,7 +33,7 @@ const FiscalFiles = () => {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
-  const [selectedType, setSelectedType] = useState('sintegra');
+  const [selectedType, setSelectedType] = useState('consolidated');
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
@@ -87,8 +87,9 @@ const FiscalFiles = () => {
 
       if (!response.ok) throw new Error("Erro ao gerar arquivo no servidor.");
 
-      showSuccess(`Solicitação de arquivo ${selectedType.toUpperCase()} enviada!`);
-      fetchHistory();
+      showSuccess(`Arquivo ${selectedType.toUpperCase()} está sendo gerado!`);
+      // Simular um delay para o polling do histórico
+      setTimeout(fetchHistory, 2000);
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -102,9 +103,9 @@ const FiscalFiles = () => {
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
-              <FileArchive className="text-orange-500" size={32} /> Arquivos Fiscais
+              <Layers className="text-orange-500" size={32} /> Exportação Contábil
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Geração de obrigações acessórias e exportação para contabilidade.</p>
+            <p className="text-apple-muted mt-1 font-medium">Gere os insumos necessários para o fechamento mensal da sua empresa.</p>
           </div>
           <button onClick={fetchHistory} className="p-2 text-apple-muted hover:text-apple-black transition-all">
              <RefreshCcw size={20} className={historyLoading ? "animate-spin" : ""} />
@@ -116,12 +117,12 @@ const FiscalFiles = () => {
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
               <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-                <CalendarDays size={16} className="text-orange-500" /> Configurar Exportação
+                <CalendarDays size={16} className="text-orange-500" /> Painel de Fechamento
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-apple-dark ml-1">Período de Competência</label>
+                  <label className="text-xs font-bold text-apple-dark ml-1">Mês de Competência</label>
                   <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                     <SelectTrigger className="h-14 bg-apple-offWhite border-apple-border rounded-2xl font-bold text-orange-500 shadow-sm">
                       <SelectValue />
@@ -133,7 +134,7 @@ const FiscalFiles = () => {
                 </div>
 
                 <div className="space-y-3">
-                   <label className="text-xs font-bold text-apple-dark ml-1">Tipo de Arquivo</label>
+                   <label className="text-xs font-bold text-apple-dark ml-1">Formato do Arquivo</label>
                    <div className="space-y-3">
                       {FILE_TYPES.map(type => (
                         <button 
@@ -167,7 +168,7 @@ const FiscalFiles = () => {
                   className="w-full bg-apple-black text-white font-black py-5 rounded-3xl shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                  >
                     {loading ? <Loader2 className="animate-spin" size={24} /> : <Download size={24} />}
-                    GERAR ARQUIVO AGORA
+                    PREPARAR PACOTE CONTÁBIL
                  </button>
               </div>
             </div>
@@ -176,7 +177,7 @@ const FiscalFiles = () => {
           <div className="space-y-6">
              <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 shadow-sm h-full flex flex-col">
                 <h3 className="text-xs font-bold text-apple-black uppercase tracking-widest mb-8 flex items-center gap-2">
-                  <History size={16} className="text-orange-500" /> Histórico Real
+                  <History size={16} className="text-orange-500" /> Exportações Recentes
                 </h3>
                 
                 <div className="flex-1 space-y-4">
@@ -186,9 +187,9 @@ const FiscalFiles = () => {
                       <div className="py-12 text-center opacity-30 italic text-sm">Nenhum arquivo gerado ainda.</div>
                    ) : history.map((item) => (
                      <div key={item.id} className="p-4 bg-apple-offWhite border border-apple-border rounded-2xl flex items-center justify-between group hover:border-orange-200 transition-all">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 overflow-hidden">
                            <div className={cn(
-                             "w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center shadow-sm",
+                             "w-10 h-10 rounded-xl bg-white border border-apple-border flex items-center justify-center shadow-sm shrink-0",
                              item.status === 'completed' ? "text-emerald-500" : "text-orange-500"
                            )}>
                               {item.status === 'completed' ? <CheckCircle2 size={18} /> : <Clock size={18} className="animate-pulse" />}
@@ -199,7 +200,7 @@ const FiscalFiles = () => {
                            </div>
                         </div>
                         {item.status === 'completed' && (
-                          <a href={item.file_url} target="_blank" download className="p-2 text-apple-muted hover:text-orange-500 transition-colors">
+                          <a href={item.file_url} target="_blank" download className="p-2 text-apple-muted hover:text-orange-500 transition-colors shrink-0">
                              <Download size={16} />
                           </a>
                         )}
