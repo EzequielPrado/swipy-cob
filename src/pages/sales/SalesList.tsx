@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
   CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
-  CalendarDays, Banknote, PlayCircle, DollarSign
+  CalendarDays, Banknote, PlayCircle, DollarSign, Factory
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -94,7 +94,6 @@ const SalesList = () => {
     );
   }, [sales, searchTerm]);
 
-  // Cálculo do faturamento total do mês (baseado nas vendas carregadas)
   const totalMonthRevenue = useMemo(() => {
     return sales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
   }, [sales]);
@@ -122,7 +121,6 @@ const SalesList = () => {
       const { error } = await supabase.from('quotes').update({ status: nextStage }).eq('id', selectedSale.id);
       if (error) throw error;
 
-      // Se moveu para produção, criar as ordens de produção
       if (nextStage === 'production') {
         const prodEntries = selectedSale.quote_items
           .filter((i: any) => i.products?.is_produced)
@@ -206,7 +204,6 @@ const SalesList = () => {
           </div>
         </div>
 
-        {/* CARD DE INDICADOR DE FATURAMENTO NO TOPO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-orange-200 transition-all border-l-4 border-l-orange-500">
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
