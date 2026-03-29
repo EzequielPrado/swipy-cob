@@ -53,26 +53,43 @@ serve(async (req) => {
 
       const order = await orderRes.json();
 
-      // 3. Processamento de Cliente Seguro
+      // 3. Processamento de Cliente Seguro (Dupla Checagem: Documento e E-mail)
       const customerData = order.customer || {};
-      const cleanTaxId = customerData.identification?.replace(/\D/g, '') || `NS_${customerData.id || order.id}`;
+      const cleanTaxId = customerData.identification?.replace(/\D/g, '');
+      const customerEmail = customerData.email || order.contact_email;
       
       let customerId;
-      const { data: existingCust } = await supabaseAdmin.from('customers')
-        .select('id')
-        .eq('user_id', integration.user_id)
-        .eq('tax_id', cleanTaxId)
-        .maybeSingle();
 
-      if (existingCust) {
-        customerId = existingCust.id;
-      } else {
+      // A. Tenta achar pelo CPF/CNPJ primeiro (Mais preciso)
+      if (cleanTaxId) {
+        const { data: existingCustByTax } = await supabaseAdmin.from('customers')
+          .select('id')
+          .eq('user_id', integration.user_id)
+          .eq('tax_id', cleanTaxId)
+          .maybeSingle();
+        
+        if (existingCustByTax) customerId = existingCustByTax.id;
+      }
+
+      // B. Se não achou por documento, tenta achar pelo E-mail (Fallback)
+      if (!customerId && customerEmail) {
+        const { data: existingCustByEmail } = await supabaseAdmin.from('customers')
+          .select('id')
+          .eq('user_id', integration.user_id)
+          .eq('email', customerEmail)
+          .maybeSingle();
+
+        if (existingCustByEmail) customerId = existingCustByEmail.id;
+      }
+
+      // C. Se realmente não existe na base, cria um novo cliente
+      if (!customerId) {
         const { data: newCust, error: custError } = await supabaseAdmin.from('customers').insert({
           user_id: integration.user_id,
           name: customerData.name || order.billing_name || 'Cliente Nuvemshop',
-          email: customerData.email || order.contact_email || 'sem-email@nuvemshop.com',
+          email: customerEmail || 'sem-email@nuvemshop.com',
           phone: customerData.phone || order.billing_phone || '',
-          tax_id: cleanTaxId,
+          tax_id: cleanTaxId || `NS_${customerData.id || order.id}`, // Placeholder se não tiver CPF
           status: 'em dia'
         }).select().single();
 
@@ -87,7 +104,7 @@ serve(async (req) => {
       // Se pago, já move para a Logística (picking). Se não, fica como aprovado.
       const quoteStatus = isPaid ? 'picking' : 'approved';
 
-      // 4. Verifica se a venda já existe no sistema
+      // 4. Verifica se a venda já existe no sistema para não duplicar o pedido
       const { data: existingCharge } = await supabaseAdmin.from('charges')
         .select('id, quote_id')
         .eq('correlation_id', correlationId)
