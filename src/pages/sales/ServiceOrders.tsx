@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -14,9 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useNavigate } from 'react-router-dom';
 
 const ServiceOrders = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,18 @@ const ServiceOrders = () => {
     fetchOrders();
     fetchDependencies();
   }, [user]);
+
+  const handleSharePortal = () => {
+    if (!profile?.slug) {
+      showError("Configure seu endereço personalizado em 'Personalização' antes de compartilhar.");
+      navigate('/configuracoes');
+      return;
+    }
+
+    const url = `${window.location.origin}/emp/${profile.slug}`;
+    navigator.clipboard.writeText(url);
+    showSuccess("Link do seu Portal de OS copiado! Mande para seus clientes.");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,7 +132,15 @@ const ServiceOrders = () => {
             <h2 className="text-3xl font-black tracking-tight text-apple-black flex items-center gap-3"><Wrench className="text-blue-500" size={32} /> Ordens de Serviço</h2>
             <p className="text-apple-muted font-medium mt-1">Gestão técnica de chamados internos e externos.</p>
           </div>
-          <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95"><Plus size={20} /> NOVA ORDEM</button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleSharePortal}
+              className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl border border-apple-border shadow-sm flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Share2 size={16} className="text-orange-500" /> Mandar para o Cliente
+            </button>
+            <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"><Plus size={20} /> NOVA ORDEM</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
