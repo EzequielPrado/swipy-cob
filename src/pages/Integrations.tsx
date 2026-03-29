@@ -11,21 +11,14 @@ import {
   Zap,
   Globe,
   RefreshCw,
-  Store,
   ShieldCheck
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { showError, showSuccess } from '@/utils/toast';
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<any[]>([]);
-  
-  const [storeSlug, setStoreSlug] = useState('');
-  const [showConnectForm, setShowConnectForm] = useState(false);
 
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
@@ -51,13 +44,10 @@ const Integrations = () => {
 
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
 
+  // NOVO FLUXO: Link direto global da Nuvemshop (não precisa do nome da loja)
   const handleConnectNuvemshop = () => {
-    if (!storeSlug) {
-      showError("Por favor, digite o nome da sua loja.");
-      return;
-    }
-    const cleanSlug = storeSlug.trim().toLowerCase().replace('.lojavirtualnuvem.com.br', '').replace('.tiendanube.com', '');
-    const authUrl = `https://${cleanSlug}.lojavirtualnuvem.com.br/admin/apps/28762/authorize`;
+    const CLIENT_ID = "28762";
+    const authUrl = `https://www.nuvemshop.com.br/apps/${CLIENT_ID}/authorize`;
     window.location.href = authUrl;
   };
 
@@ -124,32 +114,12 @@ const Integrations = () => {
                 </div>
               ) : (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                  {!showConnectForm ? (
-                    <button 
-                      onClick={() => setShowConnectForm(true)}
-                      className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <Globe size={18} className="text-orange-500" /> CONECTAR LOJA
-                    </button>
-                  ) : (
-                    <div className="space-y-4 bg-apple-offWhite p-6 rounded-3xl border border-apple-border">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black text-apple-muted uppercase tracking-widest flex items-center gap-2">
-                          <Store size={12} /> Nome da sua Loja
-                        </Label>
-                        <Input 
-                          placeholder="ex: minha-loja" 
-                          value={storeSlug}
-                          onChange={(e) => setStoreSlug(e.target.value)}
-                          className="bg-white border-apple-border h-12 rounded-xl font-bold"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => setShowConnectForm(false)} className="flex-1 bg-white border border-apple-border text-apple-black font-black py-3 rounded-xl text-xs">VOLTAR</button>
-                        <button onClick={handleConnectNuvemshop} className="flex-[2] bg-apple-black text-white font-black py-3 rounded-xl text-xs hover:bg-zinc-800">INSTALAR</button>
-                      </div>
-                    </div>
-                  )}
+                  <button 
+                    onClick={handleConnectNuvemshop}
+                    className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Globe size={18} className="text-orange-500" /> CONECTAR LOJA
+                  </button>
                 </div>
               )}
             </div>
