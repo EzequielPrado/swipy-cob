@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, Loader2, Calendar, TrendingUp,
   Store, Eye, Package, Receipt, ArrowUpRight, Globe,
   CheckCircle2, Wrench, PackageSearch, Truck, ChevronRight, FileText, Contact,
-  CalendarDays, Banknote, PlayCircle
+  CalendarDays, Banknote, PlayCircle, DollarSign
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -93,6 +93,11 @@ const SalesList = () => {
       (s.employees?.full_name && s.employees.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [sales, searchTerm]);
+
+  // Cálculo do faturamento total do mês (baseado nas vendas carregadas)
+  const totalMonthRevenue = useMemo(() => {
+    return sales.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  }, [sales]);
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -198,6 +203,24 @@ const SalesList = () => {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </div>
+
+        {/* CARD DE INDICADOR DE FATURAMENTO NO TOPO */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-orange-200 transition-all border-l-4 border-l-orange-500">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
+            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2 flex items-center gap-2">
+              <DollarSign size={14} className="text-orange-500" /> Faturamento no Período
+            </p>
+            {loading ? <Loader2 className="animate-spin text-apple-muted" size={24} /> : (
+              <div>
+                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(totalMonthRevenue)}</p>
+                <p className="text-[10px] text-apple-muted mt-2 font-medium uppercase">
+                  {monthOptions.find(o => o.value === selectedMonth)?.label}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
