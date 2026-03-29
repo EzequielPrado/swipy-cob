@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { 
   Wrench, Plus, Search, Clock, CheckCircle2, AlertCircle, 
-  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy
+  ArrowRight, User, Calendar, Loader2, DollarSign, Tag, Trash2, Edit3, Filter, ChevronRight, MapPin, Share2, Copy, Globe, UserCheck, ExternalLink
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -14,10 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const ServiceOrders = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveUserId, activeMerchant } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,12 @@ const ServiceOrders = () => {
   });
 
   const fetchOrders = async () => {
-    if (!user) return;
+    if (!effectiveUserId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('service_orders')
-      .select('*, customers(name, email, phone), employees(full_name)')
-      .eq('user_id', user.id)
+      .select('*, customers(id, name, email, phone), employees(full_name)')
+      .eq('user_id', effectiveUserId)
       .order('created_at', { ascending: false });
 
     if (!error) setOrders(data || []);
@@ -46,10 +46,10 @@ const ServiceOrders = () => {
   };
 
   const fetchDependencies = async () => {
-    if (!user) return;
+    if (!effectiveUserId) return;
     const [custRes, empRes] = await Promise.all([
-      supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
-      supabase.from('employees').select('id, full_name').eq('user_id', user.id).eq('status', 'Ativo').order('full_name')
+      supabase.from('customers').select('id, name').eq('user_id', effectiveUserId).order('name'),
+      supabase.from('employees').select('id, full_name').eq('user_id', effectiveUserId).eq('status', 'Ativo').order('full_name')
     ]);
     if (custRes.data) setCustomers(custRes.data);
     if (empRes.data) setEmployees(empRes.data);
@@ -58,18 +58,19 @@ const ServiceOrders = () => {
   useEffect(() => {
     fetchOrders();
     fetchDependencies();
-  }, [user]);
+  }, [effectiveUserId]);
 
   const handleSharePortal = () => {
-    if (!profile?.slug) {
+    const slug = activeMerchant?.slug || profile?.slug;
+    if (!slug) {
       showError("Configure seu endereço personalizado em 'Personalização' antes de compartilhar.");
       navigate('/configuracoes');
       return;
     }
 
-    const url = `${window.location.origin}/emp/${profile.slug}`;
+    const url = `${window.location.origin}/emp/${slug}`;
     navigator.clipboard.writeText(url);
-    showSuccess("Link do seu Portal de OS copiado! Mande para seus clientes.");
+    showSuccess("Link do Portal de OS copiado!");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,7 +81,7 @@ const ServiceOrders = () => {
     try {
       const cost = parseFloat(formData.estimatedCost.replace(',', '.')) || 0;
       const { error } = await supabase.from('service_orders').insert({
-        user_id: user?.id,
+        user_id: effectiveUserId,
         customer_id: formData.customerId,
         employee_id: formData.employeeId || null,
         title: formData.title,
@@ -88,7 +89,8 @@ const ServiceOrders = () => {
         equipment_info: formData.equipmentInfo,
         priority: formData.priority,
         estimated_cost: cost,
-        status: 'aberto'
+        status: 'aberto',
+        origin: 'manual'
       });
 
       if (error) throw error;
@@ -129,8 +131,13 @@ const ServiceOrders = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-black tracking-tight text-apple-black flex items-center gap-3"><Wrench className="text-blue-500" size={32} /> Ordens de Serviço</h2>
-            <p className="text-apple-muted font-medium mt-1">Gestão técnica de chamados internos e externos.</p>
+            <div className="flex items-center gap-2 mb-1">
+              <Wrench className="text-blue-500" size={20} />
+              <span className="text-[10px] font-black uppercase text-apple-muted tracking-widest">
+                Gestão de Serviços {activeMerchant ? `• ${activeMerchant.company}` : ''}
+              </span>
+            </div>
+            <h2 className="text-3xl font-black tracking-tight text-apple-black">Ordens de Serviço</h2>
           </div>
           <div className="flex gap-3">
             <button 
@@ -152,13 +159,16 @@ const ServiceOrders = () => {
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
-             <div className="relative w-full md:w-96"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} /><input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por cliente ou serviço..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" /></div>
+             <div className="relative w-full md:w-96">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-apple-muted" size={18} />
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Buscar por cliente ou serviço..." className="w-full bg-apple-white border border-apple-border rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-1 focus:ring-orange-500 outline-none transition-all shadow-sm" />
+             </div>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Cliente</th><th className="px-8 py-5">Responsável</th><th className="px-8 py-5">Fase</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                <tr><th className="px-8 py-5">Protocolo / Serviço</th><th className="px-8 py-5">Cliente do Lojista</th><th className="px-8 py-5">Responsável</th><th className="px-8 py-5">Origem / Fase</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
@@ -173,14 +183,39 @@ const ServiceOrders = () => {
                         <p className="text-sm font-black text-apple-black group-hover:text-blue-600 transition-colors">{order.title}</p>
                         <p className="text-[9px] text-apple-muted font-bold mt-0.5 italic">{order.equipment_info || 'Sem equipamento'}</p>
                       </td>
-                      <td className="px-8 py-5"><p className="text-sm font-bold text-apple-dark">{order.customers?.name}</p><p className="text-[10px] text-apple-muted">{order.customers?.phone}</p></td>
-                      <td className="px-8 py-5"><p className="text-xs font-medium text-apple-muted">{order.employees?.full_name || 'Aguardando Técnico'}</p></td>
-                      <td className="px-8 py-5"><span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", getStatusStyle(order.status))}>{order.status}</span></td>
+                      <td className="px-8 py-5">
+                        <Link to={`/clientes/${order.customers?.id}`} className="block hover:underline">
+                           <p className="text-sm font-bold text-apple-dark flex items-center gap-1.5">{order.customers?.name} <ExternalLink size={10} className="text-apple-muted opacity-0 group-hover:opacity-100" /></p>
+                           <p className="text-[10px] text-apple-muted">{order.customers?.phone}</p>
+                        </Link>
+                      </td>
+                      <td className="px-8 py-5">
+                        <p className="text-xs font-medium text-apple-muted flex items-center gap-1.5">
+                           <UserCheck size={12} className="text-blue-500" />
+                           {order.employees?.full_name || 'Aguardando Técnico'}
+                        </p>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex flex-col gap-2">
+                           <div className="flex items-center gap-1.5">
+                             {order.origin === 'web' ? (
+                               <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-purple-50 text-purple-600 border border-purple-100">
+                                 <Globe size={10} /> Portal
+                               </span>
+                             ) : (
+                               <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-apple-light text-apple-muted border border-apple-border">
+                                 <Edit3 size={10} /> Balcão
+                               </span>
+                             )}
+                           </div>
+                           <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border w-fit", getStatusStyle(order.status))}>{order.status}</span>
+                        </div>
+                      </td>
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                           {order.status === 'aberto' && <button onClick={() => updateStatus(order.id, 'em_progresso')} className="p-2 text-apple-muted hover:text-orange-500" title="Iniciar Reparo"><ArrowRight size={18}/></button>}
-                           {order.status === 'em_progresso' && <button onClick={() => updateStatus(order.id, 'concluido')} className="p-2 text-apple-muted hover:text-emerald-500" title="Concluir OS"><CheckCircle2 size={18}/></button>}
-                           <button onClick={() => deleteOS(order.id)} className="p-2 text-apple-muted hover:text-red-500" title="Excluir"><Trash2 size={18}/></button>
+                           {order.status === 'aberto' && <button onClick={() => updateStatus(order.id, 'em_progresso')} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm" title="Iniciar Reparo"><ArrowRight size={18}/></button>}
+                           {order.status === 'em_progresso' && <button onClick={() => updateStatus(order.id, 'concluido')} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Concluir OS"><CheckCircle2 size={18}/></button>}
+                           <button onClick={() => deleteOS(order.id)} className="p-2.5 text-apple-muted hover:text-red-500 transition-all" title="Excluir"><Trash2 size={18}/></button>
                         </div>
                       </td>
                     </tr>
@@ -198,13 +233,13 @@ const ServiceOrders = () => {
           <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Serviço Solicitado</Label><Input required placeholder="Ex: Ajuste de Armação" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" /></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Cliente</Label>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Cliente do Lojista</Label>
                 <Select value={formData.customerId} onValueChange={v => setFormData({...formData, customerId: v})}>
                   <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent className="bg-apple-white border-apple-border">{customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Técnico</Label>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Técnico Responsável</Label>
                 <Select value={formData.employeeId} onValueChange={v => setFormData({...formData, employeeId: v})}>
                   <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent className="bg-apple-white border-apple-border">{employees.map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>

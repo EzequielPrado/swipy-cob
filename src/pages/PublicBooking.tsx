@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Wrench, Loader2, CheckCircle2, User, Phone, FileText, 
-  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin
+  Package, ArrowRight, ShieldCheck, AlertCircle, MapPin, Globe
 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { cn } from "@/lib/utils";
@@ -74,7 +74,7 @@ const PublicBooking = () => {
         customer = newCust;
       }
 
-      // 2. Criar a OS
+      // 2. Criar a OS com origem 'web'
       const { data: os, error: osErr } = await supabase
         .from('service_orders')
         .insert({
@@ -83,7 +83,8 @@ const PublicBooking = () => {
           title: formData.title,
           equipment_info: formData.equipment,
           description: formData.description,
-          status: 'aberto'
+          status: 'aberto',
+          origin: 'web'
         })
         .select().single();
 
@@ -142,7 +143,7 @@ const PublicBooking = () => {
             <span className="text-2xl font-black tracking-tight">{merchant.company}</span>
           </div>
           <h1 className="text-4xl font-black tracking-tighter mb-4">Solicitar Assistência</h1>
-          <p className="text-apple-muted font-medium">Preencha os detalhes abaixo para abrirmos sua ordem de serviço.</p>
+          <p className="text-apple-muted font-medium">Preencha os detalhes abaixo para abrirmos sua ordem de serviço junto à **{merchant.company}**.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-apple-white border border-apple-border rounded-[3rem] overflow-hidden shadow-sm animate-in slide-in-from-bottom-8 duration-1000">
@@ -205,7 +206,7 @@ const PublicBooking = () => {
 
         <div className="mt-12 flex items-center justify-center gap-3 opacity-40">
            <ShieldCheck size={18} className="text-emerald-600" />
-           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-apple-muted">Protegido por Swipy Fintech & Criptografia Woovi</p>
+           <p className="text-[9px] font-black uppercase tracking-[0.2em] text-apple-muted">Sistema Oficial de Ordens de Serviço da {merchant.company}</p>
         </div>
       </div>
     </div>
