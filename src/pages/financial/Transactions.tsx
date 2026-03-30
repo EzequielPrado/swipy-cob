@@ -32,7 +32,7 @@ const Transactions = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
-    d.setDate(1); // Fix
+    d.setDate(1); 
     d.setMonth(d.getMonth() - 11); 
     for(let i=0; i<24; i++) { 
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -64,7 +64,7 @@ const Transactions = () => {
           .select('*, customers(name)')
           .eq('user_id', effectiveUserId)
           .gte('due_date', startDate)
-          .lte('due_date', endDate),
+          .lte('due_date', `${endDate}T23:59:59`),
         supabase.from('expenses')
           .select('*')
           .eq('user_id', effectiveUserId)
@@ -131,6 +131,15 @@ const Transactions = () => {
   }, [unifiedData, searchTerm, sourceFilter]);
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Função utilitária para formatar data de forma segura no extrato
+  const formatDateSafe = (dateStr: string) => {
+    if (!dateStr) return '---';
+    // Se a string contiver 'T' (timestamp), pegamos apenas a parte da data YYYY-MM-DD
+    const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    // Criamos a data usando meio-dia para evitar problemas de fuso horário saltando o dia
+    return new Date(cleanDate + 'T12:00:00').toLocaleDateString('pt-BR');
+  };
 
   return (
     <AppLayout>
@@ -206,7 +215,7 @@ const Transactions = () => {
                   onClick={() => setSourceFilter(source.id)}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
-                    sourceFilter === source.id ? "bg-orange-500 border-orange-600 text-white shadow-md" : "bg-apple-offWhite border-apple-border text-apple-muted hover:bg-apple-light"
+                    sourceFilter === source.id ? "bg-orange-50 border-orange-600 text-white shadow-md" : "bg-apple-offWhite border-apple-border text-apple-muted hover:bg-apple-light"
                   )}
                 >
                   <source.icon size={14} /> {source.label}
@@ -236,7 +245,7 @@ const Transactions = () => {
                   filteredData.map((item, idx) => (
                     <tr key={idx} className="hover:bg-apple-light transition-colors group">
                       <td className="px-8 py-5">
-                         <p className="text-sm font-black text-apple-black">{new Date(item.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
+                         <p className="text-sm font-black text-apple-black">{formatDateSafe(item.date)}</p>
                          <p className="text-[9px] text-apple-muted font-bold uppercase mt-0.5">{item.account || 'Previsão de Caixa'}</p>
                       </td>
                       <td className="px-8 py-5">
