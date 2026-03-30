@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, User, Fingerprint, Mail, Phone, FileCheck } from 'lucide-react';
 
 interface EditCustomerModalProps {
   isOpen: boolean;
@@ -23,6 +23,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
     email: '',
     phone: '',
     taxID: '',
+    rg: '',
     address: {
       zipcode: '',
       street: '',
@@ -36,12 +37,13 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
   });
 
   useEffect(() => {
-    if (customer) {
+    if (customer && isOpen) {
       setFormData({
         name: customer.name || '',
         email: customer.email || '',
         phone: customer.phone || '',
         taxID: customer.tax_id || '',
+        rg: customer.address?.rg || '', // Recupera RG do JSONB
         address: customer.address || {
           zipcode: '',
           street: '',
@@ -54,7 +56,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         }
       });
     }
-  }, [customer]);
+  }, [customer, isOpen]);
 
   const handleAddressChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -71,12 +73,16 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
     setLoading(true);
 
     try {
-      // LIMPEZA: Normalizando para apenas números
       const cleanTaxID = formData.taxID.replace(/\D/g, '');
+      
+      const fullAddress = {
+        ...formData.address,
+        rg: formData.rg
+      };
 
       // 1. Atualizar na Woovi via Edge Function
       if (customer.woovi_id) {
-        const wooviResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
+        await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -88,14 +94,9 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
             email: formData.email,
             phone: formData.phone,
             taxID: cleanTaxID,
-            address: formData.address
+            address: fullAddress
           })
         });
-
-        if (!wooviResponse.ok) {
-          const wooviResult = await wooviResponse.json();
-          throw new Error(wooviResult.error || "Erro ao atualizar na Woovi");
-        }
       }
 
       // 2. Atualizar no Supabase
@@ -106,13 +107,13 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
           email: formData.email,
           phone: formData.phone,
           tax_id: cleanTaxID,
-          address: formData.address
+          address: fullAddress
         })
         .eq('id', customer.id);
 
       if (dbError) throw dbError;
 
-      showSuccess('Cliente atualizado com sucesso!');
+      showSuccess('Informações atualizadas!');
       onSuccess();
       onClose();
     } catch (error: any) {
@@ -124,152 +125,76 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100 sm:max-w-[500px] p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="text-xl">Editar Cliente</DialogTitle>
+      <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] p-0 overflow-hidden rounded-[2.5rem] shadow-2xl">
+        <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+          <DialogTitle className="text-xl font-black flex items-center gap-3">
+             <User className="text-orange-500" /> Editar Prontuário
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit}>
-          <ScrollArea className="max-h-[70vh] px-6 py-2">
-            <div className="space-y-6 pb-6">
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Informações Básicas</h3>
+          <ScrollArea className="max-h-[65vh] p-8">
+            <div className="space-y-10 pb-6">
+              
+              <div className="space-y-6">
+                <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                   <FileCheck size={14} className="text-orange-500" /> Identificação
+                </p>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Nome Completo / Razão Social</Label>
-                  <Input 
-                    id="edit-name" 
-                    required
-                    className="bg-zinc-950 border-zinc-800 h-11"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-email">E-mail</Label>
-                  <Input 
-                    id="edit-email" 
-                    type="email" 
-                    required
-                    className="bg-zinc-950 border-zinc-800 h-11"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
+                  <Label className="text-xs font-bold ml-1">Nome Completo</Label>
+                  <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-taxID">CPF / CNPJ</Label>
-                    <Input 
-                      id="edit-taxID" 
-                      required
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.taxID}
-                      onChange={(e) => setFormData({...formData, taxID: e.target.value})}
-                    />
+                    <Label className="text-xs font-bold ml-1">CPF / CNPJ</Label>
+                    <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-orange-600" value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-phone">Telefone</Label>
-                    <Input 
-                      id="edit-phone" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    />
+                    <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Fingerprint size={14} className="text-blue-500" /> RG</Label>
+                    <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.rg} onChange={(e) => setFormData({...formData, rg: e.target.value})} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                    <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Mail size={14} className="text-apple-muted" /> E-mail</Label>
+                    <Input type="email" required className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Phone size={14} className="text-emerald-500" /> WhatsApp</Label>
+                    <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4 border-t border-zinc-800 pt-6">
-                <div className="flex items-center gap-2">
-                  <MapPin size={14} className="text-orange-500" />
-                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Endereço</h3>
-                </div>
-                
+              <div className="space-y-6 pt-6 border-t border-apple-border">
+                <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
+                  <MapPin size={14} className="text-orange-500" /> Localização
+                </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-zipcode">CEP</Label>
-                    <Input 
-                      id="edit-zipcode" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.address.zipcode}
-                      onChange={(e) => handleAddressChange('zipcode', e.target.value)}
-                    />
+                    <Label className="text-xs font-bold ml-1">CEP</Label>
+                    <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-number">Número</Label>
-                    <Input 
-                      id="edit-number" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.address.number}
-                      onChange={(e) => handleAddressChange('number', e.target.value)}
-                    />
+                    <Label className="text-xs font-bold ml-1">Número</Label>
+                    <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.number} onChange={(e) => handleAddressChange('number', e.target.value)} />
                   </div>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="edit-street">Logradouro (Rua, Av.)</Label>
-                  <Input 
-                    id="edit-street" 
-                    className="bg-zinc-950 border-zinc-800 h-11"
-                    value={formData.address.street}
-                    onChange={(e) => handleAddressChange('street', e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-neighborhood">Bairro</Label>
-                    <Input 
-                      id="edit-neighborhood" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.address.neighborhood}
-                      onChange={(e) => handleAddressChange('neighborhood', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-complement">Complemento</Label>
-                    <Input 
-                      id="edit-complement" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.address.complement}
-                      onChange={(e) => handleAddressChange('complement', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-city">Cidade</Label>
-                    <Input 
-                      id="edit-city" 
-                      className="bg-zinc-950 border-zinc-800 h-11"
-                      value={formData.address.city}
-                      onChange={(e) => handleAddressChange('city', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-state">Estado (UF)</Label>
-                    <Input 
-                      id="edit-state" 
-                      maxLength={2}
-                      placeholder="SP"
-                      className="bg-zinc-950 border-zinc-800 h-11 uppercase"
-                      value={formData.address.state}
-                      onChange={(e) => handleAddressChange('state', e.target.value)}
-                    />
-                  </div>
+                  <Label className="text-xs font-bold ml-1">Cidade</Label>
+                  <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} />
                 </div>
               </div>
             </div>
           </ScrollArea>
 
-          <DialogFooter className="p-6 border-t border-zinc-800">
+          <DialogFooter className="p-8 border-t border-apple-border bg-apple-offWhite">
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-orange-500 text-zinc-950 font-bold py-3 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10"
+              className="w-full bg-apple-black text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95"
             >
-              {loading && <Loader2 className="animate-spin" size={18} />}
-              Salvar Alterações
+              {loading ? <Loader2 className="animate-spin" size={24} /> : "SALVAR ALTERAÇÕES"}
             </button>
           </DialogFooter>
         </form>
