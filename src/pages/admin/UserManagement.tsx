@@ -87,6 +87,35 @@ const UserManagement = () => {
     }
   };
 
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    setUpdating(true);
+    
+    try {
+      const payload = {
+        company: editData.company,
+        full_name: editData.full_name,
+        status: editData.status,
+        system_role: editData.system_role,
+        woovi_api_key: editData.woovi_api_key,
+        plan_id: editData.plan_id === 'none' ? null : editData.plan_id,
+        accountant_id: editData.accountant_id === 'none' ? null : editData.accountant_id,
+      };
+
+      const { error } = await supabase.from('profiles').update(payload).eq('id', selectedUser.id);
+      if (error) throw error;
+
+      showSuccess('Usuário atualizado com sucesso!');
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const filtered = users.filter(u => 
     (u.company?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
     (u.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
@@ -116,46 +145,48 @@ const UserManagement = () => {
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
-          <table className="w-full text-left">
-            <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
-              <tr>
-                <th className="px-8 py-6">Entidade / Responsável</th>
-                <th className="px-8 py-6">Papel no Sistema</th>
-                <th className="px-8 py-6">Vínculo / Plano</th>
-                <th className="px-8 py-6 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-apple-border">
-              {loading ? <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr> : filtered.map((u) => (
-                <tr key={u.id} className="hover:bg-apple-light transition-colors">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-apple-offWhite flex items-center justify-center border text-apple-muted">
-                        <User size={20} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-apple-black">{u.company || 'Pessoa Física'}</p>
-                        <p className="text-[10px] text-apple-muted font-bold">{u.full_name}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-apple-offWhite text-apple-dark border-apple-border">
-                      {u.system_role}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="text-[10px] text-orange-500 font-bold uppercase">{u.system_plans?.name || 'SaaS Gratuito'}</span>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status, system_role: u.system_role, woovi_api_key: u.woovi_api_key || '', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none' }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
-                      <Settings2 size={16} />
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
+                <tr>
+                  <th className="px-8 py-6">Entidade / Responsável</th>
+                  <th className="px-8 py-6">Papel no Sistema</th>
+                  <th className="px-8 py-6">Vínculo / Plano</th>
+                  <th className="px-8 py-6 text-right">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-apple-border">
+                {loading ? <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr> : filtered.map((u) => (
+                  <tr key={u.id} className="hover:bg-apple-light transition-colors">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-apple-offWhite flex items-center justify-center border text-apple-muted">
+                          <User size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-apple-black">{u.company || 'Pessoa Física'}</p>
+                          <p className="text-[10px] text-apple-muted font-bold">{u.full_name}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-apple-offWhite text-apple-dark border-apple-border">
+                        {u.system_role}
+                      </span>
+                    </td>
+                    <td className="px-8 py-5">
+                      <span className="text-[10px] text-orange-500 font-bold uppercase">{u.system_plans?.name || 'SaaS Gratuito'}</span>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status || 'pending', system_role: u.system_role || 'Admin', woovi_api_key: u.woovi_api_key || '', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none' }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
+                        <Settings2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -171,7 +202,7 @@ const UserManagement = () => {
             <div className="space-y-2">
               <Label className="text-[10px] uppercase font-black text-apple-muted">Perfil de Acesso</Label>
               <Select value={createData.system_role} onValueChange={v => setCreateData({...createData, system_role: v})}>
-                <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl font-bold border-apple-border"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-apple-white border-apple-border">
                   <SelectItem value="Admin">Lojista (Dono)</SelectItem>
                   <SelectItem value="Contador">Contador Parceiro</SelectItem>
@@ -181,15 +212,99 @@ const UserManagement = () => {
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] uppercase font-black text-apple-muted">E-mail do Convidado</Label>
-              <Input required type="email" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} className="bg-apple-offWhite h-12 rounded-xl" placeholder="email@exemplo.com" />
+              <Input required type="email" value={createData.email} onChange={e => setCreateData({...createData, email: e.target.value})} className="bg-apple-offWhite h-12 rounded-xl font-bold border-apple-border" placeholder="email@exemplo.com" />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] uppercase font-black text-apple-muted">Nome Completo</Label>
-              <Input required value={createData.full_name} onChange={e => setCreateData({...createData, full_name: e.target.value})} className="bg-apple-offWhite h-12 rounded-xl" placeholder="Nome do Usuário" />
+              <Input required value={createData.full_name} onChange={e => setCreateData({...createData, full_name: e.target.value})} className="bg-apple-offWhite h-12 rounded-xl font-bold border-apple-border" placeholder="Nome do Usuário" />
             </div>
             <button type="submit" disabled={updating} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 flex items-center justify-center gap-2">
               {updating ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={18} /> DISPARAR E-MAIL</>}
             </button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE EDIÇÃO DE LOJISTA / USUÁRIO */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl font-black flex items-center gap-3">
+              <Settings2 className="text-orange-500" /> Editar Acesso e Plano
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditUser} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black text-apple-muted">Nome / Razão Social</Label>
+                <Input value={editData.company} onChange={e => setEditData({...editData, company: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black text-apple-muted">Responsável</Label>
+                <Input value={editData.full_name} onChange={e => setEditData({...editData, full_name: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black text-apple-muted">Status</Label>
+                <Select value={editData.status} onValueChange={v => setEditData({...editData, status: v})}>
+                  <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl border-apple-border font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-apple-white border-apple-border">
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="blocked">Bloqueado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-black text-apple-muted">Papel (Role)</Label>
+                <Select value={editData.system_role} onValueChange={v => setEditData({...editData, system_role: v})}>
+                  <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl border-apple-border font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-apple-white border-apple-border">
+                    <SelectItem value="Admin">Admin (Lojista)</SelectItem>
+                    <SelectItem value="Contador">Contador Parceiro</SelectItem>
+                    <SelectItem value="Vendas">Vendas</SelectItem>
+                    <SelectItem value="Financeiro">Financeiro</SelectItem>
+                    <SelectItem value="Estoque">Estoque</SelectItem>
+                    <SelectItem value="RH">RH</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Vincular a um Plano</Label>
+              <Select value={editData.plan_id} onValueChange={v => setEditData({...editData, plan_id: v})}>
+                <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl border-apple-border font-bold"><SelectValue placeholder="Selecione um plano..." /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">
+                  <SelectItem value="none">Sem Plano / Free Trial</SelectItem>
+                  {plans.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Contador Responsável</Label>
+              <Select value={editData.accountant_id} onValueChange={v => setEditData({...editData, accountant_id: v})}>
+                <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl border-apple-border font-bold"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">
+                  <SelectItem value="none">Sem Contador Vinculado</SelectItem>
+                  {accountants.map(a => <SelectItem key={a.id} value={a.id}>{a.company || a.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Woovi API Key (App ID)</Label>
+              <Input type="password" value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" placeholder="Token da Instituição de Pagamento" />
+            </div>
+
+            <DialogFooter className="pt-4 border-t border-apple-border">
+              <button type="submit" disabled={updating} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 flex items-center justify-center gap-2">
+                {updating ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={18} /> SALVAR ALTERAÇÕES</>}
+              </button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
