@@ -90,7 +90,7 @@ const OverviewDashboard = () => {
 
         const { data: { session } } = await supabase.auth.getSession();
 
-        const promises: Promise<any>[] = [];
+        const promises: any[] = [];
         let subsIdx = -1, salesIdx = -1, productsIdx = -1, expensesIdx = -1, accountsIdx = -1, ordersIdx = -1, employeesIdx = -1, wooviIdx = -1;
 
         if (showMrrCard) {
@@ -208,7 +208,7 @@ const OverviewDashboard = () => {
         )}
 
         {/* KPIs FINANCEIROS */}
-        {kpiCount > 0 && (
+        {(showSalesCard || showBalanceCard || showPayablesCard || showMrrCard) && (
           <div className={cn("grid gap-6", kpiGridClass)}>
             
             {showSalesCard && (
