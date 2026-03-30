@@ -6,11 +6,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   History, Search, Filter, Loader2, ShieldAlert, 
   User, Building2, Clock, CheckCircle2, Send, Eye, MousePointer2,
-  AlertTriangle, Database, Terminal, FileJson
+  AlertTriangle, Database, Terminal, FileJson, Activity, RefreshCw
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState<any[]>([]);
@@ -21,7 +22,7 @@ const AuditLogs = () => {
   const fetchGlobalLogs = async () => {
     setLoading(true);
     try {
-      // Puxamos logs de notificações e eventos globais (e futuramente audit_logs)
+      // Puxamos logs de notificações e eventos globais
       const { data, error } = await supabase
         .from('notification_logs')
         .select(`
@@ -82,8 +83,8 @@ const AuditLogs = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
              </div>
-             <button onClick={fetchGlobalLogs} className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black shadow-sm">
-                <RefreshCw size={20} />
+             <button onClick={fetchGlobalLogs} className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black shadow-sm transition-all active:scale-95">
+                <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
              </button>
           </div>
         </div>
@@ -91,11 +92,11 @@ const AuditLogs = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div className="bg-orange-50 border border-orange-200 p-6 rounded-[2rem] flex items-center gap-4">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-orange-500 shadow-sm"><Activity size={24} /></div>
-              <div><p className="text-[10px] font-black uppercase text-orange-600">Eventos Hoje</p><p className="text-2xl font-black text-apple-black">482</p></div>
+              <div><p className="text-[10px] font-black uppercase text-orange-600">Monitoramento</p><p className="text-2xl font-black text-apple-black">Ativo</p></div>
            </div>
            <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex items-center gap-4">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-500 shadow-sm"><Send size={24} /></div>
-              <div><p className="text-[10px] font-black uppercase text-blue-600">Entregas Meta API</p><p className="text-2xl font-black text-apple-black">1.2k</p></div>
+              <div><p className="text-[10px] font-black uppercase text-blue-600">Entregas Meta API</p><p className="text-2xl font-black text-apple-black">Live</p></div>
            </div>
            <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-[2rem] flex items-center gap-4">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm"><ShieldCheck size={24} /></div>
@@ -104,7 +105,7 @@ const AuditLogs = () => {
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
               <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
                 <tr>
@@ -116,7 +117,7 @@ const AuditLogs = () => {
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {loading ? (
-                  <tr><td colSpan={4} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" /></td></tr>
+                  <tr><td colSpan={4} className="py-24 text-center"><Loader2 className="animate-spin mx-auto text-orange-500" size={40} /></td></tr>
                 ) : filteredLogs.length === 0 ? (
                   <tr><td colSpan={4} className="py-24 text-center text-apple-muted italic">Nenhum evento registrado.</td></tr>
                 ) : filteredLogs.map((log) => (
@@ -184,7 +185,7 @@ const AuditLogs = () => {
               </div>
               <div className="flex items-center gap-3 text-[10px] font-bold text-apple-muted uppercase bg-orange-50 p-4 rounded-2xl border border-orange-100">
                  <AlertTriangle size={14} className="text-orange-500" />
-                 Este registro é imutável e assinado digitalmente pelo Supabase Auth.
+                 Este registro é imutável e assinado digitalmente pelo sistema Swipy.
               </div>
             </div>
           )}
@@ -193,9 +194,5 @@ const AuditLogs = () => {
     </AppLayout>
   );
 };
-
-const RefreshCw = ({ size, className }: { size?: number, className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-);
 
 export default AuditLogs;
