@@ -3,15 +3,16 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Plus, Loader2, Users, Building2, Briefcase, ShieldAlert, Key, Edit3, Trash2 } from 'lucide-react';
+import { Search, Plus, Loader2, Users, Building2, Briefcase, ShieldAlert, Key, Edit3, Trash2, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import AddEmployeeModal from '@/components/hr/AddEmployeeModal';
 import EditEmployeeModal from '@/components/hr/EditEmployeeModal';
+import { generateBlankEmployeeForm } from '@/utils/hrUtils';
 
 const Employees = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,15 +36,33 @@ const Employees = () => {
     if (!error) { showSuccess("Colaborador removido"); fetchEmployees(); }
   };
 
+  const handleDownloadBlankForm = () => {
+    generateBlankEmployeeForm(profile?.company || 'Nossa Empresa');
+    showSuccess("Ficha de cadastro gerada!");
+  };
+
   const filtered = employees.filter(e => e.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6">
           <div><h2 className="text-3xl font-bold tracking-tight text-apple-black">Colaboradores</h2><p className="text-apple-muted mt-1 font-medium">Gestão de capital humano e acessos ao ERP.</p></div>
-          <button onClick={() => setIsAddModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm"><Plus size={18} /> Nova Admissão</button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleDownloadBlankForm}
+              className="bg-apple-white border border-apple-border text-apple-dark font-bold px-5 py-2.5 rounded-xl shadow-sm hover:bg-apple-light transition-all flex items-center gap-2"
+            >
+              <FileDown size={18} className="text-orange-500" /> Baixar Ficha (PDF)
+            </button>
+            <button 
+              onClick={() => setIsAddModalOpen(true)} 
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-orange-500/10 transition-all flex items-center gap-2 active:scale-95"
+            >
+              <Plus size={18} /> Nova Admissão
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -55,16 +74,25 @@ const Employees = () => {
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
           {loading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-orange-500" size={32} /></div> : (
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Colaborador</th><th className="px-8 py-5">Setor</th><th className="px-8 py-5">Salário</th><th className="px-8 py-5 text-right">Ações</th></tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {filtered.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-apple-light transition-colors"><td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{emp.full_name}</p><p className="text-[10px] text-apple-muted font-bold">{emp.job_role}</p></td><td className="px-8 py-5"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-apple-offWhite border border-apple-border text-apple-dark"><Building2 size={10} /> {emp.department}</span></td><td className="px-8 py-5 text-sm font-bold text-apple-dark">{currency.format(emp.base_salary)}</td><td className="px-8 py-5 text-right"><div className="flex items-center justify-end gap-1"><button onClick={() => { setSelectedEmployee(emp); setIsEditModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit3 size={18}/></button><button onClick={() => handleDelete(emp.id, emp.full_name)} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button></div></td></tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-black tracking-[0.2em] border-b border-apple-border">
+                  <tr><th className="px-8 py-5">Colaborador</th><th className="px-8 py-5">Setor</th><th className="px-8 py-5">Salário</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {filtered.length === 0 ? (
+                    <tr><td colSpan={4} className="py-20 text-center text-apple-muted italic">Nenhum colaborador cadastrado.</td></tr>
+                  ) : filtered.map((emp) => (
+                    <tr key={emp.id} className="hover:bg-apple-light transition-colors">
+                      <td className="px-8 py-5"><p className="text-sm font-bold text-apple-black">{emp.full_name}</p><p className="text-[10px] text-apple-muted font-bold uppercase">{emp.job_role}</p></td>
+                      <td className="px-8 py-5"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-apple-offWhite border border-apple-border text-apple-dark"><Building2 size={10} /> {emp.department}</span></td>
+                      <td className="px-8 py-5 text-sm font-bold text-apple-dark">{currency.format(emp.base_salary)}</td>
+                      <td className="px-8 py-5 text-right"><div className="flex items-center justify-end gap-1"><button onClick={() => { setSelectedEmployee(emp); setIsEditModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit3 size={18}/></button><button onClick={() => handleDelete(emp.id, emp.full_name)} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
