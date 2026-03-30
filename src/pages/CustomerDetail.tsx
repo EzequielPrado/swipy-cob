@@ -7,6 +7,7 @@ import { ArrowLeft, User, Mail, Phone, MapPin, FileText, DollarSign, ShieldCheck
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { cn } from "@/lib/utils";
+import CustomerDocumentsSection from '@/components/customers/CustomerDocumentsSection';
 
 const CustomerDetail = () => {
   const { id } = useParams();
@@ -15,7 +16,6 @@ const CustomerDetail = () => {
   const [charges, setCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Dados de Inteligência de Rede (Simulados via Query Global)
   const [networkScore, setNetworkScore] = useState({ score: 100, label: 'Excelente', color: 'text-emerald-500' });
 
   useEffect(() => {
@@ -29,12 +29,10 @@ const CustomerDetail = () => {
         const { data: chargeData } = await supabase.from('charges').select('*').eq('customer_id', id).order('created_at', { ascending: false });
         if (chargeData) setCharges(chargeData);
 
-        // BUSCA DE SCORE NA REDE (Calculado pelo CPF/CNPJ em todo o banco)
-        // Nota: No futuro isso pode ser uma Edge Function para performance
-        const cleanTaxId = custData.tax_id.replace(/\D/g, '');
+        const cleanTaxId = custData.tax_id?.replace(/\D/g, '');
         const { data: globalCharges } = await supabase.from('charges').select('status, customers!inner(tax_id)');
         
-        const myGlobalCharges = globalCharges?.filter((c: any) => c.customers.tax_id.replace(/\D/g, '') === cleanTaxId) || [];
+        const myGlobalCharges = globalCharges?.filter((c: any) => c.customers.tax_id?.replace(/\D/g, '') === cleanTaxId) || [];
         const paid = myGlobalCharges.filter(c => c.status === 'pago').length;
         const total = myGlobalCharges.length;
         
@@ -78,7 +76,6 @@ const CustomerDetail = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* COLUNA ESQUERDA: PERFIL */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm text-center">
               <div className="w-24 h-24 mx-auto rounded-3xl bg-apple-offWhite border-2 border-apple-border flex items-center justify-center text-3xl font-black text-orange-500 shadow-inner mb-6">{customer.name.charAt(0).toUpperCase()}</div>
@@ -92,7 +89,6 @@ const CustomerDetail = () => {
               </div>
             </div>
 
-            {/* CARD DE INTELIGÊNCIA SWIPY */}
             <div className="bg-apple-black p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
                <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><ShieldCheck size={100} className="text-orange-500" /></div>
                <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -104,13 +100,12 @@ const CustomerDetail = () => {
                   <div className="h-10 w-px bg-white/20" />
                   <div>
                     <p className={cn("text-xs font-black uppercase tracking-widest", networkScore.color.split(' ')[0])}>{networkScore.label}</p>
-                    <p className="text-[9px] text-zinc-500 font-medium leading-tight mt-1">Baseado no histórico de pagamentos em todos os lojistas Swipy.</p>
+                    <p className="text-[9px] text-zinc-500 font-medium leading-tight mt-1">Baseado no histórico de pagamentos em toda a rede Swipy.</p>
                   </div>
                </div>
             </div>
           </div>
 
-          {/* COLUNA DIREITA: HISTÓRICO */}
           <div className="lg:col-span-2 space-y-8">
             <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
               <div className="p-8 border-b border-apple-border bg-apple-offWhite flex justify-between items-center">
@@ -136,6 +131,9 @@ const CustomerDetail = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* NOVA SEÇÃO DE DOCUMENTOS */}
+            <CustomerDocumentsSection customerId={id!} userId={customer.user_id} />
           </div>
         </div>
       </div>
