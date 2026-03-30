@@ -35,6 +35,11 @@ export default defineConfig(() => ({
             type: 'image/png'
           }
         ]
+      },
+      workbox: {
+        // Aumenta o limite para 10MB para não quebrar a build no Coolify/Vercel
+        maximumFileSizeToCacheInBytes: 10000000, 
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       }
     })
   ],
