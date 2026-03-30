@@ -26,22 +26,22 @@ const menuStructure = [
     icon: ShoppingCart, 
     roles: ['Admin', 'Vendas', 'Contador'], 
     submenus: [
-      { label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, 
-      { label: 'Gestão de Vendas', path: '/vendas/lista' }, 
-      { label: 'Orçamentos de Produtos', path: '/vendas/orcamentos' }, 
-      { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }
+      { label: 'Dashboard de Vendas', path: '/vendas/dashboard', featureId: 'vendas_dashboard' }, 
+      { label: 'Gestão de Vendas', path: '/vendas/lista', featureId: 'vendas_lista' }, 
+      { label: 'Orçamentos de Produtos', path: '/vendas/orcamentos', featureId: 'vendas_orcamentos' }, 
+      { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv', featureId: 'vendas_pdv' }
     ] 
   },
   { 
     title: 'Serviços', 
-    moduleId: 'vendas', 
+    moduleId: 'servicos', 
     icon: Wrench, 
     roles: ['Admin', 'Vendas', 'Contador'], 
     submenus: [
-      { label: 'Ordens de Serviço', path: '/servicos/ordens-servico' },
-      { label: 'Agendamentos', path: '/servicos/agendamentos' }, 
-      { label: 'Cadastro de Serviços', path: '/servicos/cadastro' }, 
-      { label: 'Orçamentos de Serviços', path: '/servicos/orcamentos' }
+      { label: 'Ordens de Serviço', path: '/servicos/ordens-servico', featureId: 'servicos_os' },
+      { label: 'Agendamentos', path: '/servicos/agendamentos', featureId: 'servicos_agendamentos' }, 
+      { label: 'Cadastro de Serviços', path: '/servicos/cadastro', featureId: 'servicos_cadastro' }, 
+      { label: 'Orçamentos de Serviços', path: '/servicos/orcamentos', featureId: 'servicos_orcamentos' }
     ] 
   },
   { 
@@ -50,14 +50,14 @@ const menuStructure = [
     icon: Landmark, 
     roles: ['Admin', 'Financeiro', 'Contador'], 
     submenus: [
-      { label: 'Dashboard Financeiro', path: '/financeiro/dashboard' },
-      { label: 'Fluxo de Caixa (Extrato)', path: '/financeiro/transacoes' },
-      { label: 'Conciliação Bancária', path: '/financeiro/conciliacao' },
-      { label: 'Contas a Receber', path: '/financeiro/cobrancas' },
-      { label: 'Contas a Pagar', path: '/financeiro/pagar' },
-      { label: 'Contratos Recorrentes', path: '/financeiro/contratos' },
-      { label: 'Contas Bancárias', path: '/financeiro/bancos' },
-      { label: 'Plano de Contas', path: '/financeiro/plano-contas' }
+      { label: 'Dashboard Financeiro', path: '/financeiro/dashboard', featureId: 'financeiro_dashboard' },
+      { label: 'Fluxo de Caixa (Extrato)', path: '/financeiro/transacoes', featureId: 'financeiro_transacoes' },
+      { label: 'Conciliação Bancária', path: '/financeiro/conciliacao', featureId: 'financeiro_conciliacao' },
+      { label: 'Contas a Receber', path: '/financeiro/cobrancas', featureId: 'financeiro_cobrancas' },
+      { label: 'Contas a Pagar', path: '/financeiro/pagar', featureId: 'financeiro_pagar' },
+      { label: 'Contratos Recorrentes', path: '/financeiro/contratos', featureId: 'financeiro_contratos' },
+      { label: 'Contas Bancárias', path: '/financeiro/bancos', featureId: 'financeiro_bancos' },
+      { label: 'Plano de Contas', path: '/financeiro/plano-contas', featureId: 'financeiro_plano_contas' }
     ] 
   },
   { 
@@ -66,9 +66,9 @@ const menuStructure = [
     icon: ReceiptText, 
     roles: ['Admin', 'Financeiro', 'Contador'], 
     submenus: [
-      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal' },
-      { label: 'Arquivos Fiscais', path: '/financeiro/arquivos' },
-      { label: 'DRE Contábil', path: '/financeiro/dre' }
+      { label: 'Fiscal (NFe/NFSe)', path: '/financeiro/fiscal', featureId: 'fiscal_nfe' },
+      { label: 'Arquivos Fiscais', path: '/financeiro/arquivos', featureId: 'fiscal_arquivos' },
+      { label: 'DRE Contábil', path: '/financeiro/dre', featureId: 'fiscal_dre' }
     ] 
   },
   { 
@@ -77,10 +77,10 @@ const menuStructure = [
     icon: Package, 
     roles: ['Admin', 'Estoque', 'Vendas', 'Contador'], 
     submenus: [
-      { label: 'Produtos', path: '/estoque/produtos' }, 
-      { label: 'Movimentações', path: '/estoque/movimentacoes' },
-      { label: 'Controle de Produção', path: '/industria/producao' },
-      { label: 'Expedição (Logística)', path: '/estoque/expedicao' }
+      { label: 'Produtos', path: '/estoque/produtos', featureId: 'estoque_produtos' }, 
+      { label: 'Movimentações', path: '/estoque/movimentacoes', featureId: 'estoque_movimentacoes' },
+      { label: 'Controle de Produção', path: '/industria/producao', featureId: 'industria_producao' },
+      { label: 'Expedição (Logística)', path: '/estoque/expedicao', featureId: 'estoque_expedicao' }
     ] 
   },
   { 
@@ -89,11 +89,11 @@ const menuStructure = [
     icon: Users, 
     roles: ['Admin', 'RH', 'Contador'], 
     submenus: [
-      { label: 'People Analytics', path: '/rh/dashboard' },
-      { label: 'Colaboradores', path: '/rh/colaboradores' }, 
-      { label: 'Folha Gerencial', path: '/rh/folha' },
-      { label: 'Controle de Férias', path: '/rh/ferias' },
-      { label: 'Swipy Card (VR/VA)', path: '/rh/beneficios', tag: 'EM BREVE' }
+      { label: 'People Analytics', path: '/rh/dashboard', featureId: 'rh_analytics' },
+      { label: 'Colaboradores', path: '/rh/colaboradores', featureId: 'rh_colaboradores' }, 
+      { label: 'Folha Gerencial', path: '/rh/folha', featureId: 'rh_folha' },
+      { label: 'Controle de Férias', path: '/rh/ferias', featureId: 'rh_ferias' },
+      { label: 'Swipy Card (VR/VA)', path: '/rh/beneficios', tag: 'EM BREVE', featureId: 'rh_beneficios' }
     ] 
   },
   { 
@@ -114,11 +114,12 @@ const menuStructure = [
   },
   { 
     title: 'Personalização', 
+    moduleId: 'personalizacao',
     icon: Palette, 
     roles: ['Admin'],
     submenus: [
-      { label: 'Perfil & Marca', path: '/configuracoes' },
-      { label: 'Integrações (E-commerce)', path: '/configuracoes/integracoes' }
+      { label: 'Perfil & Marca', path: '/configuracoes', featureId: 'configuracoes_perfil' },
+      { label: 'Integrações (E-commerce)', path: '/configuracoes/integracoes', featureId: 'configuracoes_integracoes' }
     ]
   },
   { 
@@ -169,14 +170,26 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
 
-  const visibleMenus = menuStructure.filter(menu => {
-    if (menu.requireSuperAdmin && !isAdmin) return false;
-    if (!menu.roles.includes(systemRole)) return false;
+  const visibleMenus = menuStructure.map(menu => {
+    if (menu.requireSuperAdmin && !isAdmin) return null;
+    if (!menu.roles.includes(systemRole)) return null;
+    
+    // Se o menu tem proteção de módulo/plano e não é um super admin acessando
     if (menu.moduleId && !isAdmin) {
-       if (!activePlanFeatures.includes(menu.moduleId)) return false;
+       const hasParent = activePlanFeatures.includes(menu.moduleId);
+       const hasAnySub = menu.submenus?.some(sub => activePlanFeatures.includes(sub.featureId));
+       
+       // Se o lojista não tem acesso ao módulo pai, nem a nenhuma subfunção, esconde o menu inteiro
+       if (!hasParent && !hasAnySub) return null;
+
+       // Se tiver acesso parcial (algumas subfunções apenas), filtra o submenu
+       if (!hasParent && menu.submenus) {
+          const filteredSubs = menu.submenus.filter(sub => !sub.featureId || activePlanFeatures.includes(sub.featureId));
+          return { ...menu, submenus: filteredSubs };
+       }
     }
-    return true;
-  });
+    return menu;
+  }).filter(Boolean) as typeof menuStructure;
 
   return (
     <div className="flex h-screen w-full bg-apple-light text-apple-black overflow-hidden relative font-sans">
@@ -202,7 +215,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <nav className="space-y-1">
             <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
             {visibleMenus.map((item, idx) => {
-              const hasSubmenus = !!item.submenus;
+              const hasSubmenus = !!item.submenus && item.submenus.length > 0;
               const isOpen = openMenus.includes(item.title);
               const isChildActive = hasSubmenus && item.submenus!.some(sub => location.pathname === sub.path);
 

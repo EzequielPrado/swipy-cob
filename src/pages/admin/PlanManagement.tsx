@@ -74,11 +74,17 @@ const MODULES = [
       { id: 'rh_ferias', label: 'Controle de Férias' },
       { id: 'rh_beneficios', label: 'Swipy Card (VR/VA)' }
     ]
+  },
+  {
+    id: 'personalizacao',
+    label: 'Personalização e Integrações',
+    subFeatures: [
+      { id: 'configuracoes_perfil', label: 'Perfil & Marca' },
+      { id: 'configuracoes_integracoes', label: 'Integrações (E-commerce)' }
+    ]
   }
 ];
 
-// Transforma o array antigo ("apenas o pai") em um array com "pai e filhos",
-// garantindo compatibilidade retroativa com os planos existentes no banco
 const normalizeFeatures = (features: string[]) => {
   let normalized = new Set(features || []);
   MODULES.forEach(m => {
@@ -165,11 +171,9 @@ const PlanManagement = () => {
     setFormData(prev => {
       let newFeatures = new Set(prev.features);
       if (isAllSelected) {
-        // Se já tem tudo, tira tudo (pai e filhos)
         newFeatures.delete(moduleItem.id);
         moduleItem.subFeatures.forEach((sub: any) => newFeatures.delete(sub.id));
       } else {
-        // Se não tem tudo, adiciona tudo (pai e filhos)
         newFeatures.add(moduleItem.id);
         moduleItem.subFeatures.forEach((sub: any) => newFeatures.add(sub.id));
       }
@@ -181,13 +185,10 @@ const PlanManagement = () => {
     setFormData(prev => {
       let newFeatures = new Set(prev.features);
       if (newFeatures.has(subId)) {
-        // Ao remover um filho, perde o status de "Módulo Completo" no pai
         newFeatures.delete(subId);
         newFeatures.delete(moduleItem.id);
       } else {
-        // Adicionou um filho
         newFeatures.add(subId);
-        // Verifica se agora completou todos os filhos. Se sim, marca o pai
         const allChildrenAdded = moduleItem.subFeatures.every((s: any) => s.id === subId || newFeatures.has(s.id));
         if (allChildrenAdded) newFeatures.add(moduleItem.id);
       }
