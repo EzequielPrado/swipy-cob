@@ -49,6 +49,10 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
       return showError("O CPF/CNPJ é obrigatório para o cadastro.");
     }
 
+    if (!formData.address.state) {
+      return showError("O campo UF (Estado) é obrigatório.");
+    }
+
     setLoading(true);
 
     try {
@@ -176,14 +180,18 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
                 <Input required value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2 col-span-1">
                   <Label className="text-xs font-bold ml-1">Bairro</Label>
                   <Input required value={formData.address.neighborhood} onChange={(e) => handleAddressChange('neighborhood', e.target.value)} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-1">
                   <Label className="text-xs font-bold ml-1">Cidade</Label>
                   <Input required value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" />
+                </div>
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-xs font-bold ml-1">UF (Estado)</Label>
+                  <Input required maxLength={2} value={formData.address.state} onChange={(e) => handleAddressChange('state', e.target.value.toUpperCase())} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold text-center" placeholder="SP" />
                 </div>
               </div>
             </div>

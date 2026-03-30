@@ -37,7 +37,6 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
   useEffect(() => {
     if (customer && isOpen) {
-      // Garantia de que o objeto address existe para evitar erros de undefined
       const addr = customer.address || {};
       
       setFormData({
@@ -69,6 +68,10 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.address.state) {
+      return showError("O campo UF (Estado) é obrigatório.");
+    }
+
     setLoading(true);
 
     try {
@@ -78,7 +81,6 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         rg: formData.rg
       };
 
-      // Atualização no Supabase
       const { error: dbError } = await supabase
         .from('customers')
         .update({
@@ -92,7 +94,6 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
       if (dbError) throw dbError;
 
-      // Sincronização opcional com Woovi
       if (customer.woovi_id) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -138,10 +139,8 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-          {/* Área com Scroll Real */}
           <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
             
-            {/* IDENTIFICAÇÃO */}
             <div className="space-y-6">
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                  <FileCheck size={14} className="text-orange-500" /> 1. Identificação
@@ -172,7 +171,6 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
               </div>
             </div>
 
-            {/* ENDEREÇO */}
             <div className="space-y-6 pt-6 border-t border-apple-border">
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                 <MapPin size={14} className="text-orange-500" /> 2. Localização e Contato
@@ -191,14 +189,18 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
                 <Label className="text-xs font-bold ml-1">Logradouro (Rua/Av)</Label>
                 <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-4 pb-4">
+                <div className="space-y-2 col-span-1">
                   <Label className="text-xs font-bold ml-1">Bairro</Label>
                   <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.neighborhood} onChange={(e) => handleAddressChange('neighborhood', e.target.value)} />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 col-span-1">
                   <Label className="text-xs font-bold ml-1">Cidade</Label>
                   <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} />
+                </div>
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-xs font-bold ml-1">UF (Estado)</Label>
+                  <Input maxLength={2} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold text-center" value={formData.address.state} onChange={(e) => handleAddressChange('state', e.target.value.toUpperCase())} placeholder="SP" />
                 </div>
               </div>
             </div>
@@ -208,7 +210,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-apple-black hover:bg-zinc-800 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 disabled:opacity-50"
+              className="w-full bg-apple-black hover:bg-zinc-800 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={24} /> : "SALVAR ALTERAÇÕES"}
             </button>
