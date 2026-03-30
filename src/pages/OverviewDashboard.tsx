@@ -27,7 +27,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import FinancialAgenda from '@/components/financial/FinancialAgenda';
-import AuditIntegrity from '@/components/dashboard/AuditIntegrity';
+import AuditIntegrity from '../components/dashboard/AuditIntegrity';
 
 const OverviewDashboard = () => {
   const { effectiveUserId, profile, activeMerchant } = useAuth();
@@ -66,8 +66,6 @@ const OverviewDashboard = () => {
   const showStock = canSee('estoque', 'estoque_produtos');
   const showRecentSales = canSee('vendas', 'vendas_lista');
   const showHR = canSee('rh', 'rh_colaboradores');
-
-  const hasAnyWidget = showSalesCard || showBalanceCard || showPayablesCard || showMrrCard || showProduction || showStock || showRecentSales || showHR;
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -188,50 +186,48 @@ const OverviewDashboard = () => {
         </div>
 
         {/* KPIs FINANCEIROS */}
-        {(showSalesCard || showBalanceCard || showPayablesCard || showMrrCard) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {showSalesCard && (
-              <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-orange-200 transition-all">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><ShoppingCart size={80} /></div>
-                <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <ShoppingCart size={14} className="text-orange-500" /> Faturado Hoje
-                </h3>
-                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.salesToday)}</p>
-              </div>
-            )}
-            {showBalanceCard && (
-              <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-emerald-200 transition-all">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><Landmark size={80} /></div>
-                <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Landmark size={14} className="text-emerald-500" /> Saldo Consolidado
-                </h3>
-                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.totalBalance)}</p>
-              </div>
-            )}
-            {showPayablesCard && (
-              <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-red-200 transition-all">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><CalendarClock size={80} /></div>
-                <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <CalendarClock size={14} className="text-red-500" /> Contas a Pagar (Hoje)
-                </h3>
-                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.expensesTodayAmount)}</p>
-              </div>
-            )}
-            {showMrrCard && (
-              <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-blue-200 transition-all">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
-                <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <TrendingUp size={14} className="text-blue-500" /> Recorrência (MRR)
-                </h3>
-                <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.mrr)}</p>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {showSalesCard && (
+            <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-orange-200 transition-all">
+              <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><ShoppingCart size={80} /></div>
+              <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                <ShoppingCart size={14} className="text-orange-500" /> Faturado Hoje
+              </h3>
+              <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.salesToday)}</p>
+            </div>
+          )}
+          {showBalanceCard && (
+            <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-emerald-200 transition-all">
+              <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><Landmark size={80} /></div>
+              <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Landmark size={14} className="text-emerald-500" /> Saldo Consolidado
+              </h3>
+              <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.totalBalance)}</p>
+            </div>
+          )}
+          {showPayablesCard && (
+            <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-red-200 transition-all">
+              <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><CalendarClock size={80} /></div>
+              <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                <CalendarClock size={14} className="text-red-500" /> Contas a Pagar (Hoje)
+              </h3>
+              <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.expensesTodayAmount)}</p>
+            </div>
+          )}
+          {showMrrCard && (
+            <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group hover:border-blue-200 transition-all">
+              <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform"><TrendingUp size={80} /></div>
+              <h3 className="text-[10px] font-bold text-apple-muted uppercase tracking-widest mb-4 flex items-center gap-2">
+                <TrendingUp size={14} className="text-blue-500" /> Recorrência (MRR)
+              </h3>
+              <p className="text-3xl font-black text-apple-black">{currencyFormatter.format(stats.mrr)}</p>
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            {/* NOVO: WIDGET DE AUDITORIA E INTEGRIDADE */}
+            {/* WIDGET DE AUDITORIA E INTEGRIDADE */}
             <AuditIntegrity />
 
             {showRecentSales && (
