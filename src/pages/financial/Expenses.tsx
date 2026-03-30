@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, 
-  Building, Tag, Edit2, Paperclip, Eye, CalendarDays, User, Layers
+  Building, Tag, Edit2, Paperclip, Eye, CalendarDays, User, Layers, Building2
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -17,13 +17,11 @@ import { cn } from "@/lib/utils";
 
 const Expenses = () => {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
@@ -33,6 +31,7 @@ const Expenses = () => {
   const monthOptions = useMemo(() => {
     const options = [];
     const d = new Date();
+    d.setDate(1);
     d.setMonth(d.getMonth() - 6); 
     for(let i=0; i<12; i++) {
       const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -55,10 +54,6 @@ const Expenses = () => {
     supplierId: 'none'
   });
 
-  const [isPayOpen, setIsPayOpen] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<any>(null);
-  const [payData, setPayData] = useState({ accountId: '', paymentDate: new Date().toISOString().split('T')[0] });
-
   const fetchData = async () => {
     if (!user) return;
     setLoading(true);
@@ -69,7 +64,7 @@ const Expenses = () => {
     const endDate = `${year}-${month}-${lastDay}`;
 
     const [expRes, accRes, suppRes, catRes] = await Promise.all([
-      supabase.from('expenses').select('*, bank_accounts(name), chart_of_accounts(name)').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate).order('due_date', { ascending: true }),
+      supabase.from('expenses').select('*, bank_accounts(name), chart_of_accounts(name), suppliers(name)').eq('user_id', user.id).gte('due_date', startDate).lte('due_date', endDate).order('due_date', { ascending: true }),
       supabase.from('bank_accounts').select('id, name').eq('user_id', user.id),
       supabase.from('suppliers').select('id, name').eq('user_id', user.id).order('name'),
       supabase.from('chart_of_accounts').select('id, name').eq('user_id', user.id).eq('type', 'expense').order('name')
@@ -154,14 +149,19 @@ const Expenses = () => {
           {loading ? (<div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>) : (
             <table className="w-full text-left">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Descrição / Categoria</th><th className="px-8 py-5">Vencimento</th><th className="px-8 py-5">Valor</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                <tr><th className="px-8 py-5">Descrição / Fornecedor</th><th className="px-8 py-5">Vencimento</th><th className="px-8 py-5">Valor</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {expenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-apple-light transition-colors group">
                     <td className="px-8 py-5">
                       <p className="text-sm font-bold text-apple-black">{exp.description}</p>
-                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] text-apple-muted uppercase tracking-widest font-black"><Layers size={10} className="text-orange-500" /> {exp.chart_of_accounts?.name || 'Não categorizada'}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="inline-flex items-center gap-1 text-[9px] text-apple-muted uppercase font-black"><Layers size={10} className="text-orange-500" /> {exp.chart_of_accounts?.name || 'Geral'}</span>
+                        {exp.suppliers && (
+                          <span className="inline-flex items-center gap-1 text-[9px] text-blue-600 uppercase font-black"><Building2 size={10} /> {exp.suppliers.name}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-5 text-sm text-apple-dark font-medium">{new Date(exp.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                     <td className="px-8 py-5 text-sm font-black text-apple-black">{currencyFormatter.format(exp.amount)}</td>
@@ -198,11 +198,27 @@ const Expenses = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-apple-muted flex items-center gap-2">
+                <Building2 size={12} className="text-blue-500" /> Fornecedor (Opcional)
+              </Label>
+              <Select value={formData.supplierId} onValueChange={v => setFormData({...formData, supplierId: v})}>
+                <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold"><SelectValue placeholder="Selecione o fornecedor..." /></SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">
+                  <SelectItem value="none">Nenhum / Despesa Diversa</SelectItem>
+                  {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Descrição</Label><Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Valor (R$)</Label><Input required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-red-500" /></div>
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Vencimento</Label><Input type="date" required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
             </div>
+            
             <DialogFooter><button type="submit" disabled={saving} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95">{saving ? <Loader2 className="animate-spin mx-auto" /> : "REGISTRAR DESPESA"}</button></DialogFooter>
           </form>
         </DialogContent>
