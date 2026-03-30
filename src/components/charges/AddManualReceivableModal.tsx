@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, Landmark, User, DollarSign, Calendar, FileText, Plus } from 'lucide-react';
+import { Loader2, Landmark, User, DollarSign, Calendar, FileText, Plus, Layers } from 'lucide-react';
 import AddCustomerModal from '@/components/customers/AddCustomerModal';
 
 interface AddManualReceivableModalProps {
@@ -22,11 +22,13 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     customerId: '',
     accountId: '',
+    categoryId: '',
     amount: '',
     description: '',
     dueDate: new Date().toISOString().split('T')[0]
@@ -39,17 +41,21 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
   }, [isOpen, user]);
 
   const fetchData = async () => {
-    const [custRes, accRes] = await Promise.all([
+    const [custRes, accRes, catRes] = await Promise.all([
       supabase.from('customers').select('id, name').eq('user_id', user?.id).order('name'),
-      supabase.from('bank_accounts').select('id, name').eq('user_id', user?.id).order('name')
+      supabase.from('bank_accounts').select('id, name').eq('user_id', user?.id).order('name'),
+      supabase.from('chart_of_accounts').select('id, name').eq('user_id', user?.id).eq('type', 'revenue').order('name')
     ]);
     
     if (custRes.data) setCustomers(custRes.data);
     if (accRes.data) setAccounts(accRes.data);
+    if (catRes.data) {
+      setCategories(catRes.data);
+      if (catRes.data.length > 0) setFormData(prev => ({ ...prev, categoryId: catRes.data[0].id }));
+    }
   };
 
   const handleCustomerAdded = async () => {
-    // Re-busca a lista e tenta selecionar o último cadastrado
     const { data } = await supabase
       .from('customers')
       .select('id, name')
@@ -77,6 +83,7 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
         user_id: user?.id,
         customer_id: formData.customerId,
         bank_account_id: formData.accountId || null,
+        category_id: formData.categoryId || null,
         amount: amountNum,
         description: formData.description,
         due_date: formData.dueDate,
@@ -89,7 +96,7 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
       showSuccess("Recebível cadastrado com sucesso!");
       onSuccess();
       onClose();
-      setFormData({ customerId: '', accountId: '', amount: '', description: '', dueDate: new Date().toISOString().split('T')[0] });
+      setFormData({ customerId: '', accountId: '', categoryId: '', amount: '', description: '', dueDate: new Date().toISOString().split('T')[0] });
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -128,6 +135,18 @@ const AddManualReceivableModal = ({ isOpen, onClose, onSuccess }: AddManualRecei
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                   {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-zinc-400"><Layers size={14} className="text-orange-500" /> Categoria de Receita</Label>
+              <Select value={formData.categoryId} onValueChange={v => setFormData({...formData, categoryId: v})}>
+                <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl focus:ring-orange-500/20">
+                  <SelectValue placeholder="Classifique este ganho..." />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
+                  {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

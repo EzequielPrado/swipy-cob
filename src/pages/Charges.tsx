@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { cn } from "@/lib/utils";
-import { Search, Copy, Trash2, Loader2, Plus, DollarSign, QrCode, FileText, Receipt } from 'lucide-react';
+import { Search, Copy, Trash2, Loader2, Plus, DollarSign, QrCode, FileText, Receipt, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -53,6 +53,27 @@ const Charges = () => {
     e.stopPropagation();
     setSelectedCharge(charge);
     setIsFiscalModalOpen(true);
+  };
+
+  const handleMarkAsPaidQuick = async (charge: any) => {
+    if (!confirm(`Confirmar recebimento de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)} de ${charge.customers?.name}?`)) return;
+    
+    setActionLoading(charge.id);
+    try {
+      const { error } = await supabase
+        .from('charges')
+        .update({ status: 'pago' })
+        .eq('id', charge.id);
+
+      if (error) throw error;
+      
+      showSuccess("Pagamento confirmado com sucesso!");
+      fetchCharges();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleDelete = async (charge: any) => {
@@ -172,6 +193,19 @@ const Charges = () => {
                       </td>
                       <td className="px-8 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
+                          {charge.status !== 'pago' && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsPaidQuick(charge);
+                              }}
+                              disabled={actionLoading === charge.id}
+                              title="Confirmar Pagamento" 
+                              className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-50"
+                            >
+                              {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16}/>}
+                            </button>
+                          )}
                           {charge.status === 'pago' && (
                             <button 
                               onClick={(e) => handleOpenFiscal(e, charge)}
