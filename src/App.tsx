@@ -27,7 +27,13 @@ import QuotePublicView from "./pages/QuotePublicView";
 import POS from "./pages/sales/POS";
 import SalesList from "./pages/sales/SalesList";
 import SalesDashboard from "./pages/sales/SalesDashboard";
-import ServiceOrders from "./pages/sales/ServiceOrders";
+
+// Serviços
+import ServiceOrders from "./pages/services/ServiceOrders";
+import Appointments from "./pages/services/Appointments";
+import ServicesList from "./pages/services/ServicesList";
+import ServiceQuotes from "./pages/services/ServiceQuotes";
+import ServiceQuoteBuilder from "./pages/services/ServiceQuoteBuilder";
 
 // Estoque
 import Products from "./pages/inventory/Products";
@@ -110,10 +116,16 @@ const App = () => (
               <Route path="/vendas/orcamentos" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
               <Route path="/vendas/orcamentos/novo" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
               <Route path="/vendas/orcamentos/:id/editar" element={<ProtectedRoute><QuoteBuilder /></ProtectedRoute>} />
-              <Route path="/vendas/ordens-servico" element={<ProtectedRoute><ServiceOrders /></ProtectedRoute>} />
               <Route path="/vendas/dashboard" element={<ProtectedRoute><SalesDashboard /></ProtectedRoute>} />
               <Route path="/vendas/lista" element={<ProtectedRoute><SalesList /></ProtectedRoute>} />
               <Route path="/vendas/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
+
+              {/* SERVIÇOS */}
+              <Route path="/servicos/ordens-servico" element={<ProtectedRoute><ServiceOrders /></ProtectedRoute>} />
+              <Route path="/servicos/agendamentos" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
+              <Route path="/servicos/cadastro" element={<ProtectedRoute><ServicesList /></ProtectedRoute>} />
+              <Route path="/servicos/orcamentos" element={<ProtectedRoute><ServiceQuotes /></ProtectedRoute>} />
+              <Route path="/servicos/orcamentos/novo" element={<ProtectedRoute><ServiceQuoteBuilder /></ProtectedRoute>} />
 
               {/* ESTOQUE */}
               <Route path="/estoque/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
