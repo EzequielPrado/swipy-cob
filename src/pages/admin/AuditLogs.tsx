@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   History, Search, Filter, Loader2, ShieldAlert, 
   User, Building2, Clock, CheckCircle2, Send, Eye, MousePointer2,
-  AlertTriangle, Database, Terminal, FileJson, Activity, RefreshCw
+  AlertTriangle, Database, Terminal, FileJson, Activity, RefreshCw, ShieldCheck
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
