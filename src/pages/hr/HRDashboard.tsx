@@ -13,9 +13,9 @@ import {
   Loader2, 
   RefreshCw,
   PieChart as PieChartIcon,
-  BarChart3,
-  CalendarDays,
-  Target
+  Target,
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -105,7 +105,7 @@ const HRDashboard = () => {
             </h2>
             <p className="text-apple-muted mt-1 font-medium">Indicadores de capital humano e gestão de talentos.</p>
           </div>
-          <button onClick={fetchHRData} className="p-2.5 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:bg-apple-light transition-all shadow-sm">
+          <button onClick={fetchHRData} className="p-2.5 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm">
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
