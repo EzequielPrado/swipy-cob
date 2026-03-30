@@ -15,6 +15,7 @@ interface AddAccountCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  category?: any; // Prop opcional para edição
 }
 
 const REVENUE_GROUPS = [
@@ -33,7 +34,7 @@ const EXPENSE_GROUPS = [
   { id: 'operacionais', label: 'Custos Operacionais / Produção' }
 ];
 
-const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCategoryModalProps) => {
+const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess, category }: AddAccountCategoryModalProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetchingCode, setFetchingCode] = useState(false);
@@ -44,10 +45,29 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
     code: ''
   });
 
-  // Gerar código automático quando mudar o tipo
+  // Carregar dados se for edição
+  useEffect(() => {
+    if (category && isOpen) {
+      setFormData({
+        name: category.name || '',
+        type: category.type || 'expense',
+        macro_group: category.macro_group || (category.type === 'revenue' ? 'vendas' : 'adm'),
+        code: category.code || ''
+      });
+    } else if (isOpen) {
+      setFormData({
+        name: '',
+        type: 'expense',
+        macro_group: 'adm',
+        code: ''
+      });
+    }
+  }, [category, isOpen]);
+
+  // Gerar código automático apenas na criação e quando mudar o tipo
   useEffect(() => {
     const generateCode = async () => {
-      if (!isOpen || !user) return;
+      if (!isOpen || !user || category) return; // Não gera se for edição
       setFetchingCode(true);
       
       const prefix = formData.type === 'revenue' ? '1.' : '2.';
@@ -77,7 +97,7 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
     };
 
     generateCode();
-  }, [formData.type, isOpen, user]);
+  }, [formData.type, isOpen, user, category]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,22 +105,31 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('chart_of_accounts').insert({
+      const payload = {
         user_id: user.id,
         name: formData.name,
         type: formData.type,
         code: formData.code,
-        // Usamos uma coluna extra metadata ou adaptamos para macro_group se você criou no SQL
-        // Nota: Vou enviar como name prefixado ou podemos adicionar a coluna macro_group no SQL se preferir
         is_active: true
-      });
+      };
 
-      if (error) throw error;
+      if (category) {
+        // Edição
+        const { error } = await supabase
+          .from('chart_of_accounts')
+          .update(payload)
+          .eq('id', category.id);
+        if (error) throw error;
+        showSuccess('Categoria atualizada!');
+      } else {
+        // Criação
+        const { error } = await supabase.from('chart_of_accounts').insert(payload);
+        if (error) throw error;
+        showSuccess('Categoria criada!');
+      }
 
-      showSuccess('Categoria configurada com sucesso!');
       onSuccess();
       onClose();
-      setFormData(prev => ({ ...prev, name: '' }));
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -118,7 +147,7 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
             <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
               <Layers size={20} />
             </div>
-            Nova Categoria
+            {category ? 'Editar Categoria' : 'Nova Categoria'}
           </DialogTitle>
         </DialogHeader>
         
@@ -128,25 +157,30 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
              <div className="grid grid-cols-2 gap-3">
                 <button 
                   type="button"
+                  disabled={!!category} // Bloqueia troca de tipo na edição para evitar bagunça no DRE
                   onClick={() => setFormData({...formData, type: 'revenue'})}
                   className={cn(
                     "flex flex-col items-center gap-2 py-4 rounded-2xl border font-bold transition-all",
-                    formData.type === 'revenue' ? "bg-emerald-50 border-emerald-500 text-emerald-600 shadow-inner" : "bg-apple-offWhite border-apple-border text-apple-muted opacity-60"
+                    formData.type === 'revenue' ? "bg-emerald-50 border-emerald-500 text-emerald-600 shadow-inner" : "bg-apple-offWhite border-apple-border text-apple-muted opacity-60",
+                    category && "cursor-not-allowed"
                   )}
                 >
                    <ArrowUpCircle size={20} /> <span className="text-[10px] uppercase">Receita</span>
                 </button>
                 <button 
                   type="button"
+                  disabled={!!category}
                   onClick={() => setFormData({...formData, type: 'expense'})}
                   className={cn(
                     "flex flex-col items-center gap-2 py-4 rounded-2xl border font-bold transition-all",
-                    formData.type === 'expense' ? "bg-red-50 border-red-500 text-red-600 shadow-inner" : "bg-apple-offWhite border-apple-border text-apple-muted opacity-60"
+                    formData.type === 'expense' ? "bg-red-50 border-red-500 text-red-600 shadow-inner" : "bg-apple-offWhite border-apple-border text-apple-muted opacity-60",
+                    category && "cursor-not-allowed"
                   )}
                 >
                    <ArrowDownCircle size={20} /> <span className="text-[10px] uppercase">Despesa</span>
                 </button>
              </div>
+             {category && <p className="text-[9px] text-apple-muted italic text-center">O tipo não pode ser alterado após a criação.</p>}
           </div>
 
           <div className="space-y-2">
@@ -167,12 +201,16 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold text-apple-dark flex items-center gap-2"><Hash size={14} className="text-orange-500" /> Código Sugerido</Label>
+            <Label className="text-xs font-bold text-apple-dark flex items-center gap-2"><Hash size={14} className="text-orange-500" /> Código da Conta</Label>
             <div className="relative">
-              <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono font-bold text-orange-600" value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value})} />
+              <Input 
+                disabled={!!category} // Bloqueia edição do código
+                className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-mono font-bold text-orange-600 disabled:opacity-70" 
+                value={formData.code} 
+                onChange={(e) => setFormData({...formData, code: e.target.value})} 
+              />
               {fetchingCode && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-apple-muted" size={16} />}
             </div>
-            <p className="text-[9px] text-apple-muted italic">Gerado automaticamente seguindo a hierarquia contábil.</p>
           </div>
 
           <DialogFooter className="pt-4 border-t border-apple-border">
@@ -181,7 +219,7 @@ const AddAccountCategoryModal = ({ isOpen, onClose, onSuccess }: AddAccountCateg
               disabled={loading || fetchingCode}
               className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : "VINCULAR E SALVAR"}
+              {loading ? <Loader2 className="animate-spin" size={18} /> : "SALVAR ALTERAÇÕES"}
             </button>
           </DialogFooter>
         </form>

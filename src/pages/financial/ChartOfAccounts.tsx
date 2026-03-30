@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { Layers, Plus, Loader2, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Info, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Layers, Plus, Loader2, Trash2, ArrowUpCircle, ArrowDownCircle, Search, Info, Edit3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
@@ -14,6 +14,7 @@ const ChartOfAccounts = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchChart = async () => {
@@ -36,6 +37,16 @@ const ChartOfAccounts = () => {
   };
 
   useEffect(() => { fetchChart(); }, [user]);
+
+  const handleEdit = (category: any) => {
+    setEditingCategory(category);
+    setIsModalOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingCategory(null);
+    setIsModalOpen(true);
+  };
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Excluir a categoria "${name}"? Certifique-se que não existam lançamentos nela.`)) return;
@@ -65,7 +76,7 @@ const ChartOfAccounts = () => {
             <p className="text-apple-muted mt-1 font-medium">Estrutura gerencial para classificação de receitas e despesas.</p>
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleAddNew}
             className="bg-orange-500 hover:bg-orange-600 text-white font-black px-6 py-3 rounded-2xl transition-all shadow-lg shadow-orange-500/10 flex items-center gap-2 active:scale-95"
           >
             <Plus size={20} /> NOVA CATEGORIA
@@ -127,12 +138,22 @@ const ChartOfAccounts = () => {
                         </div>
                       </td>
                       <td className="px-8 py-5 text-right">
-                         <button 
-                          onClick={() => handleDelete(cat.id, cat.name)}
-                          className="p-2.5 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                         >
-                           <Trash2 size={18} />
-                         </button>
+                         <div className="flex items-center justify-end gap-1">
+                            <button 
+                              onClick={() => handleEdit(cat)}
+                              className="p-2.5 text-apple-muted hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                              title="Editar Nome"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(cat.id, cat.name)}
+                              className="p-2.5 text-apple-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              title="Excluir"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                         </div>
                       </td>
                     </tr>
                   ))
@@ -145,8 +166,12 @@ const ChartOfAccounts = () => {
 
       <AddAccountCategoryModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingCategory(null);
+        }} 
         onSuccess={fetchChart} 
+        category={editingCategory}
       />
     </AppLayout>
   );
