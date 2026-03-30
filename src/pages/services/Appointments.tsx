@@ -7,7 +7,7 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
 import { 
   CalendarClock, Plus, Search, Loader2, Trash2, CheckCircle2, Clock, 
-  MapPin, XCircle, ChevronLeft, ChevronRight, Info, UserCheck, CalendarDays 
+  MapPin, XCircle, ChevronLeft, ChevronRight, Info, UserCheck, CalendarDays, User
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from 'date-fns';

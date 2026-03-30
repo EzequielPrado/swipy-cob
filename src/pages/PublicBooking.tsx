@@ -78,7 +78,7 @@ const PublicBooking = () => {
           .insert({
             user_id: merchant.id,
             name: formData.name,
-            tax_id: cleanTaxID,
+            tax_id: cleanTaxId,
             email: formData.email,
             phone: formData.phone,
             status: 'em dia'

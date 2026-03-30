@@ -15,7 +15,8 @@ import {
   User, 
   History,
   ChevronRight,
-  Palmtree
+  Palmtree,
+  ArrowRight
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { format, differenceInMonths, parseISO, isAfter, isBefore, addDays } from 'date-fns';
