@@ -15,7 +15,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Identificar quem está convidando (o lojista) através do token
     const authHeader = req.headers.get('Authorization')
     const { data: { user: inviter }, error: inviterError } = await supabaseAdmin.auth.getUser(authHeader?.replace('Bearer ', '') || '')
     
@@ -27,43 +26,37 @@ serve(async (req) => {
       throw new Error("E-mail e Nome são obrigatórios.");
     }
 
-    const tempPassword = `Swipy@${Math.floor(100000 + Math.random() * 900000)}`;
-    let userId = '';
+    console.log(`[invite-employee] Enviando convite oficial para: ${email}`);
 
-    // 1. Verifica se o usuário já existe
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find(u => u.email === email);
+    // Usamos inviteUserByEmail para disparar o fluxo de e-mail do Supabase
+    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: { 
+        full_name: fullName, 
+        company: companyName 
+      },
+      // Redireciona o usuário para a tela de reset de senha após clicar no link do e-mail
+      redirectTo: `${req.headers.get('origin')}/resetar-senha`
+    });
 
-    if (existingUser) {
-      userId = existingUser.id;
-      await supabaseAdmin.auth.admin.updateUserById(userId, { password: tempPassword });
-    } else {
-      // Cria o novo usuário
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { full_name: fullName, company: companyName }
-      });
+    if (inviteError) throw inviteError;
 
-      if (authError) throw authError;
-      userId = authData.user.id;
-    }
+    const userId = inviteData.user.id;
 
-    // 2. VINCULAÇÃO CRÍTICA: Definimos o merchant_id como o ID do lojista que convidou
+    // Vincula o perfil ao lojista que convidou (merchant_id)
     await supabaseAdmin.from('profiles').update({
       system_role: systemRole,
       status: 'active',
-      merchant_id: inviter.id, // <--- Aqui está o vínculo
+      merchant_id: inviter.id,
       company: companyName
     }).eq('id', userId);
 
-    return new Response(JSON.stringify({ success: true, userId, tempPassword }), {
+    return new Response(JSON.stringify({ success: true, userId, inviteSent: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
 
   } catch (error: any) {
+    console.error("[invite-employee] Erro:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
