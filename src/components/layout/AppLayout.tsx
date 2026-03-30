@@ -13,7 +13,25 @@ import { useAuth } from '@/integrations/supabase/auth';
 import { useTheme } from 'next-themes';
 import NotificationBell from './NotificationBell';
 
-const menuStructure = [
+interface SubmenuItem {
+  label: string;
+  path: string;
+  featureId?: string;
+  tag?: string;
+}
+
+interface MenuItem {
+  title: string;
+  icon: any;
+  path?: string;
+  moduleId?: string;
+  roles: string[];
+  requireSuperAdmin?: boolean;
+  submenus?: SubmenuItem[];
+  dividerAfter?: boolean;
+}
+
+const menuStructure: MenuItem[] = [
   { 
     title: 'Visão Geral', 
     icon: LayoutDashboard, 
@@ -174,15 +192,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     if (menu.requireSuperAdmin && !isAdmin) return null;
     if (!menu.roles.includes(systemRole)) return null;
     
-    // Se o menu tem proteção de módulo/plano e não é um super admin acessando
     if (menu.moduleId && !isAdmin) {
        const hasParent = activePlanFeatures.includes(menu.moduleId);
-       const hasAnySub = menu.submenus?.some(sub => activePlanFeatures.includes(sub.featureId));
+       const hasAnySub = menu.submenus?.some(sub => sub.featureId && activePlanFeatures.includes(sub.featureId));
        
-       // Se o lojista não tem acesso ao módulo pai, nem a nenhuma subfunção, esconde o menu inteiro
        if (!hasParent && !hasAnySub) return null;
 
-       // Se tiver acesso parcial (algumas subfunções apenas), filtra o submenu
        if (!hasParent && menu.submenus) {
           const filteredSubs = menu.submenus.filter(sub => !sub.featureId || activePlanFeatures.includes(sub.featureId));
           return { ...menu, submenus: filteredSubs };
@@ -214,7 +229,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-10">
           <nav className="space-y-1">
             <p className="text-[10px] font-bold text-apple-muted uppercase tracking-widest px-3 mb-3">Menu Principal</p>
-            {visibleMenus.map((item, idx) => {
+            {visibleMenus.map((item) => {
               const hasSubmenus = !!item.submenus && item.submenus.length > 0;
               const isOpen = openMenus.includes(item.title);
               const isChildActive = hasSubmenus && item.submenus!.some(sub => location.pathname === sub.path);
@@ -244,15 +259,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                             )}
                           >
                             {sub.label}
-                            {(sub as any).tag && (
-                              <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1 py-0.5 rounded shadow-sm">{(sub as any).tag}</span>
+                            {sub.tag && (
+                              <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1 py-0.5 rounded shadow-sm">{sub.tag}</span>
                             )}
                           </Link>
                         ))}
                       </div>
                     )}
                   </div>
-                  {(item as any).dividerAfter && (
+                  {item.dividerAfter && (
                     <div className="h-px bg-apple-border my-4 mx-3" />
                   )}
                 </React.Fragment>
@@ -307,7 +322,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </div>
         </section>
 
-        {/* MENU INFERIOR MOBILE */}
         <nav className="fixed bottom-0 left-0 right-0 h-20 bg-apple-white/95 backdrop-blur-2xl border-t border-apple-border flex items-center justify-around px-4 lg:hidden z-[90] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
            <Link to="/" className={cn("flex flex-col items-center gap-1.5", location.pathname === "/" ? "text-orange-500" : "text-apple-muted")}>
               <LayoutDashboard size={20} />

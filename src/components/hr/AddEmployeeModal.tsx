@@ -9,8 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, CheckCircle2, Mail, AlertTriangle, MapPin, FileText, Activity } from 'lucide-react';
+import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, CheckCircle2, Mail, AlertTriangle, MapPin, FileText, Activity } from 'lucide-center';
 import { cn } from "@/lib/utils";
+
+interface AddEmployeeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
 
 const DEPARTMENTS = ["Vendas", "Financeiro", "Operações", "Tecnologia", "Diretoria", "Gente e Gestão"];
 const ROLES = ["Vendedor", "Analista", "Gerente", "Assistente", "Diretor", "Estagiário"];
@@ -326,7 +332,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                       <div className="space-y-2 col-span-2"><Label className="text-xs font-bold text-apple-dark">CPF *</Label><Input required placeholder="000.000.000-00" className="bg-apple-offWhite border-apple-border h-12 rounded-xl focus:ring-orange-500/20 font-black text-orange-600" value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} /></div>
                       <div className="space-y-2 col-span-2"><Label className="text-xs font-bold text-apple-dark">Data Nasc. *</Label><Input required type="date" className="bg-apple-offWhite border-apple-border h-12 rounded-xl focus:ring-orange-500/20" value={formData.birth_date} onChange={e => setFormData({...formData, birth_date: e.target.value})} /></div>
                     </div>
-                    {/* ... Resto dos campos omitidos para brevidade, mantendo a estrutura existente no projeto ... */}
                     <div className="flex items-center justify-between p-5 bg-apple-offWhite border border-apple-border rounded-xl">
                       <Label className="font-bold text-apple-black">É pessoa com deficiência (PCD)?</Label>
                       <Switch checked={formData.is_pcd} onCheckedChange={c => setFormData({...formData, is_pcd: c})} className="data-[state=checked]:bg-orange-500" />
@@ -337,7 +342,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                 {step === 5 && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                     <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] border-b border-apple-border pb-2">Saúde Ocupacional (SST)</p>
-                    {/* Campos de SST omitidos para brevidade */}
 
                     <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] border-b border-apple-border pb-2 mt-8">Acesso ao ERP Swipy</p>
                     <div className="flex items-center justify-between p-5 bg-apple-offWhite border border-apple-border rounded-2xl shadow-sm">
@@ -370,7 +374,6 @@ const AddEmployeeModal = ({ isOpen, onClose, onSuccess }: AddEmployeeModalProps)
                     )}
                   </div>
                 )}
-                {/* Outros passos (2,3,4) omitidos no código de visualização para manter foco no fluxo de convite */}
               </>
             )}
           </div>
