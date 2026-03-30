@@ -36,23 +36,29 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
     }
   });
 
+  // Sincroniza o estado local quando o cliente é selecionado
   useEffect(() => {
     if (customer && isOpen) {
+      // Garante que address seja um objeto válido
+      const addr = (typeof customer.address === 'object' && customer.address !== null) 
+        ? customer.address 
+        : {};
+
       setFormData({
         name: customer.name || '',
         email: customer.email || '',
         phone: customer.phone || '',
         taxID: customer.tax_id || '',
-        rg: customer.address?.rg || '',
-        address: customer.address || {
-          zipcode: '',
-          street: '',
-          number: '',
-          neighborhood: '',
-          city: '',
-          state: '',
-          complement: '',
-          country: 'Brasil'
+        rg: addr.rg || '',
+        address: {
+          zipcode: addr.zipcode || '',
+          street: addr.street || '',
+          number: addr.number || '',
+          neighborhood: addr.neighborhood || '',
+          city: addr.city || '',
+          state: addr.state || '',
+          complement: addr.complement || '',
+          country: addr.country || 'Brasil'
         }
       });
     }
@@ -74,29 +80,37 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
     try {
       const cleanTaxID = formData.taxID.replace(/\D/g, '');
+      
       const fullAddress = {
         ...formData.address,
         rg: formData.rg
       };
 
-      if (customer.woovi_id) {
-        await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-          },
-          body: JSON.stringify({
-            wooviId: customer.woovi_id,
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            taxID: cleanTaxID,
-            address: fullAddress
-          })
-        });
+      // 1. Tenta atualizar na Woovi se houver ID vinculado
+      if (customer?.woovi_id) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`
+            },
+            body: JSON.stringify({
+              wooviId: customer.woovi_id,
+              name: formData.name,
+              email: formData.email,
+              phone: formData.phone,
+              taxID: cleanTaxID,
+              address: fullAddress
+            })
+          });
+        } catch (wooviErr) {
+          console.warn("Aviso: Falha ao sincronizar com a Woovi, mas prosseguindo com banco local.");
+        }
       }
 
+      // 2. Atualiza no Banco de Dados Local (Supabase)
       const { error: dbError } = await supabase
         .from('customers')
         .update({
@@ -110,19 +124,21 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
       if (dbError) throw dbError;
 
-      showSuccess('Informações atualizadas!');
+      showSuccess('Informações atualizadas com sucesso!');
       onSuccess();
       onClose();
     } catch (error: any) {
-      showError(error.message);
+      showError(error.message || "Erro ao salvar alterações.");
     } finally {
       setLoading(false);
     }
   };
 
+  if (!customer) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] p-0 overflow-hidden rounded-[2.5rem] shadow-2xl">
+      <DialogContent className="bg-white border-apple-border text-apple-black sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] shadow-2xl">
         <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
           <DialogTitle className="text-xl font-black flex items-center gap-3">
              <User className="text-orange-500" /> Editar Cadastro do Cliente
@@ -132,6 +148,8 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         <form onSubmit={handleSubmit}>
           <ScrollArea className="max-h-[65vh] p-8">
             <div className="space-y-10 pb-6">
+              
+              {/* SEÇÃO IDENTIFICAÇÃO */}
               <div className="space-y-6">
                 <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                    <FileCheck size={14} className="text-orange-500" /> Identificação
@@ -140,7 +158,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
                   <Label className="text-xs font-bold ml-1">Nome completo ou Razão Social</Label>
                   <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-xs font-bold ml-1">CPF / CNPJ</Label>
                     <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-orange-600" value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} />
@@ -150,7 +168,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
                     <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.rg} onChange={(e) => setFormData({...formData, rg: e.target.value})} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div className="space-y-2">
                     <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Mail size={14} className="text-apple-muted" /> E-mail</Label>
                     <Input type="email" required className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
@@ -162,6 +180,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
                 </div>
               </div>
 
+              {/* SEÇÃO ENDEREÇO */}
               <div className="space-y-6 pt-6 border-t border-apple-border">
                 <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                   <MapPin size={14} className="text-orange-500" /> Localização
@@ -177,6 +196,10 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-xs font-bold ml-1">Logradouro</Label>
+                  <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.street} onChange={(e) => handleAddressChange('street', e.target.value)} />
+                </div>
+                <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1">Cidade</Label>
                   <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.address.city} onChange={(e) => handleAddressChange('city', e.target.value)} />
                 </div>
@@ -188,7 +211,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full bg-apple-black text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95"
+              className="w-full bg-apple-black text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95 disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={24} /> : "SALVAR ALTERAÇÕES"}
             </button>
