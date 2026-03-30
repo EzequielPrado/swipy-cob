@@ -56,10 +56,29 @@ const Charges = () => {
   };
 
   const handleMarkAsPaidQuick = async (charge: any) => {
-    if (!confirm(`Confirmar recebimento de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)} de ${charge.customers?.name}?`)) return;
+    const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount);
+    if (!confirm(`Confirmar recebimento de ${formattedAmount} de ${charge.customers?.name}?`)) return;
     
     setActionLoading(charge.id);
     try {
+      // 1. Se houver uma conta bancária vinculada, atualiza o saldo dela
+      if (charge.bank_account_id) {
+        const { data: account } = await supabase
+          .from('bank_accounts')
+          .select('balance')
+          .eq('id', charge.bank_account_id)
+          .single();
+        
+        if (account) {
+          const newBalance = Number(account.balance || 0) + Number(charge.amount || 0);
+          await supabase
+            .from('bank_accounts')
+            .update({ balance: newBalance })
+            .eq('id', charge.bank_account_id);
+        }
+      }
+
+      // 2. Atualiza o status da cobrança
       const { error } = await supabase
         .from('charges')
         .update({ status: 'pago' })
@@ -67,7 +86,15 @@ const Charges = () => {
 
       if (error) throw error;
       
-      showSuccess("Pagamento confirmado com sucesso!");
+      // 3. Registrar Log de Auditoria
+      await supabase.from('notification_logs').insert({
+        charge_id: charge.id,
+        type: 'payment',
+        status: 'success',
+        message: `Baixa manual realizada. Valor de ${formattedAmount} conciliado.`
+      });
+
+      showSuccess("Pagamento confirmado e saldo atualizado!");
       fetchCharges();
     } catch (err: any) {
       showError(err.message);
