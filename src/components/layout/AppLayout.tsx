@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
   Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench,
-  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2
+  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2, CalendarClock
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -28,9 +28,20 @@ const menuStructure = [
     submenus: [
       { label: 'Dashboard de Vendas', path: '/vendas/dashboard' }, 
       { label: 'Gestão de Vendas', path: '/vendas/lista' }, 
-      { label: 'Orçamentos', path: '/vendas/orcamentos' }, 
-      { label: 'Ordens de Serviço', path: '/vendas/ordens-servico' },
+      { label: 'Orçamentos de Produtos', path: '/vendas/orcamentos' }, 
       { label: 'Frente de Caixa (PDV)', path: '/vendas/pdv' }
+    ] 
+  },
+  { 
+    title: 'Serviços', 
+    moduleId: 'vendas', 
+    icon: Wrench, 
+    roles: ['Admin', 'Vendas', 'Contador'], 
+    submenus: [
+      { label: 'Ordens de Serviço', path: '/servicos/ordens-servico' },
+      { label: 'Agendamentos', path: '/servicos/agendamentos' }, 
+      { label: 'Cadastro de Serviços', path: '/servicos/cadastro' }, 
+      { label: 'Orçamentos de Serviços', path: '/servicos/orcamentos' }
     ] 
   },
   { 
