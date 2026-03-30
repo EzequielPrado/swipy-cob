@@ -42,7 +42,6 @@ const CustomerDocumentsSection = ({ customerId, userId }: { customerId: string, 
       const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${userId}/${customerId}/${fileName}`;
 
-      // 1. Upload para o Storage
       const { error: uploadError } = await supabase.storage
         .from('customer_documents')
         .upload(filePath, file, {
@@ -52,7 +51,6 @@ const CustomerDocumentsSection = ({ customerId, userId }: { customerId: string, 
 
       if (uploadError) throw uploadError;
 
-      // 2. Registrar no Banco
       const { error: dbError } = await supabase.from('customer_documents').insert({
         user_id: userId,
         customer_id: customerId,
@@ -115,7 +113,7 @@ const CustomerDocumentsSection = ({ customerId, userId }: { customerId: string, 
         ) : documents.length === 0 ? (
           <div className="text-center py-16 px-4">
              <FileText size={40} className="mx-auto text-apple-muted opacity-10 mb-4" />
-             <p className="text-apple-muted text-xs font-bold italic">Nenhum documento anexado ao prontuário.</p>
+             <p className="text-apple-muted text-xs font-bold italic">Nenhum documento anexado ao cadastro.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -155,7 +153,6 @@ const CustomerDocumentsSection = ({ customerId, userId }: { customerId: string, 
   );
 };
 
-// Auxiliar tailwind merge
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
 }

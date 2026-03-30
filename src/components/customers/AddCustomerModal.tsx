@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
 import { Loader2, User, MapPin, FileCheck, Phone, Mail, Fingerprint } from 'lucide-react';
-import { cn } from "@/lib/utils";
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -47,15 +46,13 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
     
     const cleanTaxID = formData.taxID.replace(/\D/g, '');
     if (cleanTaxID.length < 11) {
-      return showError("O CPF/CNPJ é obrigatório para o prontuário.");
+      return showError("O CPF/CNPJ é obrigatório para o cadastro.");
     }
 
     setLoading(true);
 
     try {
       const correlationID = crypto.randomUUID();
-      
-      // Incluímos o RG dentro do objeto de endereço para persistência no JSONB
       const fullAddress = {
         ...formData.address,
         rg: formData.rg
@@ -83,7 +80,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
         throw new Error(result.error || "Erro ao processar cadastro");
       }
 
-      showSuccess('Paciente/Cliente cadastrado com sucesso!');
+      showSuccess('Cliente cadastrado com sucesso!');
       onSuccess();
       onClose();
       
@@ -114,15 +111,14 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
             
-            {/* DADOS PESSOAIS */}
             <div className="space-y-6">
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                 <FileCheck size={14} className="text-orange-500" /> 1. Identificação Obrigatória
               </p>
               
               <div className="space-y-2">
-                <Label className="text-xs font-bold ml-1">Nome Completo ou Razão Social</Label>
-                <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold focus:ring-orange-500/20" placeholder="Nome do paciente" />
+                <Label className="text-xs font-bold ml-1">Nome completo ou Razão Social</Label>
+                <Input required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold focus:ring-orange-500/20" placeholder="Ex: João Silva ou Empresa Ltda" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -150,7 +146,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Mail size={14} className="text-apple-muted" /> E-mail</Label>
-                  <Input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" placeholder="paciente@email.com" />
+                  <Input type="email" required value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" placeholder="exemplo@email.com" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1 flex items-center gap-1.5"><Phone size={14} className="text-emerald-500" /> WhatsApp</Label>
@@ -159,7 +155,6 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
               </div>
             </div>
 
-            {/* ENDEREÇO */}
             <div className="space-y-6 pt-6 border-t border-apple-border">
               <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                 <MapPin size={14} className="text-orange-500" /> 2. Localização e Contato

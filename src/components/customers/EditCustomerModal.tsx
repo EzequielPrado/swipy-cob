@@ -43,7 +43,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         email: customer.email || '',
         phone: customer.phone || '',
         taxID: customer.tax_id || '',
-        rg: customer.address?.rg || '', // Recupera RG do JSONB
+        rg: customer.address?.rg || '',
         address: customer.address || {
           zipcode: '',
           street: '',
@@ -74,13 +74,11 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
 
     try {
       const cleanTaxID = formData.taxID.replace(/\D/g, '');
-      
       const fullAddress = {
         ...formData.address,
         rg: formData.rg
       };
 
-      // 1. Atualizar na Woovi via Edge Function
       if (customer.woovi_id) {
         await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/update-woovi-customer`, {
           method: 'POST',
@@ -99,7 +97,6 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
         });
       }
 
-      // 2. Atualizar no Supabase
       const { error: dbError } = await supabase
         .from('customers')
         .update({
@@ -128,20 +125,19 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
       <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[550px] p-0 overflow-hidden rounded-[2.5rem] shadow-2xl">
         <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
           <DialogTitle className="text-xl font-black flex items-center gap-3">
-             <User className="text-orange-500" /> Editar Prontuário
+             <User className="text-orange-500" /> Editar Cadastro do Cliente
           </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit}>
           <ScrollArea className="max-h-[65vh] p-8">
             <div className="space-y-10 pb-6">
-              
               <div className="space-y-6">
                 <p className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] flex items-center gap-2">
                    <FileCheck size={14} className="text-orange-500" /> Identificação
                 </p>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold ml-1">Nome Completo</Label>
+                  <Label className="text-xs font-bold ml-1">Nome completo ou Razão Social</Label>
                   <Input required className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
