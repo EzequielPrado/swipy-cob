@@ -89,6 +89,7 @@ const menuStructure = [
     icon: Users, 
     roles: ['Admin', 'RH', 'Contador'], 
     submenus: [
+      { label: 'People Analytics', path: '/rh/dashboard' }, // Novo item
       { label: 'Colaboradores', path: '/rh/colaboradores' }, 
       { label: 'Folha Gerencial', path: '/rh/folha' }
     ] 

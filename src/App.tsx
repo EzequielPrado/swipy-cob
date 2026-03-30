@@ -59,6 +59,7 @@ import Reconciliation from "./pages/financial/Reconciliation";
 import Transactions from "./pages/financial/Transactions";
 
 // RH
+import HRDashboard from "./pages/hr/HRDashboard"; // Nova importação
 import Employees from "./pages/hr/Employees";
 import Payroll from "./pages/hr/Payroll";
 
@@ -149,6 +150,7 @@ const App = () => (
               <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
 
               {/* RH */}
+              <Route path="/rh/dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
               <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
               <Route path="/rh/folha" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
 
