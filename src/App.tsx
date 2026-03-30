@@ -59,9 +59,11 @@ import Reconciliation from "./pages/financial/Reconciliation";
 import Transactions from "./pages/financial/Transactions";
 
 // RH
-import HRDashboard from "./pages/hr/HRDashboard"; // Nova importação
+import HRDashboard from "./pages/hr/HRDashboard";
 import Employees from "./pages/hr/Employees";
 import Payroll from "./pages/hr/Payroll";
+import VacationControl from "./pages/hr/VacationControl"; // Nova Importação
+import BenefitsManagement from "./pages/hr/BenefitsManagement"; // Nova Importação
 
 // Cadastros
 import Customers from "./pages/Customers";
@@ -153,6 +155,8 @@ const App = () => (
               <Route path="/rh/dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />
               <Route path="/rh/colaboradores" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
               <Route path="/rh/folha" element={<ProtectedRoute><Payroll /></ProtectedRoute>} />
+              <Route path="/rh/ferias" element={<ProtectedRoute><VacationControl /></ProtectedRoute>} />
+              <Route path="/rh/beneficios" element={<ProtectedRoute><BenefitsManagement /></ProtectedRoute>} />
 
               {/* CADASTROS */}
               <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
   Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench,
-  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2, CalendarClock
+  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2, CalendarClock, Palmtree, CreditCard
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -89,9 +89,11 @@ const menuStructure = [
     icon: Users, 
     roles: ['Admin', 'RH', 'Contador'], 
     submenus: [
-      { label: 'People Analytics', path: '/rh/dashboard' }, // Novo item
+      { label: 'People Analytics', path: '/rh/dashboard' },
       { label: 'Colaboradores', path: '/rh/colaboradores' }, 
-      { label: 'Folha Gerencial', path: '/rh/folha' }
+      { label: 'Folha Gerencial', path: '/rh/folha' },
+      { label: 'Controle de Férias', path: '/rh/ferias' }, // Novo item
+      { label: 'Swipy Card (VR/VA)', path: '/rh/beneficios' } // Novo item
     ] 
   },
   { 
