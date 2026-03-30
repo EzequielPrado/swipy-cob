@@ -4,9 +4,21 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  History, Search, Filter, Loader2, ShieldAlert, 
-  User, Building2, Clock, CheckCircle2, Send, Eye, MousePointer2,
-  AlertTriangle, Activity, RefreshCw, ShieldCheck, Store, Wrench, Zap
+  History, 
+  Search, 
+  Loader2, 
+  ShieldAlert, 
+  Building2, 
+  CheckCircle2, 
+  Send, 
+  Eye, 
+  Activity, 
+  RefreshCw, 
+  ShieldCheck, 
+  Store, 
+  Wrench, 
+  Zap,
+  Terminal
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -76,7 +88,7 @@ const AuditLogs = () => {
             <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 text-apple-black">
               <ShieldCheck className="text-orange-500" size={32} /> Rastro do Sistema
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Tudo o que acontece na rede Swipy em tempo real.</p>
+            <p className="text-apple-muted mt-1 font-medium">Monitoramento em tempo real de toda a rede Swipy.</p>
           </div>
           <div className="flex gap-3">
              <div className="relative w-full md:w-80">
@@ -92,6 +104,21 @@ const AuditLogs = () => {
                 <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
              </button>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div className="bg-orange-50 border border-orange-200 p-6 rounded-[2rem] flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-orange-500 shadow-sm"><Activity size={24} /></div>
+              <div><p className="text-[10px] font-black uppercase text-orange-600">Monitoramento</p><p className="text-2xl font-black text-apple-black">Ativo</p></div>
+           </div>
+           <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-500 shadow-sm"><Send size={24} /></div>
+              <div><p className="text-[10px] font-black uppercase text-blue-600">Entregas API</p><p className="text-2xl font-black text-apple-black">Live</p></div>
+           </div>
+           <div className="bg-emerald-50 border border-emerald-200 p-6 rounded-[2rem] flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-500 shadow-sm"><ShieldCheck size={24} /></div>
+              <div><p className="text-[10px] font-black uppercase text-emerald-600">Compliance</p><p className="text-2xl font-black text-apple-black">100%</p></div>
+           </div>
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
