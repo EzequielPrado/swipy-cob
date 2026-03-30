@@ -52,27 +52,51 @@ const SalesList = () => {
     const startDate = new Date(Number(year), Number(month) - 1, 1).toISOString();
     const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999).toISOString();
 
-    const { data, error } = await supabase
-      .from('quotes')
-      .select(`
-        *, 
-        customers(name, email, phone, address),
-        employees(full_name),
-        quote_items(
-          id, product_id, quantity, unit_price, total_price,
-          products(name, sku, is_produced)
-        ),
-        charges(correlation_id)
-      `)
-      .eq('user_id', effectiveUserId)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate)
-      .order('created_at', { ascending: false });
+    try {
+      // 1. Busca os Pedidos e Itens (Sem fazer join direto com Charges para evitar erros de FK)
+      const { data: quotesData, error: quotesError } = await supabase
+        .from('quotes')
+        .select(`
+          *, 
+          customers(name, email, phone, address),
+          employees(full_name),
+          quote_items(
+            id, product_id, quantity, unit_price, total_price,
+            products(name, sku, is_produced)
+          )
+        `)
+        .eq('user_id', effectiveUserId)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+        .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setSales(data);
+      if (quotesError) throw quotesError;
+
+      const quotes = quotesData || [];
+      const quoteIds = quotes.map(q => q.id);
+
+      // 2. Busca as Cobranças separadamente e faz o merge manual
+      let chargesData: any[] = [];
+      if (quoteIds.length > 0) {
+        const { data: cData, error: cError } = await supabase
+          .from('charges')
+          .select('quote_id, correlation_id')
+          .in('quote_id', quoteIds);
+        
+        if (!cError && cData) chargesData = cData;
+      }
+
+      const enrichedSales = quotes.map(q => ({
+        ...q,
+        charges: chargesData.filter(c => c.quote_id === q.id)
+      }));
+
+      setSales(enrichedSales);
+    } catch (err: any) {
+      showError("Erro ao carregar vendas: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -146,7 +170,7 @@ const SalesList = () => {
           ) : filteredSales.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-apple-muted opacity-40">
                <ShoppingBag size={48} className="mb-4" />
-               <p className="font-bold italic">Nenhum pedido localizado.</p>
+               <p className="font-bold italic">Nenhum pedido localizado no período.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

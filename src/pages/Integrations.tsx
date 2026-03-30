@@ -103,7 +103,7 @@ const Integrations = () => {
     setLoading(true);
     try {
       const fakeOrderId = Math.floor(100000 + Math.random() * 900000);
-      const taxId = "11122233344"; // CPF Falso
+      const taxId = "11122233344"; // CPF Falso sem pontuação para padrão DB
 
       // 1. Cria ou recupera Cliente
       let customerId;
@@ -125,12 +125,12 @@ const Integrations = () => {
             neighborhood: 'Jardim Primavera',
             city: 'São Paulo',
             state: 'SP',
-            zip: '01234-567',
+            zipcode: '01234-567', // Corrigido para zipcode (formato Swipy ERP)
             country: 'BR'
           },
           status: 'em dia'
         }).select().single();
-        if (custErr) throw custErr;
+        if (custErr) throw new Error("Falha ao criar cliente teste: " + custErr.message);
         customerId = newCust.id;
       }
 
@@ -140,7 +140,7 @@ const Integrations = () => {
       if (existingProd) {
         productId = existingProd.id;
       } else {
-        const { data: newProd } = await supabase.from('products').insert({
+        const { data: newProd, error: prodErr } = await supabase.from('products').insert({
           user_id: effectiveUserId,
           name: 'Produto Teste Nuvemshop',
           sku: 'TESTE-01',
@@ -148,6 +148,7 @@ const Integrations = () => {
           category: 'E-commerce',
           stock_quantity: 10
         }).select().single();
+        if (prodErr) throw new Error("Falha ao criar produto teste: " + prodErr.message);
         productId = newProd.id;
       }
 
@@ -158,19 +159,20 @@ const Integrations = () => {
         total_amount: 199.90,
         status: 'picking' // Pago -> Vai direto para Separação Logística
       }).select().single();
-      if (quoteErr) throw quoteErr;
+      if (quoteErr) throw new Error("Falha ao criar pedido: " + quoteErr.message);
 
       // 4. Cria os itens do pedido
-      await supabase.from('quote_items').insert({
+      const { error: itemsErr } = await supabase.from('quote_items').insert({
         quote_id: quote.id,
         product_id: productId,
         quantity: 1,
         unit_price: 199.90,
         total_price: 199.90
       });
+      if (itemsErr) throw new Error("Falha ao adicionar item ao pedido: " + itemsErr.message);
 
       // 5. Cria a Cobrança (Charge) vinculada
-      await supabase.from('charges').insert({
+      const { error: chargeErr } = await supabase.from('charges').insert({
         user_id: effectiveUserId,
         customer_id: customerId,
         quote_id: quote.id,
@@ -181,6 +183,7 @@ const Integrations = () => {
         due_date: new Date().toISOString().split('T')[0],
         correlation_id: `nuvem_${fakeOrderId}`
       });
+      if (chargeErr) throw new Error("Falha ao criar pagamento: " + chargeErr.message);
 
       // 6. Notificação
       await supabase.from('notifications').insert({
