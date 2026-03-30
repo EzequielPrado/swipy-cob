@@ -92,8 +92,8 @@ const menuStructure = [
       { label: 'People Analytics', path: '/rh/dashboard' },
       { label: 'Colaboradores', path: '/rh/colaboradores' }, 
       { label: 'Folha Gerencial', path: '/rh/folha' },
-      { label: 'Controle de Férias', path: '/rh/ferias' }, // Novo item
-      { label: 'Swipy Card (VR/VA)', path: '/rh/beneficios' } // Novo item
+      { label: 'Controle de Férias', path: '/rh/ferias' },
+      { label: 'Swipy Card (VR/VA)', path: '/rh/beneficios', tag: 'EM BREVE' }
     ] 
   },
   { 
@@ -222,7 +222,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     {hasSubmenus && isOpen && (
                       <div className="mt-1 ml-4 pl-4 border-l border-apple-border space-y-1 animate-in slide-in-from-top-1 duration-200">
                         {item.submenus!.map(sub => (
-                          <Link key={sub.path} to={sub.path} className={cn("block px-3 py-2 rounded-lg text-xs font-medium transition-all", location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black")}>{sub.label}</Link>
+                          <Link 
+                            key={sub.path} 
+                            to={sub.path} 
+                            className={cn(
+                              "flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all", 
+                              location.pathname === sub.path ? "text-orange-600 font-bold" : "text-apple-muted hover:text-apple-black"
+                            )}
+                          >
+                            {sub.label}
+                            {(sub as any).tag && (
+                              <span className="text-[7px] font-black bg-orange-100 text-orange-600 px-1 py-0.5 rounded shadow-sm">{(sub as any).tag}</span>
+                            )}
+                          </Link>
                         ))}
                       </div>
                     )}
