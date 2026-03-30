@@ -27,7 +27,6 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import FinancialAgenda from '@/components/financial/FinancialAgenda';
-import LiveOperationFeed from '@/components/dashboard/LiveOperationFeed';
 
 const OverviewDashboard = () => {
   const { effectiveUserId, profile, activeMerchant } = useAuth();
@@ -227,9 +226,6 @@ const OverviewDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            {/* NOVO WIDGET: FEED DE OPERAÇÕES EM TEMPO REAL */}
-            <LiveOperationFeed userId={effectiveUserId!} />
-
             {showRecentSales && (
               <div className="bg-apple-white border border-apple-border rounded-[2rem] p-8 shadow-sm">
                 <div className="flex items-center justify-between mb-8">
