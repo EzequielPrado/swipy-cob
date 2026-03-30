@@ -32,11 +32,13 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
+import { generateRetentionReport } from '@/utils/hrUtils';
+import { showSuccess } from '@/utils/toast';
 
 const COLORS = ['#FF8C42', '#3b82f6', '#10b981', '#8b5cf6', '#f43f5e', '#f59e0b', '#06b6d4', '#86868b'];
 
 const HRDashboard = () => {
-  const { effectiveUserId } = useAuth();
+  const { effectiveUserId, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<any[]>([]);
 
@@ -92,6 +94,13 @@ const HRDashboard = () => {
 
     return { active, inactive, totalPayroll, deptData, genderData, birthdays };
   }, [employees]);
+
+  const handleGenerateReport = () => {
+    if (employees.length === 0) return;
+    const company = profile?.company || profile?.full_name || 'Nossa Empresa';
+    generateRetentionReport(company, employees);
+    showSuccess("Relatório gerado com sucesso!");
+  };
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -235,7 +244,13 @@ const HRDashboard = () => {
                 <h4 className="text-2xl font-black text-white tracking-tighter leading-tight max-w-[200px]">Sua equipe cresceu 12% no último semestre.</h4>
                 <p className="text-white/80 text-sm font-medium leading-relaxed max-w-[240px]">Continue investindo em treinamento e cultura para manter o engajamento elevado.</p>
                 <div className="pt-4">
-                   <button className="bg-white text-orange-600 font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:scale-105 transition-all active:scale-95">Gerar Relatório de Retenção</button>
+                   <button 
+                    onClick={handleGenerateReport}
+                    disabled={employees.length === 0}
+                    className="bg-white text-orange-600 font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
+                   >
+                     Gerar Relatório de Retenção
+                   </button>
                 </div>
              </div>
           </div>

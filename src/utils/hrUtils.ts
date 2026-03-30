@@ -103,3 +103,94 @@ export const generateBlankEmployeeForm = (companyName: string) => {
 
   doc.save(`Ficha_Cadastro_Em_Branco.pdf`);
 };
+
+export const generateRetentionReport = (companyName: string, employees: any[]) => {
+  const doc = new jsPDF();
+  const activeCount = employees.filter(e => e.status === 'Ativo').length;
+  const inactiveCount = employees.filter(e => e.status === 'Inativo').length;
+  const totalCount = employees.length;
+  
+  const turnoverRate = totalCount > 0 ? ((inactiveCount / totalCount) * 100).toFixed(1) : "0";
+
+  // HEADER
+  doc.setFillColor(29, 29, 31); // Apple Black
+  doc.rect(0, 0, 210, 45, 'F');
+  
+  doc.setTextColor(249, 115, 22);
+  doc.setFontSize(24);
+  doc.setFont("helvetica", "bold");
+  doc.text("RELATÓRIO DE RETENÇÃO", 14, 25);
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text(`${companyName.toUpperCase()} | PEOPLE ANALYTICS`, 14, 33);
+  doc.text(`GERADO EM: ${new Date().toLocaleString('pt-BR')}`, 14, 38);
+
+  // KPIs
+  doc.setFillColor(245, 245, 247);
+  doc.roundedRect(14, 55, 182, 35, 3, 3, 'F');
+  
+  doc.setTextColor(29, 29, 31);
+  doc.setFontSize(9);
+  doc.text("HEADCOUNT ATIVO", 25, 65);
+  doc.text("DESLIGAMENTOS", 85, 65);
+  doc.text("TAXA DE TURNOVER", 145, 65);
+  
+  doc.setFontSize(22);
+  doc.text(activeCount.toString(), 25, 80);
+  doc.text(inactiveCount.toString(), 85, 80);
+  doc.setTextColor(249, 115, 22);
+  doc.text(`${turnoverRate}%`, 145, 80);
+
+  // TABELA DE COLABORADORES ATIVOS
+  doc.setTextColor(29, 29, 31);
+  doc.setFontSize(12);
+  doc.text("Quadro de Colaboradores Ativos", 14, 105);
+
+  const activeRows = employees
+    .filter(e => e.status === 'Ativo')
+    .map(e => [
+      e.full_name,
+      e.department,
+      e.job_role,
+      new Date(e.hire_date).toLocaleDateString('pt-BR'),
+      e.employment_type
+    ]);
+
+  autoTable(doc, {
+    head: [['NOME COMPLETO', 'DEPARTAMENTO', 'CARGO', 'ADMISSÃO', 'TIPO']],
+    body: activeRows,
+    startY: 110,
+    theme: 'striped',
+    headStyles: { fillColor: [249, 115, 22] },
+    styles: { fontSize: 8 }
+  });
+
+  // TABELA DE DESLIGAMENTOS (SE HOUVER)
+  if (inactiveCount > 0) {
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFontSize(12);
+    doc.text("Histórico de Desligamentos", 14, finalY);
+
+    const inactiveRows = employees
+      .filter(e => e.status === 'Inativo')
+      .map(e => [
+        e.full_name,
+        e.department,
+        new Date(e.termination_date).toLocaleDateString('pt-BR'),
+        e.termination_type || 'Não informado',
+        e.termination_reason || '---'
+      ]);
+
+    autoTable(doc, {
+      head: [['NOME', 'DEPTO', 'DATA SAÍDA', 'TIPO RESCISÃO', 'MOTIVO']],
+      body: inactiveRows,
+      startY: finalY + 5,
+      theme: 'striped',
+      headStyles: { fillColor: [150, 150, 150] },
+      styles: { fontSize: 8 }
+    });
+  }
+
+  doc.save(`Relatorio_Retencao_${companyName.replace(/\s+/g, '_')}.pdf`);
+};
