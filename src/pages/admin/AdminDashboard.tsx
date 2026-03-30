@@ -5,7 +5,7 @@ import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, CreditCard, Activity, AlertTriangle, Loader2, RefreshCw, Zap,
-  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar, Send, CheckCircle2, Clock
+  Building2, CalendarCheck, MessageSquare, TrendingUp, DollarSign, Package, Factory, ArrowUpRight, ShieldCheck, Globe, Play, Calendar, Send, CheckCircle2, Clock, Layers
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { showError, showSuccess } from '@/utils/toast';
@@ -19,6 +19,7 @@ const AdminDashboard = () => {
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
   const [globalCustomers, setGlobalCustomers] = useState<any[]>([]);
   const [availableRules, setAvailableRules] = useState<any[]>([]);
+  const [plansDistribution, setPlansDistribution] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningAction, setRunningAction] = useState<string | null>(null);
 
@@ -31,12 +32,13 @@ const AdminDashboard = () => {
   const fetchGlobalData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, chargesRes, subsRes, custRes, rulesRes] = await Promise.all([
-        supabase.from('profiles').select('id, company, full_name'),
+      const [profilesRes, chargesRes, subsRes, custRes, rulesRes, plansRes] = await Promise.all([
+        supabase.from('profiles').select('id, company, full_name, plan_id, system_plans(name)'),
         supabase.from('charges').select('id, amount, status, user_id, customer_id, customers(name)').order('created_at', { ascending: false }).limit(30),
         supabase.from('subscriptions').select('id').eq('status', 'active'),
         supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20),
-        supabase.from('billing_rules').select('id, label, day_offset').eq('is_active', true).order('day_offset', { ascending: true })
+        supabase.from('billing_rules').select('id, label, day_offset').eq('is_active', true).order('day_offset', { ascending: true }),
+        supabase.from('system_plans').select('id, name')
       ]);
 
       const allProfiles = profilesRes.data || [];
@@ -51,6 +53,22 @@ const AdminDashboard = () => {
       });
 
       if (rulesRes.data) setAvailableRules(rulesRes.data);
+
+      // Distribuição de Lojistas por Plano
+      if (plansRes.data) {
+        const dist = plansRes.data.map(plan => {
+          const count = allProfiles.filter(p => p.plan_id === plan.id).length;
+          return { name: plan.name, count };
+        }).sort((a, b) => b.count - a.count);
+        
+        // Adiciona os que não têm plano (Free/Trial)
+        const noPlanCount = allProfiles.filter(p => !p.plan_id).length;
+        if (noPlanCount > 0) {
+          dist.push({ name: 'Sem Plano / Free', count: noPlanCount });
+        }
+        
+        setPlansDistribution(dist);
+      }
 
       if (chargesRes.data) {
         const enrichedCharges = chargesRes.data.slice(0, 10).map(c => ({
@@ -177,47 +195,73 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* AUTOMAÇÕES */}
-        <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-8 opacity-5"><Zap size={140} className="text-orange-500" /></div>
-           <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-             <Zap size={16} /> Comandos de Servidor (Manual Override)
-           </h3>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-              <button 
-                onClick={() => runAutomation('subscriptions')}
-                disabled={!!runningAction}
-                className="bg-apple-offWhite hover:bg-blue-50 border border-apple-border p-8 rounded-3xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 border border-apple-border shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all">
-                    {runningAction === 'subscriptions' ? <Loader2 className="animate-spin" /> : <RefreshCw size={28} />}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* AUTOMAÇÕES */}
+          <div className="lg:col-span-2 bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-8 opacity-5"><Zap size={140} className="text-orange-500" /></div>
+             <h3 className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+               <Zap size={16} /> Comandos de Servidor (Manual Override)
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                <button 
+                  onClick={() => runAutomation('subscriptions')}
+                  disabled={!!runningAction}
+                  className="bg-apple-offWhite hover:bg-blue-50 border border-apple-border p-6 rounded-3xl flex flex-col justify-between group transition-all text-left"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 border border-apple-border shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all">
+                      {runningAction === 'subscriptions' ? <Loader2 className="animate-spin" /> : <RefreshCw size={24} />}
+                    </div>
+                    <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
                   <div>
-                    <p className="font-black text-apple-black text-lg">Processar Assinaturas</p>
-                    <p className="text-xs text-apple-muted mt-1 font-medium">Gera as cobranças Pix para as recorrências de hoje.</p>
+                    <p className="font-black text-apple-black text-base">Processar Assinaturas</p>
+                    <p className="text-[10px] text-apple-muted mt-1 font-medium">Gera as cobranças Pix para as recorrências de hoje.</p>
                   </div>
-                </div>
-                <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
-              </button>
+                </button>
 
-              <button 
-                onClick={() => runAutomation('billing')}
-                disabled={!!runningAction}
-                className="bg-apple-offWhite hover:bg-orange-50 border border-apple-border p-8 rounded-3xl flex items-center justify-between group transition-all"
-              >
-                <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-orange-600 border border-apple-border shadow-sm group-hover:bg-orange-600 group-hover:text-white transition-all">
-                    {runningAction === 'billing' ? <Loader2 className="animate-spin" /> : <MessageSquare size={28} />}
+                <button 
+                  onClick={() => runAutomation('billing')}
+                  disabled={!!runningAction}
+                  className="bg-apple-offWhite hover:bg-orange-50 border border-apple-border p-6 rounded-3xl flex flex-col justify-between group transition-all text-left"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-orange-600 border border-apple-border shadow-sm group-hover:bg-orange-600 group-hover:text-white transition-all">
+                      {runningAction === 'billing' ? <Loader2 className="animate-spin" /> : <MessageSquare size={24} />}
+                    </div>
+                    <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
                   <div>
-                    <p className="font-black text-apple-black text-lg">Disparar Régua Global</p>
-                    <p className="text-xs text-apple-muted mt-1 font-medium">Envia os WhatsApps de aviso e atraso para todos.</p>
+                    <p className="font-black text-apple-black text-base">Disparar Régua Global</p>
+                    <p className="text-[10px] text-apple-muted mt-1 font-medium">Envia os WhatsApps de aviso e atraso para todos.</p>
                   </div>
-                </div>
-                <Play size={20} className="text-apple-muted opacity-0 group-hover:opacity-100 transition-all" />
-              </button>
-           </div>
+                </button>
+             </div>
+          </div>
+
+          {/* DISTRIBUIÇÃO DE PLANOS */}
+          <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm flex flex-col">
+             <h3 className="text-[10px] font-black text-apple-muted uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+               <Layers size={16} className="text-blue-500" /> Assinantes por Plano
+             </h3>
+             <div className="flex-1 space-y-4">
+               {loading ? (
+                 <div className="flex justify-center py-10"><Loader2 className="animate-spin text-apple-muted" size={24} /></div>
+               ) : plansDistribution.length === 0 ? (
+                 <p className="text-xs text-apple-muted italic text-center py-10">Nenhum plano atribuído.</p>
+               ) : (
+                 plansDistribution.map((pd, idx) => (
+                   <div key={idx} className="flex items-center justify-between p-4 bg-apple-offWhite border border-apple-border rounded-2xl">
+                      <p className="text-xs font-bold text-apple-black truncate pr-4">{pd.name}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                         <span className="text-sm font-black text-orange-500">{pd.count}</span>
+                         <span className="text-[9px] font-black uppercase text-apple-muted">Lojas</span>
+                      </div>
+                   </div>
+                 ))
+               )}
+             </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
