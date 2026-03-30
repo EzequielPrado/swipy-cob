@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, CheckCircle2, Mail, AlertTriangle, MapPin, FileText, Activity } from 'lucide-center';
+import { Loader2, UserPlus, Briefcase, ShieldCheck, ChevronRight, ChevronLeft, CheckCircle2, Mail, AlertTriangle, MapPin, FileText, Activity } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface AddEmployeeModalProps {
