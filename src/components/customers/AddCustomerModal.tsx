@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, User, MapPin, FileCheck, Phone, Mail, Fingerprint } from 'lucide-react';
+import { Loader2, User, MapPin, FileCheck, Phone, Mail, Fingerprint, Search } from 'lucide-react';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ interface AddCustomerModalProps {
 
 const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps) => {
   const [loading, setLoading] = useState(false);
+  const [fetchingCep, setFetchingCep] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,6 +40,36 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
       ...prev,
       address: { ...prev.address, [field]: value }
     }));
+  };
+
+  const handleCepBlur = async () => {
+    const cep = formData.address.zipcode.replace(/\D/g, '');
+    if (cep.length === 8) {
+      setFetchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        
+        if (data.erro) {
+          showError("CEP não localizado.");
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            address: {
+              ...prev.address,
+              street: data.logradouro,
+              neighborhood: data.bairro,
+              city: data.localidade,
+              state: data.uf
+            }
+          }));
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP", err);
+      } finally {
+        setFetchingCep(false);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,7 +198,17 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1">CEP</Label>
-                  <Input required value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" placeholder="00000-000" />
+                  <div className="relative">
+                    <Input 
+                      required 
+                      value={formData.address.zipcode} 
+                      onChange={(e) => handleAddressChange('zipcode', e.target.value)} 
+                      onBlur={handleCepBlur}
+                      className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" 
+                      placeholder="00000-000" 
+                    />
+                    {fetchingCep && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-orange-500" size={16} />}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1">Número</Label>
@@ -200,7 +241,7 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
           <DialogFooter className="p-8 border-t border-apple-border bg-apple-offWhite">
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || fetchingCep}
               className="w-full bg-apple-black hover:bg-zinc-800 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={24} /> : "CONCLUIR CADASTRO"}

@@ -18,6 +18,7 @@ interface AddSupplierModalProps {
 const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [fetchingCep, setFetchingCep] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,6 +40,34 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
       ...prev,
       address: { ...prev.address, [field]: value }
     }));
+  };
+
+  const handleCepBlur = async () => {
+    const cep = formData.address.zipcode.replace(/\D/g, '');
+    if (cep.length === 8) {
+      setFetchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        
+        if (!data.erro) {
+          setFormData(prev => ({
+            ...prev,
+            address: {
+              ...prev.address,
+              street: data.logradouro,
+              neighborhood: data.bairro,
+              city: data.localidade,
+              state: data.uf
+            }
+          }));
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP", err);
+      } finally {
+        setFetchingCep(false);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -126,7 +155,16 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>CEP</Label>
-                  <Input value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" />
+                  <div className="relative">
+                    <Input 
+                      value={formData.address.zipcode} 
+                      onChange={(e) => handleAddressChange('zipcode', e.target.value)} 
+                      onBlur={handleCepBlur}
+                      className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" 
+                      placeholder="00000-000"
+                    />
+                    {fetchingCep && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-orange-500" size={14} />}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Cidade/UF</Label>
@@ -143,7 +181,7 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
           <DialogFooter className="p-6 border-t border-zinc-800 bg-zinc-950/50">
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || fetchingCep}
               className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-zinc-950 font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/10 transition-all"
             >
               {loading ? <Loader2 className="animate-spin" size={20} /> : "CONCLUIR CADASTRO"}

@@ -17,6 +17,7 @@ interface EditCustomerModalProps {
 
 const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustomerModalProps) => {
   const [loading, setLoading] = useState(false);
+  const [fetchingCep, setFetchingCep] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -64,6 +65,34 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
       ...prev,
       address: { ...prev.address, [field]: value }
     }));
+  };
+
+  const handleCepBlur = async () => {
+    const cep = formData.address.zipcode.replace(/\D/g, '');
+    if (cep.length === 8) {
+      setFetchingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        
+        if (!data.erro) {
+          setFormData(prev => ({
+            ...prev,
+            address: {
+              ...prev.address,
+              street: data.logradouro,
+              neighborhood: data.bairro,
+              city: data.localidade,
+              state: data.uf
+            }
+          }));
+        }
+      } catch (err) {
+        console.error("Erro ao buscar CEP", err);
+      } finally {
+        setFetchingCep(false);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,7 +207,16 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1">CEP</Label>
-                  <Input className="bg-apple-offWhite border-apple-border h-12 rounded-xl" value={formData.address.zipcode} onChange={(e) => handleAddressChange('zipcode', e.target.value)} placeholder="00000-000" />
+                  <div className="relative">
+                    <Input 
+                      className="bg-apple-offWhite border-apple-border h-12 rounded-xl" 
+                      value={formData.address.zipcode} 
+                      onChange={(e) => handleAddressChange('zipcode', e.target.value)} 
+                      onBlur={handleCepBlur}
+                      placeholder="00000-000" 
+                    />
+                    {fetchingCep && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-orange-500" size={16} />}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold ml-1">Número</Label>
@@ -209,7 +247,7 @@ const EditCustomerModal = ({ isOpen, onClose, onSuccess, customer }: EditCustome
           <DialogFooter className="p-8 border-t border-apple-border bg-apple-offWhite shrink-0">
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || fetchingCep}
               className="w-full bg-apple-black hover:bg-zinc-800 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={24} /> : "SALVAR ALTERAÇÕES"}
