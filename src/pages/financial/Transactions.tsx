@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Link } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AccountTransferModal from '@/components/financial/AccountTransferModal';
 
 const Transactions = () => {
   const { effectiveUserId } = useAuth();
@@ -23,6 +24,7 @@ const Transactions = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const today = new Date();
@@ -152,7 +154,7 @@ const Transactions = () => {
             <p className="text-apple-muted mt-1 font-medium">Visão consolidada por período de extratos, contas a pagar e a receber.</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
               <CalendarDays size={16} className="text-apple-muted mr-3" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -166,6 +168,13 @@ const Transactions = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <button 
+              onClick={() => setIsTransferModalOpen(true)}
+              className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl border border-apple-border shadow-sm transition-all flex items-center gap-2"
+            >
+              <ArrowRightLeft size={16} className="text-orange-500" /> Nova Transferência
+            </button>
 
             <Link 
               to="/financeiro/conciliacao"
@@ -294,6 +303,12 @@ const Transactions = () => {
           </div>
         </div>
       </div>
+
+      <AccountTransferModal 
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        onSuccess={fetchData}
+      />
     </AppLayout>
   );
 };
