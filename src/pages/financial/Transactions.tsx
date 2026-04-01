@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AccountTransferModal from '@/components/financial/AccountTransferModal';
 
 const Transactions = () => {
-  const { effectiveUserId } = useAuth();
+  const { user } = useAuth(); // Usando user.id diretamente
   const [loading, setLoading] = useState(true);
   const [unifiedData, setUnifiedData] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -46,7 +46,7 @@ const Transactions = () => {
   }, []);
 
   const fetchData = async () => {
-    if (!effectiveUserId) return;
+    if (!user?.id) return;
     setLoading(true);
     
     const [year, month] = selectedMonth.split('-');
@@ -56,20 +56,20 @@ const Transactions = () => {
 
     try {
       const [accRes, trxRes, chargesRes, expensesRes] = await Promise.all([
-        supabase.from('bank_accounts').select('id, name').eq('user_id', effectiveUserId),
+        supabase.from('bank_accounts').select('id, name').eq('user_id', user.id),
         supabase.from('bank_transactions')
           .select('*, bank_accounts(name)')
-          .eq('user_id', effectiveUserId)
+          .eq('user_id', user.id)
           .gte('date', startDate)
           .lte('date', endDate),
         supabase.from('charges')
           .select('*, customers(name)')
-          .eq('user_id', effectiveUserId)
+          .eq('user_id', user.id)
           .gte('due_date', startDate)
           .lte('due_date', `${endDate}T23:59:59`),
         supabase.from('expenses')
           .select('*')
-          .eq('user_id', effectiveUserId)
+          .eq('user_id', user.id)
           .gte('due_date', startDate)
           .lte('due_date', endDate)
       ]);
@@ -122,7 +122,7 @@ const Transactions = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [effectiveUserId, selectedMonth]);
+  useEffect(() => { fetchData(); }, [user?.id, selectedMonth]);
 
   const filteredData = useMemo(() => {
     return unifiedData.filter(item => {

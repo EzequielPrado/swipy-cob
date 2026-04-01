@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
 import { showError, showSuccess } from '@/utils/toast';
-import { Loader2, ArrowRightLeft, Landmark, DollarSign, Calendar, FileText } from 'lucide-react';
+import { Loader2, ArrowRightLeft } from 'lucide-react';
 
 interface AccountTransferModalProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ interface AccountTransferModalProps {
 }
 
 const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferModalProps) => {
-  const { effectiveUserId } = useAuth();
+  const { user } = useAuth(); // Usar o ID real logado para não bloquear no RLS
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   
@@ -25,21 +25,21 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
     originAccountId: '',
     destinationAccountId: '',
     amount: '',
-    description: 'Transferência',
+    description: 'Transferência entre contas',
     date: new Date().toISOString().split('T')[0]
   });
 
   useEffect(() => {
-    if (isOpen && effectiveUserId) {
+    if (isOpen && user?.id) {
       fetchAccounts();
     }
-  }, [isOpen, effectiveUserId]);
+  }, [isOpen, user?.id]);
 
   const fetchAccounts = async () => {
     const { data } = await supabase
       .from('bank_accounts')
       .select('id, name, balance, type')
-      .eq('user_id', effectiveUserId)
+      .eq('user_id', user?.id)
       .order('name');
     
     if (data) setAccounts(data);
@@ -53,48 +53,40 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
     }
     
     if (formData.originAccountId === formData.destinationAccountId) {
-      return showError("A conta de destino deve ser diferente da conta de origem.");
+      return showError("A conta de destino deve ser diferente da origem.");
     }
 
     const amountNum = parseFloat(formData.amount.replace(',', '.'));
     if (isNaN(amountNum) || amountNum <= 0) {
-      return showError("Insira um valor válido.");
+      return showError("Insira um valor numérico válido.");
     }
 
     setLoading(true);
     try {
-      // 1. Buscar dados das contas
-      const { data: currentAccounts, error: fetchError } = await supabase
-        .from('bank_accounts')
-        .select('id, balance, type')
-        .in('id', [formData.originAccountId, formData.destinationAccountId]);
+      // 1. Pegar dados das contas selecionadas
+      const originAcc = accounts.find(a => a.id === formData.originAccountId);
+      const destAcc = accounts.find(a => a.id === formData.destinationAccountId);
 
-      if (fetchError || !currentAccounts || currentAccounts.length < 2) {
-        throw new Error("Erro ao acessar dados das contas.");
-      }
+      if (!originAcc || !destAcc) throw new Error("Erro ao localizar as contas.");
 
-      const originAcc = currentAccounts.find(a => a.id === formData.originAccountId);
-      const destAcc = currentAccounts.find(a => a.id === formData.destinationAccountId);
-
-      // 2. Atualiza Saldo Origem (Se não for API Swipy)
+      // 2. Atualizar Saldos (Apenas se a conta não for gerida por API/Woovi)
       if (originAcc.type !== 'swipy') {
-        const { error: err1 } = await supabase.from('bank_accounts')
+        const { error: errOrigem } = await supabase.from('bank_accounts')
           .update({ balance: Number(originAcc.balance || 0) - amountNum })
           .eq('id', formData.originAccountId);
-        if (err1) throw err1;
+        if (errOrigem) throw new Error("Erro ao descontar saldo: " + errOrigem.message);
       }
 
-      // 3. Atualiza Saldo Destino (Se não for API Swipy)
       if (destAcc.type !== 'swipy') {
-        const { error: err2 } = await supabase.from('bank_accounts')
+        const { error: errDest } = await supabase.from('bank_accounts')
           .update({ balance: Number(destAcc.balance || 0) + amountNum })
           .eq('id', formData.destinationAccountId);
-        if (err2) throw err2;
+        if (errDest) throw new Error("Erro ao somar saldo: " + errDest.message);
       }
 
-      // 4. Cria a Saída no Extrato
-      const { error: err3 } = await supabase.from('bank_transactions').insert({
-        user_id: effectiveUserId,
+      // 3. Criar registro de SAÍDA no extrato da origem
+      const { error: errExtratoSaida } = await supabase.from('bank_transactions').insert({
+        user_id: user?.id,
         bank_account_id: formData.originAccountId,
         amount: amountNum,
         type: 'debit',
@@ -102,11 +94,11 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
         date: formData.date,
         status: 'reconciled'
       });
-      if (err3) throw err3;
+      if (errExtratoSaida) throw new Error("Erro ao criar extrato de saída: " + errExtratoSaida.message);
 
-      // 5. Cria a Entrada no Extrato
-      const { error: err4 } = await supabase.from('bank_transactions').insert({
-        user_id: effectiveUserId,
+      // 4. Criar registro de ENTRADA no extrato de destino
+      const { error: errExtratoEntrada } = await supabase.from('bank_transactions').insert({
+        user_id: user?.id,
         bank_account_id: formData.destinationAccountId,
         amount: amountNum,
         type: 'credit',
@@ -114,20 +106,20 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
         date: formData.date,
         status: 'reconciled'
       });
-      if (err4) throw err4;
+      if (errExtratoEntrada) throw new Error("Erro ao criar extrato de entrada: " + errExtratoEntrada.message);
 
-      showSuccess("Transferência registrada no sistema!");
-      onSuccess();
-      onClose();
+      showSuccess("Transferência processada com sucesso no extrato!");
       
       setFormData({
         originAccountId: '',
         destinationAccountId: '',
         amount: '',
-        description: 'Transferência',
+        description: 'Transferência entre contas',
         date: new Date().toISOString().split('T')[0]
       });
       
+      onSuccess();
+      onClose();
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -206,7 +198,7 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Descrição Opcional</Label>
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Descrição / Observação</Label>
             <Input 
               placeholder="Ex: Transferência de Saldo, Aplicação..." 
               className="bg-apple-offWhite border-apple-border h-12 rounded-xl" 
