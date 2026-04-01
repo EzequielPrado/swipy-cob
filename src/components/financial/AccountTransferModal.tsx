@@ -38,7 +38,7 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
   const fetchAccounts = async () => {
     const { data } = await supabase
       .from('bank_accounts')
-      .select('id, name, balance')
+      .select('id, name, balance, type')
       .eq('user_id', effectiveUserId)
       .order('name');
     
@@ -63,10 +63,10 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
 
     setLoading(true);
     try {
-      // 1. Buscar saldos atuais para garantir precisão
+      // 1. Buscar dados completos das contas para verificar o tipo (swipy ou manual)
       const { data: currentAccounts, error: fetchError } = await supabase
         .from('bank_accounts')
-        .select('id, balance')
+        .select('id, balance, type')
         .in('id', [formData.originAccountId, formData.destinationAccountId]);
 
       if (fetchError || !currentAccounts || currentAccounts.length < 2) {
@@ -76,42 +76,56 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
       const originAcc = currentAccounts.find(a => a.id === formData.originAccountId);
       const destAcc = currentAccounts.find(a => a.id === formData.destinationAccountId);
 
-      // 2. Atualizar saldos
-      const updateOrigin = supabase.from('bank_accounts')
-        .update({ balance: Number(originAcc.balance || 0) - amountNum })
-        .eq('id', formData.originAccountId);
+      const dbOperations = [];
 
-      const updateDest = supabase.from('bank_accounts')
-        .update({ balance: Number(destAcc.balance || 0) + amountNum })
-        .eq('id', formData.destinationAccountId);
+      // 2. Só atualiza o saldo na tabela bank_accounts se NÃO for conta 'swipy' (gerenciada por API)
+      if (originAcc.type !== 'swipy') {
+        dbOperations.push(
+          supabase.from('bank_accounts')
+            .update({ balance: Number(originAcc.balance || 0) - amountNum })
+            .eq('id', formData.originAccountId)
+        );
+      }
 
-      // 3. Criar transações de extrato
-      const insertDebit = supabase.from('bank_transactions').insert({
-        user_id: effectiveUserId,
-        bank_account_id: formData.originAccountId,
-        amount: amountNum,
-        type: 'debit',
-        description: `TRANSFERÊNCIA ENVIADA: ${formData.description}`,
-        date: formData.date,
-        status: 'reconciled'
-      });
+      if (destAcc.type !== 'swipy') {
+        dbOperations.push(
+          supabase.from('bank_accounts')
+            .update({ balance: Number(destAcc.balance || 0) + amountNum })
+            .eq('id', formData.destinationAccountId)
+        );
+      }
 
-      const insertCredit = supabase.from('bank_transactions').insert({
-        user_id: effectiveUserId,
-        bank_account_id: formData.destinationAccountId,
-        amount: amountNum,
-        type: 'credit',
-        description: `TRANSFERÊNCIA RECEBIDA: ${formData.description}`,
-        date: formData.date,
-        status: 'reconciled'
-      });
+      // 3. Sempre cria transações de extrato (independente do tipo) para histórico visual
+      dbOperations.push(
+        supabase.from('bank_transactions').insert({
+          user_id: effectiveUserId,
+          bank_account_id: formData.originAccountId,
+          amount: amountNum,
+          type: 'debit',
+          description: `TRANSFERÊNCIA ENVIADA: ${formData.description}`,
+          date: formData.date,
+          status: 'reconciled'
+        })
+      );
 
-      const results = await Promise.all([updateOrigin, updateDest, insertDebit, insertCredit]);
+      dbOperations.push(
+        supabase.from('bank_transactions').insert({
+          user_id: effectiveUserId,
+          bank_account_id: formData.destinationAccountId,
+          amount: amountNum,
+          type: 'credit',
+          description: `TRANSFERÊNCIA RECEBIDA: ${formData.description}`,
+          date: formData.date,
+          status: 'reconciled'
+        })
+      );
+
+      const results = await Promise.all(dbOperations);
       
       const hasError = results.some(r => r.error);
       if (hasError) throw new Error("Erro ao processar transferência no banco de dados.");
 
-      showSuccess("Transferência realizada com sucesso!");
+      showSuccess("Transferência registrada no sistema!");
       onSuccess();
       onClose();
       setFormData({
@@ -148,7 +162,11 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
                 <SelectValue placeholder="Selecione a conta de origem" />
               </SelectTrigger>
               <SelectContent className="bg-apple-white border-apple-border">
-                {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name} (Saldo: R$ {Number(a.balance).toFixed(2)})</SelectItem>)}
+                {accounts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name} {a.type === 'swipy' ? '(Saldo API)' : `(R$ ${Number(a.balance).toFixed(2)})`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
