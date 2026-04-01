@@ -23,21 +23,36 @@ serve(async (req) => {
     const { data: profile } = await supabaseClient.from('profiles').select('woovi_api_key').eq('id', user.id).single()
     if (!profile?.woovi_api_key) throw new Error("Token Woovi não configurado.")
 
-    console.log(`[list-woovi-invoices] Buscando todas as notas fiscais emitidas...`);
+    const { correlationID, format } = await req.json()
+    if (!correlationID || !format) throw new Error("ID da nota ou formato ausente.")
 
-    // Busca direta sem filtros de data na URL para garantir que a Woovi não bloqueie o retorno
-    const response = await fetch(`https://api.woovi.com/api/v1/invoice`, {
+    console.log(`[download-woovi-invoice] Baixando ${format.toUpperCase()} para a nota ID: ${correlationID}`);
+
+    const response = await fetch(`https://api.woovi.com/api/v1/invoice/${correlationID}/${format}`, {
       method: 'GET',
       headers: {
-        'Authorization': profile.woovi_api_key.trim(),
-        'Content-Type': 'application/json'
+        'Authorization': profile.woovi_api_key.trim()
       }
     });
 
-    const result = await response.json();
-    
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[download-woovi-invoice] Erro da Woovi:`, errorText);
+      return new Response(JSON.stringify({ error: `Erro na Woovi: ${errorText}` }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    const blob = await response.blob();
+    const contentType = format === 'pdf' ? 'application/pdf' : 'application/xml';
+
+    return new Response(blob, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="nota_fiscal_${correlationID}.${format}"`
+      },
       status: 200,
     });
 
