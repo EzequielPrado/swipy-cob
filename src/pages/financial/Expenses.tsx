@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, 
@@ -43,7 +43,10 @@ const Expenses = () => {
   }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
@@ -52,6 +55,10 @@ const Expenses = () => {
     categoryId: '', 
     dueDate: new Date().toISOString().split('T')[0],
     supplierId: 'none'
+  });
+
+  const [payFormData, setPayFormData] = useState({
+    accountId: ''
   });
 
   const fetchData = async () => {
@@ -103,6 +110,36 @@ const Expenses = () => {
     setIsModalOpen(true);
   };
 
+  const handleMarkAsPaid = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payFormData.accountId) return showError("Selecione uma conta bancária.");
+    
+    setActionLoading('pay');
+    try {
+      const { data: account } = await supabase.from('bank_accounts').select('balance').eq('id', payFormData.accountId).single();
+      
+      if (account) {
+        // Subtrair o saldo (é uma despesa)
+        await supabase.from('bank_accounts').update({ 
+          balance: Number(account.balance || 0) - Number(selectedExpense.amount || 0) 
+        }).eq('id', payFormData.accountId);
+      }
+
+      await supabase.from('expenses').update({ 
+        status: 'pago', 
+        bank_account_id: payFormData.accountId 
+      }).eq('id', selectedExpense.id);
+
+      showSuccess("Pagamento confirmado e saldo atualizado!");
+      setIsPayModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -152,7 +189,9 @@ const Expenses = () => {
                 <tr><th className="px-8 py-5">Descrição / Fornecedor</th><th className="px-8 py-5">Vencimento</th><th className="px-8 py-5">Valor</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
               </thead>
               <tbody className="divide-y divide-apple-border">
-                {expenses.map((exp) => (
+                {expenses.length === 0 ? (
+                  <tr><td colSpan={5} className="py-20 text-center text-apple-muted italic">Nenhuma despesa para o período selecionado.</td></tr>
+                ) : expenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-apple-light transition-colors group">
                     <td className="px-8 py-5">
                       <p className="text-sm font-bold text-apple-black">{exp.description}</p>
@@ -169,8 +208,19 @@ const Expenses = () => {
                        <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", exp.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100")}>{exp.status}</span>
                     </td>
                     <td className="px-8 py-5 text-right">
-                       <button onClick={() => { setEditingId(exp.id); setFormData({ description: exp.description, amount: exp.amount.toString().replace('.', ','), categoryId: exp.category_id || '', dueDate: exp.due_date, supplierId: exp.supplier_id || 'none' }); setIsModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
-                       <button onClick={() => { if(confirm('Excluir?')) supabase.from('expenses').delete().eq('id', exp.id).then(() => fetchData()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16}/></button>
+                       <div className="flex items-center justify-end gap-1">
+                          {exp.status !== 'pago' && (
+                            <button 
+                              onClick={() => { setSelectedExpense(exp); setPayFormData({ accountId: '' }); setIsPayModalOpen(true); }}
+                              className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+                              title="Marcar como Pago"
+                            >
+                              <CheckCircle2 size={18} />
+                            </button>
+                          )}
+                          <button onClick={() => { setEditingId(exp.id); setFormData({ description: exp.description, amount: exp.amount.toString().replace('.', ','), categoryId: exp.category_id || '', dueDate: exp.due_date, supplierId: exp.supplier_id || 'none' }); setIsModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
+                          <button onClick={() => { if(confirm('Excluir?')) supabase.from('expenses').delete().eq('id', exp.id).then(() => fetchData()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16}/></button>
+                       </div>
                     </td>
                   </tr>
                 ))}
@@ -179,6 +229,49 @@ const Expenses = () => {
           )}
         </div>
       </div>
+
+      {/* Modal de Pagamento (Baixa) */}
+      <Dialog open={isPayModalOpen} onOpenChange={setIsPayModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 bg-apple-offWhite border-b border-apple-border">
+            <DialogTitle className="text-xl font-black flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 size={24} /> Baixa de Despesa
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-8 space-y-6">
+            <div className="bg-red-50 border border-red-100 p-6 rounded-3xl text-center">
+              <p className="text-[10px] font-black text-red-600 uppercase mb-1">Valor a ser pago</p>
+              <p className="text-3xl font-black text-red-600">
+                {selectedExpense && currencyFormatter.format(selectedExpense.amount)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-apple-muted uppercase">Conta de Origem</Label>
+              <Select value={payFormData.accountId} onValueChange={(val) => setPayFormData({ accountId: val })}>
+                <SelectTrigger className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold">
+                  <SelectValue placeholder="De onde sairá o dinheiro?" />
+                </SelectTrigger>
+                <SelectContent className="bg-apple-white border-apple-border">
+                  {accounts.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <button 
+                onClick={handleMarkAsPaid} 
+                disabled={!payFormData.accountId || actionLoading === 'pay'} 
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl disabled:opacity-50"
+              >
+                {actionLoading === 'pay' ? <Loader2 className="animate-spin mx-auto" /> : "CONFIRMAR PAGAMENTO"}
+              </button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
