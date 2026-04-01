@@ -4,7 +4,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { 
   ArrowUpRight, Plus, Loader2, Trash2, Calendar, CheckCircle2, 
-  Building, Tag, Edit2, Paperclip, Eye, CalendarDays, User, Layers, Building2
+  Building, Tag, Edit2, Paperclip, Eye, CalendarDays, User, Layers, Building2,
+  X, FileText
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
@@ -49,12 +50,14 @@ const Expenses = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     description: '', 
     amount: '', 
     categoryId: '', 
     dueDate: new Date().toISOString().split('T')[0],
-    supplierId: 'none'
+    supplierId: 'none',
+    receiptUrl: ''
   });
 
   const [payFormData, setPayFormData] = useState({
@@ -105,8 +108,10 @@ const Expenses = () => {
       amount: '', 
       categoryId: categories[0]?.id || '', 
       dueDate: new Date().toISOString().split('T')[0],
-      supplierId: 'none'
+      supplierId: 'none',
+      receiptUrl: ''
     });
+    setReceiptFile(null);
     setIsModalOpen(true);
   };
 
@@ -119,7 +124,6 @@ const Expenses = () => {
       const { data: account } = await supabase.from('bank_accounts').select('balance').eq('id', payFormData.accountId).single();
       
       if (account) {
-        // Subtrair o saldo (é uma despesa)
         await supabase.from('bank_accounts').update({ 
           balance: Number(account.balance || 0) - Number(selectedExpense.amount || 0) 
         }).eq('id', payFormData.accountId);
@@ -144,13 +148,34 @@ const Expenses = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      let finalReceiptUrl = formData.receiptUrl;
+      
+      if (receiptFile) {
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `${user?.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        // Tenta enviar para o bucket receipts. Se não existir, tenta no customer_documents
+        const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, receiptFile, { upsert: false });
+        
+        if (uploadError) {
+           const { error: fallbackError } = await supabase.storage.from('customer_documents').upload(`receipts/${fileName}`, receiptFile);
+           if (fallbackError) throw new Error("Erro ao fazer upload do comprovante. Contate o suporte.");
+           const { data } = supabase.storage.from('customer_documents').getPublicUrl(`receipts/${fileName}`);
+           finalReceiptUrl = data.publicUrl;
+        } else {
+           const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
+           finalReceiptUrl = data.publicUrl;
+        }
+      }
+
       const amountNum = parseFloat(formData.amount.replace(',', '.'));
       const payload: any = {
         description: formData.description,
         amount: isNaN(amountNum) ? 0 : amountNum,
         category_id: formData.categoryId,
         due_date: formData.dueDate,
-        supplier_id: formData.supplierId === 'none' ? null : formData.supplierId
+        supplier_id: formData.supplierId === 'none' ? null : formData.supplierId,
+        receipt_url: finalReceiptUrl
       };
 
       if (editingId) {
@@ -162,6 +187,7 @@ const Expenses = () => {
       }
 
       setIsModalOpen(false);
+      setReceiptFile(null);
       fetchData();
     } catch (err: any) { showError(err.message); } finally { setSaving(false); }
   };
@@ -195,10 +221,15 @@ const Expenses = () => {
                   <tr key={exp.id} className="hover:bg-apple-light transition-colors group">
                     <td className="px-8 py-5">
                       <p className="text-sm font-bold text-apple-black">{exp.description}</p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="inline-flex items-center gap-1 text-[9px] text-apple-muted uppercase font-black"><Layers size={10} className="text-orange-500" /> {exp.chart_of_accounts?.name || 'Geral'}</span>
                         {exp.suppliers && (
                           <span className="inline-flex items-center gap-1 text-[9px] text-blue-600 uppercase font-black"><Building2 size={10} /> {exp.suppliers.name}</span>
+                        )}
+                        {exp.receipt_url && (
+                          <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md uppercase font-black hover:bg-emerald-100 transition-colors">
+                            <Paperclip size={10} /> Anexo
+                          </a>
                         )}
                       </div>
                     </td>
@@ -218,7 +249,19 @@ const Expenses = () => {
                               <CheckCircle2 size={18} />
                             </button>
                           )}
-                          <button onClick={() => { setEditingId(exp.id); setFormData({ description: exp.description, amount: exp.amount.toString().replace('.', ','), categoryId: exp.category_id || '', dueDate: exp.due_date, supplierId: exp.supplier_id || 'none' }); setIsModalOpen(true); }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
+                          <button onClick={() => { 
+                            setEditingId(exp.id); 
+                            setFormData({ 
+                              description: exp.description, 
+                              amount: exp.amount.toString().replace('.', ','), 
+                              categoryId: exp.category_id || '', 
+                              dueDate: exp.due_date, 
+                              supplierId: exp.supplier_id || 'none',
+                              receiptUrl: exp.receipt_url || ''
+                            }); 
+                            setReceiptFile(null);
+                            setIsModalOpen(true); 
+                          }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
                           <button onClick={() => { if(confirm('Excluir?')) supabase.from('expenses').delete().eq('id', exp.id).then(() => fetchData()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16}/></button>
                        </div>
                     </td>
@@ -230,7 +273,6 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Modal de Pagamento (Baixa) */}
       <Dialog open={isPayModalOpen} onOpenChange={setIsPayModalOpen}>
         <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-8 bg-apple-offWhite border-b border-apple-border">
@@ -311,8 +353,48 @@ const Expenses = () => {
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Valor (R$)</Label><Input required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-red-500" /></div>
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Vencimento</Label><Input type="date" required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
             </div>
+
+            <div className="space-y-2 pt-2">
+              <Label className="text-[10px] font-black uppercase text-apple-muted flex items-center gap-2">
+                <Paperclip size={12} className="text-emerald-500" /> Comprovante / Boleto (Opcional)
+              </Label>
+              
+              {formData.receiptUrl && !receiptFile ? (
+                 <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                    <a href={formData.receiptUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-2 truncate pr-4">
+                       <FileText size={16} className="shrink-0" /> Ver anexo salvo
+                    </a>
+                    <button type="button" onClick={() => setFormData({...formData, receiptUrl: ''})} className="text-red-500 hover:bg-red-100 p-1.5 rounded-lg transition-colors shrink-0">
+                       <X size={16} />
+                    </button>
+                 </div>
+              ) : (
+                 <div className="relative">
+                   <Input 
+                     type="file" 
+                     id="file-upload"
+                     onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} 
+                     className="bg-apple-offWhite border-apple-border h-12 rounded-xl text-xs p-3 cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100" 
+                     accept="image/*,application/pdf" 
+                   />
+                   {receiptFile && (
+                     <button 
+                       type="button" 
+                       onClick={() => { 
+                         setReceiptFile(null); 
+                         const el = document.getElementById('file-upload') as HTMLInputElement; 
+                         if(el) el.value = ''; 
+                       }} 
+                       className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 p-1 hover:bg-red-50 rounded-md transition-colors"
+                     >
+                       <X size={14} />
+                     </button>
+                   )}
+                 </div>
+              )}
+            </div>
             
-            <DialogFooter><button type="submit" disabled={saving} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95">{saving ? <Loader2 className="animate-spin mx-auto" /> : "REGISTRAR DESPESA"}</button></DialogFooter>
+            <DialogFooter className="pt-2"><button type="submit" disabled={saving} className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl active:scale-95 transition-transform">{saving ? <Loader2 className="animate-spin mx-auto" /> : "REGISTRAR DESPESA"}</button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
