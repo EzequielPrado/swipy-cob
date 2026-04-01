@@ -143,7 +143,7 @@ const Transactions = () => {
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6">
           <div>
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
               <Activity className="text-orange-500" size={32} /> Fluxo Unificado
@@ -151,11 +151,11 @@ const Transactions = () => {
             <p className="text-apple-muted mt-1 font-medium">Visão consolidada por período de extratos, contas a pagar e a receber.</p>
           </div>
           
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-            <div className="flex items-center w-full sm:w-auto bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+            <div className="flex items-center flex-1 md:flex-none bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
               <CalendarDays size={16} className="text-apple-muted mr-3 shrink-0" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-full sm:w-[160px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500 p-0 shadow-none">
+                <SelectTrigger className="w-full md:w-[150px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500 p-0 shadow-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-apple-white border-apple-border text-apple-black">
@@ -166,21 +166,19 @@ const Transactions = () => {
               </Select>
             </div>
 
-            <div className="flex w-full sm:w-auto gap-3">
-              <button 
-                onClick={() => setIsTransferModalOpen(true)}
-                className="flex-1 sm:flex-none justify-center bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-4 py-3 rounded-xl border border-apple-border shadow-sm transition-all flex items-center gap-2"
-              >
-                <ArrowRightLeft size={16} className="text-orange-500 shrink-0" /> <span className="truncate">Transferir</span>
-              </button>
+            <button 
+              onClick={() => setIsTransferModalOpen(true)}
+              className="flex-1 md:flex-none justify-center bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-5 py-3 rounded-xl border border-apple-border shadow-sm transition-all flex items-center gap-2"
+            >
+              <ArrowRightLeft size={16} className="text-orange-500 shrink-0" /> <span>Transferir</span>
+            </button>
 
-              <Link 
-                to="/financeiro/conciliacao"
-                className="flex-1 sm:flex-none justify-center bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-4 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
-              >
-                <CheckCircle2 size={16} className="shrink-0" /> <span className="truncate">Conciliar</span>
-              </Link>
-            </div>
+            <Link 
+              to="/financeiro/conciliacao"
+              className="flex-1 md:flex-none justify-center bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-5 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
+            >
+              <CheckCircle2 size={16} className="shrink-0" /> <span>Conciliar</span>
+            </Link>
           </div>
         </div>
 

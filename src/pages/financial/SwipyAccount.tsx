@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const SwipyAccount = () => {
-  const { user } = useAuth();
+  const { user, effectiveUserId } = useAuth();
   
   const [balance, setBalance] = useState<{available: number, blocked: number, total: number} | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -34,6 +34,7 @@ const SwipyAccount = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
+      // 1. Busca saldo da API
       const balanceResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
@@ -49,15 +50,57 @@ const SwipyAccount = () => {
         showError(balanceData.message || "Erro ao carregar saldo.");
       }
 
+      // 2. Busca transações da API (Woovi Charges e Cashouts)
       const trxResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=transactions`, {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const trxData = await trxResponse.json();
       
+      let apiTransactions: any[] = [];
       if (!trxData.error) {
-        if (trxData.transactions) setTransactions(trxData.transactions);
-        else if (Array.isArray(trxData)) setTransactions(trxData);
+        if (trxData.transactions) apiTransactions = trxData.transactions;
+        else if (Array.isArray(trxData)) apiTransactions = trxData;
       }
+
+      // 3. Busca transações locais (Transferências Internas)
+      let localTransactions: any[] = [];
+      const targetUserId = effectiveUserId || user?.id;
+      
+      if (targetUserId) {
+        const { data: swipyAcc } = await supabase
+          .from('bank_accounts')
+          .select('id')
+          .eq('user_id', targetUserId)
+          .eq('type', 'swipy')
+          .maybeSingle();
+
+        if (swipyAcc) {
+          const { data: bTrx } = await supabase
+            .from('bank_transactions')
+            .select('*')
+            .eq('bank_account_id', swipyAcc.id);
+            
+          if (bTrx) {
+            localTransactions = bTrx.map(t => ({
+              id: t.id,
+              correlationID: t.description,
+              value: t.type === 'credit' ? t.amount * 100 : -(t.amount * 100),
+              time: t.date.includes('T') ? t.date : `${t.date}T12:00:00Z`, 
+              type: t.type === 'credit' ? 'IN' : 'OUT',
+              isLocal: true
+            }));
+          }
+        }
+      }
+
+      // 4. Mescla e ordena por data decrescente
+      const allTransactions = [...apiTransactions, ...localTransactions].sort((a, b) => {
+        const timeA = new Date(a.time || a.createdAt).getTime();
+        const timeB = new Date(b.time || b.createdAt).getTime();
+        return timeB - timeA;
+      });
+
+      setTransactions(allTransactions);
       
     } catch (err: any) {
       showError("Falha de conexão com a carteira digital.");
@@ -78,7 +121,7 @@ const SwipyAccount = () => {
       <div className="flex flex-col gap-8 pb-12">
         
         {/* CABEÇALHO */}
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div>
             <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-apple-black">
               <Wallet className="text-emerald-500" size={32} />
@@ -89,10 +132,10 @@ const SwipyAccount = () => {
           <button 
             onClick={fetchWalletData}
             disabled={loading}
-            className="bg-apple-white border border-apple-border text-apple-dark font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:bg-apple-light shadow-sm disabled:opacity-50"
+            className="w-full md:w-auto bg-apple-white border border-apple-border text-apple-dark font-semibold px-5 py-3 rounded-xl transition-all flex items-center justify-center gap-2 hover:bg-apple-light shadow-sm disabled:opacity-50"
           >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-            Atualizar
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <RefreshCcw size={18} />}
+            Sincronizar Extrato
           </button>
         </div>
 
@@ -108,7 +151,7 @@ const SwipyAccount = () => {
               Saldo Disponível para Saque
             </p>
             <div className="flex items-baseline gap-2 mb-8">
-              {loading ? (
+              {loading && balance === null ? (
                 <Loader2 className="animate-spin text-emerald-500" size={40} />
               ) : (
                 <>
@@ -136,7 +179,7 @@ const SwipyAccount = () => {
             <div className="bg-apple-white border border-apple-border rounded-[2rem] p-8 shadow-sm">
               <p className="text-[10px] text-apple-muted uppercase font-bold tracking-widest mb-1">Saldo Total (Geral)</p>
               <p className="text-3xl font-bold text-apple-black">
-                {loading ? "..." : balance ? currencyFormatter.format(balance.total) : "R$ 0,00"}
+                {loading && balance === null ? "..." : balance ? currencyFormatter.format(balance.total) : "R$ 0,00"}
               </p>
             </div>
             <div className="bg-apple-white border border-apple-border rounded-[2rem] p-8 shadow-sm border-l-red-400">
@@ -145,7 +188,7 @@ const SwipyAccount = () => {
                 <p className="text-[10px] uppercase font-bold tracking-widest">Saldo Bloqueado</p>
               </div>
               <p className="text-2xl font-bold text-apple-dark">
-                {loading ? "..." : balance ? currencyFormatter.format(balance.blocked) : "R$ 0,00"}
+                {loading && balance === null ? "..." : balance ? currencyFormatter.format(balance.blocked) : "R$ 0,00"}
               </p>
               <p className="text-[10px] text-apple-muted mt-2 leading-relaxed">Valores de transações recentes aguardando liquidação da CIP/Bacen.</p>
             </div>
@@ -157,11 +200,11 @@ const SwipyAccount = () => {
           <div className="p-6 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
             <h3 className="text-lg font-bold text-apple-black flex items-center gap-2">
               <ListOrdered className="text-emerald-500" size={20} />
-              Extrato da Conta (30 dias)
+              Extrato Consolidado (30 dias)
             </h3>
           </div>
           
-          <div className="p-2">
+          <div className="p-2 overflow-x-auto custom-scrollbar">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 text-emerald-500 gap-4">
                 <Loader2 size={32} className="animate-spin" />
@@ -173,7 +216,7 @@ const SwipyAccount = () => {
                 <p>Nenhuma movimentação encontrada nos últimos 30 dias.</p>
               </div>
             ) : (
-              <table className="w-full text-left">
+              <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase tracking-[0.2em] border-b border-apple-border">
                   <tr>
                     <th className="px-6 py-4">Data / Hora</th>
@@ -183,6 +226,7 @@ const SwipyAccount = () => {
                 </thead>
                 <tbody className="divide-y divide-apple-border">
                   {transactions.map((t, idx) => {
+                    const txDate = t.time || t.createdAt;
                     const isIncoming = t.value > 0 || t.type === 'CHARGE' || t.type === 'IN';
                     const valueInReais = Math.abs((t.value || t.amount || 0) / 100);
                     
@@ -190,10 +234,10 @@ const SwipyAccount = () => {
                       <tr key={t.id || idx} className="hover:bg-apple-light transition-colors">
                         <td className="px-6 py-4">
                           <p className="text-sm font-bold text-apple-dark">
-                            {new Date(t.createdAt || t.time).toLocaleDateString('pt-BR')}
+                            {new Date(txDate).toLocaleDateString('pt-BR')}
                           </p>
                           <p className="text-xs text-apple-muted font-mono mt-0.5">
-                            {new Date(t.createdAt || t.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(txDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </td>
                         <td className="px-6 py-4">
@@ -206,10 +250,12 @@ const SwipyAccount = () => {
                             </div>
                             <div>
                               <p className="text-sm font-bold text-apple-black">
-                                {isIncoming ? 'Cobrança Recebida' : 'Saída / Saque / Tarifa'}
+                                {t.isLocal 
+                                  ? (isIncoming ? 'Entrada / Transferência' : 'Saída / Transferência') 
+                                  : (isIncoming ? 'Cobrança Recebida' : 'Saída / Saque / Tarifa')}
                               </p>
-                              <p className="text-[10px] text-apple-muted mt-0.5 truncate max-w-xs" title={t.id || t.correlationID}>
-                                Ref: {t.id || t.correlationID || 'Transação Padrão'}
+                              <p className="text-[10px] text-apple-muted mt-0.5 truncate max-w-xs" title={t.correlationID || t.id}>
+                                {t.correlationID || t.id || 'Transação Padrão'}
                               </p>
                             </div>
                           </div>
