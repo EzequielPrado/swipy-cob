@@ -51,6 +51,8 @@ const Expenses = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [payReceiptFile, setPayReceiptFile] = useState<File | null>(null); // Novo estado para o modal de pagamento
+
   const [formData, setFormData] = useState({
     description: '', 
     amount: '', 
@@ -121,6 +123,27 @@ const Expenses = () => {
     
     setActionLoading('pay');
     try {
+      // Lógica de upload do comprovante de pagamento
+      let finalReceiptUrl = selectedExpense.receipt_url; // Mantém o que já tinha se não mandar novo
+      
+      if (payReceiptFile) {
+        const fileExt = payReceiptFile.name.split('.').pop();
+        const fileName = `${user?.id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, payReceiptFile, { upsert: false });
+        
+        if (uploadError) {
+           const { error: fallbackError } = await supabase.storage.from('customer_documents').upload(`receipts/${fileName}`, payReceiptFile);
+           if (fallbackError) throw new Error("Erro ao fazer upload do comprovante. Contate o suporte.");
+           const { data } = supabase.storage.from('customer_documents').getPublicUrl(`receipts/${fileName}`);
+           finalReceiptUrl = data.publicUrl;
+        } else {
+           const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
+           finalReceiptUrl = data.publicUrl;
+        }
+      }
+
+      // Debita o saldo da conta selecionada
       const { data: account } = await supabase.from('bank_accounts').select('balance').eq('id', payFormData.accountId).single();
       
       if (account) {
@@ -129,13 +152,16 @@ const Expenses = () => {
         }).eq('id', payFormData.accountId);
       }
 
+      // Atualiza a despesa
       await supabase.from('expenses').update({ 
         status: 'pago', 
-        bank_account_id: payFormData.accountId 
+        bank_account_id: payFormData.accountId,
+        receipt_url: finalReceiptUrl
       }).eq('id', selectedExpense.id);
 
       showSuccess("Pagamento confirmado e saldo atualizado!");
       setIsPayModalOpen(false);
+      setPayReceiptFile(null);
       fetchData();
     } catch (err: any) {
       showError(err.message);
@@ -159,7 +185,7 @@ const Expenses = () => {
         
         if (uploadError) {
            const { error: fallbackError } = await supabase.storage.from('customer_documents').upload(`receipts/${fileName}`, receiptFile);
-           if (fallbackError) throw new Error("Erro ao fazer upload do comprovante. Contate o suporte.");
+           if (fallbackError) throw new Error("Erro ao fazer upload do boleto. Contate o suporte.");
            const { data } = supabase.storage.from('customer_documents').getPublicUrl(`receipts/${fileName}`);
            finalReceiptUrl = data.publicUrl;
         } else {
@@ -242,7 +268,12 @@ const Expenses = () => {
                        <div className="flex items-center justify-end gap-1">
                           {exp.status !== 'pago' && (
                             <button 
-                              onClick={() => { setSelectedExpense(exp); setPayFormData({ accountId: '' }); setIsPayModalOpen(true); }}
+                              onClick={() => { 
+                                setSelectedExpense(exp); 
+                                setPayFormData({ accountId: '' }); 
+                                setPayReceiptFile(null); // Reseta o file state do pagamento
+                                setIsPayModalOpen(true); 
+                              }}
                               className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
                               title="Marcar como Pago"
                             >
@@ -280,7 +311,7 @@ const Expenses = () => {
               <CheckCircle2 size={24} /> Baixa de Despesa
             </DialogTitle>
           </DialogHeader>
-          <div className="p-8 space-y-6">
+          <form onSubmit={handleMarkAsPaid} className="p-8 space-y-6">
             <div className="bg-red-50 border border-red-100 p-6 rounded-3xl text-center">
               <p className="text-[10px] font-black text-red-600 uppercase mb-1">Valor a ser pago</p>
               <p className="text-3xl font-black text-red-600">
@@ -302,16 +333,45 @@ const Expenses = () => {
               </Select>
             </div>
 
-            <DialogFooter>
+            {/* UPLOAD DE COMPROVANTE NA BAIXA */}
+            <div className="space-y-2 pt-2 border-t border-apple-border">
+              <Label className="text-[10px] font-black uppercase text-apple-muted flex items-center gap-2">
+                <Paperclip size={12} className="text-emerald-500" /> Anexar Comprovante (Opcional)
+              </Label>
+              <div className="relative">
+                <Input 
+                  type="file" 
+                  id="pay-file-upload"
+                  onChange={(e) => setPayReceiptFile(e.target.files?.[0] || null)} 
+                  className="bg-apple-offWhite border-apple-border h-12 rounded-xl text-xs p-3 cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-emerald-50 file:text-emerald-600 hover:file:bg-emerald-100" 
+                  accept="image/*,application/pdf" 
+                />
+                {payReceiptFile && (
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      setPayReceiptFile(null); 
+                      const el = document.getElementById('pay-file-upload') as HTMLInputElement; 
+                      if(el) el.value = ''; 
+                    }} 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 p-1 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
               <button 
-                onClick={handleMarkAsPaid} 
+                type="submit" 
                 disabled={!payFormData.accountId || actionLoading === 'pay'} 
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl disabled:opacity-50"
               >
                 {actionLoading === 'pay' ? <Loader2 className="animate-spin mx-auto" /> : "CONFIRMAR PAGAMENTO"}
               </button>
             </DialogFooter>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -354,9 +414,10 @@ const Expenses = () => {
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-apple-muted">Vencimento</Label><Input type="date" required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" /></div>
             </div>
 
+            {/* UPLOAD DE BOLETO/NOTA (AO CRIAR/EDITAR) */}
             <div className="space-y-2 pt-2">
               <Label className="text-[10px] font-black uppercase text-apple-muted flex items-center gap-2">
-                <Paperclip size={12} className="text-emerald-500" /> Comprovante / Boleto (Opcional)
+                <Paperclip size={12} className="text-emerald-500" /> Boleto ou Nota (Opcional)
               </Label>
               
               {formData.receiptUrl && !receiptFile ? (
