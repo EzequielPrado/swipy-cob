@@ -32,10 +32,8 @@ const Fiscal = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-  });
+  // Alterado para 'all' por padrão para garantir que nenhuma nota fique oculta
+  const [selectedMonth, setSelectedMonth] = useState('all');
 
   const monthOptions = useMemo(() => {
     const options = [];
@@ -65,11 +63,18 @@ const Fiscal = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Falha ao conectar com a Woovi");
 
-      // Tratamento para garantir que a lista de faturas seja recuperada corretamente
+      console.log("[Fiscal] Resposta bruta da Woovi:", data);
+
+      // Varredura profunda para encontrar a lista de notas
       let invoiceList = [];
       if (data.invoices && Array.isArray(data.invoices)) invoiceList = data.invoices;
       else if (data.data && Array.isArray(data.data)) invoiceList = data.data;
       else if (Array.isArray(data)) invoiceList = data;
+      else {
+        // Se a Woovi mandar os dados dentro de outro objeto misterioso, procuramos qualquer array dentro dele
+        const possibleArray = Object.values(data).find(val => Array.isArray(val));
+        if (possibleArray) invoiceList = possibleArray as any[];
+      }
 
       setInvoices(invoiceList);
     } catch (err: any) { 
@@ -123,18 +128,16 @@ const Fiscal = () => {
   const filteredInvoices = useMemo(() => {
     let filtered = invoices;
     
-    // Filtro de Mês Local
     if (selectedMonth !== 'all') {
       const [year, month] = selectedMonth.split('-');
       filtered = filtered.filter(inv => {
-        const dateStr = inv.billingDate || inv.createdAt;
+        const dateStr = inv.billingDate || inv.createdAt || inv.updatedAt;
         if (!dateStr) return true;
         const invDate = new Date(dateStr);
         return invDate.getFullYear() === Number(year) && (invDate.getMonth() + 1) === Number(month);
       });
     }
 
-    // Filtro de Busca
     if (searchTerm) {
       filtered = filtered.filter(inv => 
         inv.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -149,12 +152,11 @@ const Fiscal = () => {
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'COMPLETED': return <CheckCircle2 size={14} className="text-emerald-500" />;
-      case 'PENDING': return <Clock size={14} className="text-orange-500" />;
-      case 'CANCELED': return <XCircle size={14} className="text-red-500" />;
-      default: return <AlertCircle size={14} className="text-apple-muted" />;
-    }
+    const s = (status || '').toUpperCase();
+    if (s.includes('COMPLETED') || s.includes('AUTHORIZED')) return <CheckCircle2 size={14} className="text-emerald-500" />;
+    if (s.includes('PENDING') || s.includes('PROCESSING')) return <Clock size={14} className="text-orange-500" />;
+    if (s.includes('CANCELED') || s.includes('ERROR')) return <XCircle size={14} className="text-red-500" />;
+    return <AlertCircle size={14} className="text-apple-muted" />;
   };
 
   return (
@@ -203,15 +205,15 @@ const Fiscal = () => {
           </div>
           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-emerald-500 border-l-4">
             <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mb-2 flex items-center gap-2"><CheckCircle2 size={12}/> Emitidas com Sucesso</p>
-            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => i.status === 'COMPLETED').length}</p>
+            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => (i.status||'').toUpperCase().includes('COMPLETED')).length}</p>
           </div>
           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-orange-500 border-l-4">
             <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest mb-2 flex items-center gap-2"><Clock size={12}/> Pendentes / Processando</p>
-            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => i.status === 'PENDING').length}</p>
+            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => (i.status||'').toUpperCase().includes('PENDING')).length}</p>
           </div>
           <div className="bg-apple-white border border-apple-border p-6 rounded-[2rem] shadow-sm border-l-red-500 border-l-4">
             <p className="text-[10px] text-red-600 font-black uppercase tracking-widest mb-2 flex items-center gap-2"><XCircle size={12}/> Canceladas / Erros</p>
-            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => i.status === 'CANCELED' || i.status === 'ERROR').length}</p>
+            <p className="text-3xl font-black text-apple-black">{filteredInvoices.filter(i => (i.status||'').toUpperCase().includes('CANCELED') || (i.status||'').toUpperCase().includes('ERROR')).length}</p>
           </div>
         </div>
 
@@ -257,7 +259,7 @@ const Fiscal = () => {
                     const targetId = inv.correlationID || inv.identifier || inv.id;
 
                     return (
-                      <tr key={inv.id} className="hover:bg-apple-light transition-colors group">
+                      <tr key={targetId} className="hover:bg-apple-light transition-colors group">
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-3">
                              <div className="w-10 h-10 rounded-xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-apple-muted group-hover:bg-orange-500 group-hover:text-white transition-all font-black text-xs shrink-0">
@@ -270,21 +272,21 @@ const Fiscal = () => {
                           </div>
                         </td>
                         <td className="px-8 py-5 text-center text-sm font-medium text-apple-dark">
-                          {new Date(inv.billingDate || inv.createdAt).toLocaleDateString('pt-BR')}
+                          {new Date(inv.billingDate || inv.createdAt || new Date()).toLocaleDateString('pt-BR')}
                         </td>
                         <td className="px-8 py-5 text-right text-sm font-black text-apple-black">
-                          {currency.format(inv.value / 100)}
+                          {currency.format((inv.value || 0) / 100)}
                         </td>
                         <td className="px-8 py-5 text-center">
                           <span className={cn(
                             "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border",
-                            inv.status === 'COMPLETED' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            inv.status === 'PENDING' ? "bg-orange-50 text-orange-600 border-orange-100" :
-                            inv.status === 'CANCELED' ? "bg-red-50 text-red-600 border-red-100" :
+                            (inv.status||'').toUpperCase().includes('COMPLETED') ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            (inv.status||'').toUpperCase().includes('PENDING') ? "bg-orange-50 text-orange-600 border-orange-100" :
+                            (inv.status||'').toUpperCase().includes('CANCELED') ? "bg-red-50 text-red-600 border-red-100" :
                             "bg-apple-offWhite text-apple-muted border-apple-border"
                           )}>
                             {getStatusIcon(inv.status)}
-                            {inv.status === 'COMPLETED' ? 'Emitida' : inv.status}
+                            {(inv.status||'').toUpperCase().includes('COMPLETED') ? 'Emitida' : inv.status || 'PROCESSANDO'}
                           </span>
                         </td>
                         <td className="px-8 py-5 text-right">
