@@ -25,7 +25,7 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
     originAccountId: '',
     destinationAccountId: '',
     amount: '',
-    description: 'Transferência entre contas',
+    description: 'Transferência',
     date: new Date().toISOString().split('T')[0]
   });
 
@@ -63,7 +63,7 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
 
     setLoading(true);
     try {
-      // 1. Buscar dados completos das contas para verificar o tipo (swipy ou manual)
+      // 1. Buscar dados das contas
       const { data: currentAccounts, error: fetchError } = await supabase
         .from('bank_accounts')
         .select('id, balance, type')
@@ -76,65 +76,58 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
       const originAcc = currentAccounts.find(a => a.id === formData.originAccountId);
       const destAcc = currentAccounts.find(a => a.id === formData.destinationAccountId);
 
-      const dbOperations = [];
-
-      // 2. Só atualiza o saldo na tabela bank_accounts se NÃO for conta 'swipy' (gerenciada por API)
+      // 2. Atualiza Saldo Origem (Se não for API Swipy)
       if (originAcc.type !== 'swipy') {
-        dbOperations.push(
-          supabase.from('bank_accounts')
-            .update({ balance: Number(originAcc.balance || 0) - amountNum })
-            .eq('id', formData.originAccountId)
-        );
+        const { error: err1 } = await supabase.from('bank_accounts')
+          .update({ balance: Number(originAcc.balance || 0) - amountNum })
+          .eq('id', formData.originAccountId);
+        if (err1) throw err1;
       }
 
+      // 3. Atualiza Saldo Destino (Se não for API Swipy)
       if (destAcc.type !== 'swipy') {
-        dbOperations.push(
-          supabase.from('bank_accounts')
-            .update({ balance: Number(destAcc.balance || 0) + amountNum })
-            .eq('id', formData.destinationAccountId)
-        );
+        const { error: err2 } = await supabase.from('bank_accounts')
+          .update({ balance: Number(destAcc.balance || 0) + amountNum })
+          .eq('id', formData.destinationAccountId);
+        if (err2) throw err2;
       }
 
-      // 3. Sempre cria transações de extrato (independente do tipo) para histórico visual
-      dbOperations.push(
-        supabase.from('bank_transactions').insert({
-          user_id: effectiveUserId,
-          bank_account_id: formData.originAccountId,
-          amount: amountNum,
-          type: 'debit',
-          description: `TRANSFERÊNCIA ENVIADA: ${formData.description}`,
-          date: formData.date,
-          status: 'reconciled'
-        })
-      );
+      // 4. Cria a Saída no Extrato
+      const { error: err3 } = await supabase.from('bank_transactions').insert({
+        user_id: effectiveUserId,
+        bank_account_id: formData.originAccountId,
+        amount: amountNum,
+        type: 'debit',
+        description: `Enviado: ${formData.description}`,
+        date: formData.date,
+        status: 'reconciled'
+      });
+      if (err3) throw err3;
 
-      dbOperations.push(
-        supabase.from('bank_transactions').insert({
-          user_id: effectiveUserId,
-          bank_account_id: formData.destinationAccountId,
-          amount: amountNum,
-          type: 'credit',
-          description: `TRANSFERÊNCIA RECEBIDA: ${formData.description}`,
-          date: formData.date,
-          status: 'reconciled'
-        })
-      );
-
-      const results = await Promise.all(dbOperations);
-      
-      const hasError = results.some(r => r.error);
-      if (hasError) throw new Error("Erro ao processar transferência no banco de dados.");
+      // 5. Cria a Entrada no Extrato
+      const { error: err4 } = await supabase.from('bank_transactions').insert({
+        user_id: effectiveUserId,
+        bank_account_id: formData.destinationAccountId,
+        amount: amountNum,
+        type: 'credit',
+        description: `Recebido: ${formData.description}`,
+        date: formData.date,
+        status: 'reconciled'
+      });
+      if (err4) throw err4;
 
       showSuccess("Transferência registrada no sistema!");
       onSuccess();
       onClose();
+      
       setFormData({
         originAccountId: '',
         destinationAccountId: '',
         amount: '',
-        description: 'Transferência entre contas',
+        description: 'Transferência',
         date: new Date().toISOString().split('T')[0]
       });
+      
     } catch (err: any) {
       showError(err.message);
     } finally {
@@ -213,7 +206,7 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Descrição / Observação</Label>
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Descrição Opcional</Label>
             <Input 
               placeholder="Ex: Transferência de Saldo, Aplicação..." 
               className="bg-apple-offWhite border-apple-border h-12 rounded-xl" 

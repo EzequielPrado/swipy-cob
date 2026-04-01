@@ -134,19 +134,16 @@ const Transactions = () => {
 
   const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  // Função utilitária para formatar data de forma segura no extrato
   const formatDateSafe = (dateStr: string) => {
     if (!dateStr) return '---';
-    // Se a string contiver 'T' (timestamp), pegamos apenas a parte da data YYYY-MM-DD
     const cleanDate = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    // Criamos a data usando meio-dia para evitar problemas de fuso horário saltando o dia
     return new Date(cleanDate + 'T12:00:00').toLocaleDateString('pt-BR');
   };
 
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
           <div>
             <h2 className="text-3xl font-black text-apple-black flex items-center gap-3">
               <Activity className="text-orange-500" size={32} /> Fluxo Unificado
@@ -154,11 +151,11 @@ const Transactions = () => {
             <p className="text-apple-muted mt-1 font-medium">Visão consolidada por período de extratos, contas a pagar e a receber.</p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
-              <CalendarDays size={16} className="text-apple-muted mr-3" />
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+            <div className="flex items-center w-full sm:w-auto bg-apple-white border border-apple-border rounded-xl px-4 py-2 shadow-sm">
+              <CalendarDays size={16} className="text-apple-muted mr-3 shrink-0" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500">
+                <SelectTrigger className="w-full sm:w-[160px] bg-transparent border-none focus:ring-0 text-sm font-bold text-orange-500 p-0 shadow-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-apple-white border-apple-border text-apple-black">
@@ -169,19 +166,21 @@ const Transactions = () => {
               </Select>
             </div>
 
-            <button 
-              onClick={() => setIsTransferModalOpen(true)}
-              className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl border border-apple-border shadow-sm transition-all flex items-center gap-2"
-            >
-              <ArrowRightLeft size={16} className="text-orange-500" /> Nova Transferência
-            </button>
+            <div className="flex w-full sm:w-auto gap-3">
+              <button 
+                onClick={() => setIsTransferModalOpen(true)}
+                className="flex-1 sm:flex-none justify-center bg-apple-white hover:bg-apple-offWhite text-apple-black font-black text-[10px] uppercase tracking-widest px-4 py-3 rounded-xl border border-apple-border shadow-sm transition-all flex items-center gap-2"
+              >
+                <ArrowRightLeft size={16} className="text-orange-500 shrink-0" /> <span className="truncate">Transferir</span>
+              </button>
 
-            <Link 
-              to="/financeiro/conciliacao"
-              className="bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
-            >
-              <CheckCircle2 size={16} /> Conciliar Bancos
-            </Link>
+              <Link 
+                to="/financeiro/conciliacao"
+                className="flex-1 sm:flex-none justify-center bg-apple-black text-white font-black text-[10px] uppercase tracking-widest px-4 py-3 rounded-xl shadow-xl hover:scale-105 transition-all flex items-center gap-2"
+              >
+                <CheckCircle2 size={16} className="shrink-0" /> <span className="truncate">Conciliar</span>
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -212,7 +211,7 @@ const Transactions = () => {
               />
            </div>
            
-           <div className="flex gap-2 p-1 overflow-x-auto">
+           <div className="flex gap-2 p-1 overflow-x-auto custom-scrollbar">
               {[
                 { id: 'all', label: 'Tudo', icon: Layers },
                 { id: 'bank', label: 'Bancos', icon: Landmark },
@@ -223,7 +222,7 @@ const Transactions = () => {
                   key={source.id}
                   onClick={() => setSourceFilter(source.id)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shrink-0",
                     sourceFilter === source.id ? "bg-orange-50 border-orange-600 text-white shadow-md" : "bg-apple-offWhite border-apple-border text-apple-muted hover:bg-apple-light"
                   )}
                 >
@@ -234,8 +233,8 @@ const Transactions = () => {
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead className="bg-apple-offWhite text-apple-muted text-[10px] font-black uppercase tracking-[0.2em] border-b border-apple-border">
                 <tr>
                   <th className="px-8 py-6">Data / Origem</th>
@@ -258,23 +257,23 @@ const Transactions = () => {
                          <p className="text-[9px] text-apple-muted font-bold uppercase mt-0.5">{item.account || 'Previsão de Caixa'}</p>
                       </td>
                       <td className="px-8 py-5">
-                         <p className="text-sm font-bold text-apple-dark">{item.description}</p>
+                         <p className="text-sm font-bold text-apple-dark max-w-sm truncate" title={item.description}>{item.description}</p>
                       </td>
                       <td className="px-8 py-5">
                          <div className="flex items-center gap-2">
                             {item.type === 'IN' ? (
-                              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100"><ArrowUpRight size={14} /></div>
+                              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0"><ArrowUpRight size={14} /></div>
                             ) : (
-                              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100"><ArrowDownRight size={14} /></div>
+                              <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100 shrink-0"><ArrowDownRight size={14} /></div>
                             )}
-                            <span className={cn("text-base font-black", item.type === 'IN' ? "text-emerald-600" : "text-red-600")}>
+                            <span className={cn("text-base font-black whitespace-nowrap", item.type === 'IN' ? "text-emerald-600" : "text-red-600")}>
                               {item.type === 'IN' ? '+' : '-'}{currency.format(item.amount)}
                             </span>
                          </div>
                       </td>
                       <td className="px-8 py-5 text-center">
                          <span className={cn(
-                           "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border",
+                           "px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border whitespace-nowrap",
                            item.rawStatus === 'reconciled' || item.rawStatus === 'pago' 
                             ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
                             : item.rawStatus === 'atrasado' ? "bg-red-50 text-red-600 border-red-100" : "bg-orange-50 text-orange-600 border-orange-100"
@@ -285,11 +284,11 @@ const Transactions = () => {
                       <td className="px-8 py-5 text-right">
                          <div className="flex flex-col items-end">
                             {item.source === 'bank' ? (
-                               <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                               <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 whitespace-nowrap">
                                  <Landmark size={10} /> Extrato Real
                                </div>
                             ) : (
-                               <div className="flex items-center gap-1.5 text-[9px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                               <div className="flex items-center gap-1.5 text-[9px] font-black text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded-lg border border-orange-100 whitespace-nowrap">
                                  <Receipt size={10} /> Sistema ERP
                                </div>
                             )}
