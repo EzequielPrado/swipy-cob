@@ -310,13 +310,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center gap-2 md:gap-3">
             {hasVipSupport && (
               <a 
-                href="https://wa.me/553431994356?text=Olá,%20gostaria%20de%20falar%20com%20a%20gestão%20da%20Swipy." 
+                href="https://wa.me/553431994356?text=Olá,%20gostaria%20de%20falar%20com%20o%20gestor%20da%20Swipy." 
                 target="_blank" 
                 rel="noreferrer"
                 className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-xl transition-all shadow-lg shadow-emerald-500/10 active:scale-95 group"
               >
                 <Headset size={18} className="group-hover:rotate-12 transition-transform" />
-                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Falar com Gestão</span>
+                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Falar com o Gestor</span>
               </a>
             )}
             <NotificationBell />
