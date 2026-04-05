@@ -17,6 +17,7 @@ serve(async (req) => {
 
     const appUrl = Deno.env.get('APP_URL') || 'https://swipy.sh';
 
+    // 1. Busca todas as regras ativas (exceto a imediata -1, que é tratada na criação)
     const { data: rules } = await supabaseClient
       .from('billing_rules')
       .select('*')
@@ -32,10 +33,12 @@ serve(async (req) => {
 
     let totalProcessed = 0;
     for (const rule of rules) {
+      // Calcula a data alvo baseado no offset (ex: 0 = hoje, 1 = venceu ontem)
       const targetDate = new Date(today);
       targetDate.setDate(today.getDate() - rule.day_offset);
       const dateStr = targetDate.toISOString().split('T')[0];
 
+      // 2. Busca cobranças pendentes daquela data específica
       const { data: charges } = await supabaseClient
         .from('charges')
         .select('*, customers(*), profiles:user_id(company, full_name)')
@@ -45,6 +48,20 @@ serve(async (req) => {
       if (charges && charges.length > 0) {
         for (const charge of charges) {
           try {
+            // TRAVA DE SEGURANÇA: Verifica se esta regra já foi enviada para esta cobrança
+            const { data: alreadySent } = await supabaseClient
+              .from('notification_logs')
+              .select('id')
+              .eq('charge_id', charge.id)
+              .eq('rule_id', rule.id)
+              .eq('status', 'success')
+              .maybeSingle();
+
+            if (alreadySent) {
+              console.log(`[billing-schedule] Charge ${charge.id} já recebeu a regra ${rule.label}. Pulando.`);
+              continue;
+            }
+
             const merchantName = charge.profiles?.company || charge.profiles?.full_name || "Nossa Empresa";
             const systemCheckoutUrl = `${appUrl}/pagar/${charge.id}`;
 
@@ -65,13 +82,8 @@ serve(async (req) => {
               qrImageUrl = rule.image_url;
             }
 
-            // BOTÃO: Envia apenas o ID se for payment_id
-            let buttonVariable = null;
-            if (rule.button_link_variable === 'payment_id') {
-              buttonVariable = charge.id;
-            } else if (rule.button_link_variable === 'payment_link') {
-              buttonVariable = systemCheckoutUrl;
-            }
+            let buttonVariable = rule.button_link_variable === 'payment_id' ? charge.id : 
+                               rule.button_link_variable === 'payment_link' ? systemCheckoutUrl : null;
 
             const waRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp`, {
               method: 'POST',
@@ -91,6 +103,7 @@ serve(async (req) => {
 
             await supabaseClient.from('notification_logs').insert({
               charge_id: charge.id,
+              rule_id: rule.id, // Vínculo para a trava funcionar na próxima rodada
               type: 'whatsapp',
               status: waRes.ok ? 'success' : 'error',
               message: waRes.ok ? `Régua Automática: ${rule.label} enviada` : `Falha no envio da régua: ${rule.label}`
