@@ -18,25 +18,28 @@ serve(async (req) => {
     const today = new Date();
     const currentDayOfMonth = today.getDate();
     const currentDayOfWeek = today.getDay(); // 0 (Dom) a 6 (Sáb)
-    const appUrl = Deno.env.get('APP_URL') || 'https://mxkorxmazthagjaqwrfk.supabase.co';
+    const todayISO = today.toISOString().split('T')[0];
 
-    console.log(`[process-recurring-charges] Iniciando processamento. Hoje: Dia ${currentDayOfMonth}, Dia da Semana ${currentDayOfWeek}`);
+    console.log(`[process-recurring-charges] Iniciando processamento. Hoje: ${todayISO} (Dia ${currentDayOfMonth}, Semanal ${currentDayOfWeek})`);
 
-    // Busca contratos ativos que devem ser gerados hoje
-    // Lógica: (Mensal AND dia do mês) OR (Semanal AND dia da semana)
+    // Busca contratos ativos que devem ser gerados hoje E que ainda não foram gerados hoje
     const { data: subscriptions, error: fetchError } = await supabaseClient
       .from('subscriptions')
       .select('*, customers (*)')
       .eq('status', 'active')
-      .or(`and(frequency.eq.monthly,generation_day.eq.${currentDayOfMonth}),and(frequency.eq.weekly,generation_weekday.eq.${currentDayOfWeek})`);
+      // Filtro de recorrência (Mensal ou Semanal)
+      .or(`and(frequency.eq.monthly,generation_day.eq.${currentDayOfMonth}),and(frequency.eq.weekly,generation_weekday.eq.${currentDayOfWeek})`)
+      // TRAVA DE SEGURANÇA: Só processa se a última geração NÃO foi hoje
+      .or(`last_generation_date.is.null,last_generation_date.neq.${todayISO}`);
 
     if (fetchError) throw fetchError;
 
     if (!subscriptions || subscriptions.length === 0) {
-      return new Response(JSON.stringify({ message: "Nenhum contrato para processar hoje" }), { headers: corsHeaders });
+      console.log(`[process-recurring-charges] Nenhum contrato pendente para processar hoje.`);
+      return new Response(JSON.stringify({ message: "Nenhum contrato pendente para hoje", processed: 0 }), { headers: corsHeaders });
     }
 
-    console.log(`[process-recurring-charges] Encontrados ${subscriptions.length} contratos para hoje.`);
+    console.log(`[process-recurring-charges] Encontrados ${subscriptions.length} contratos para processar.`);
 
     const userIds = [...new Set(subscriptions.map(s => s.user_id))];
     const { data: profiles } = await supabaseClient
@@ -54,14 +57,14 @@ serve(async (req) => {
           continue;
         }
 
-        // Calcula data de vencimento (Padrão: 3 dias após a geração se não definido, ou usa o due_day para mensais)
+        // Calcula data de vencimento
         let dueDateStr;
         if (sub.frequency === 'weekly') {
           const dueDate = new Date(today);
-          dueDate.setDate(today.getDate() + 3); // Vence em 3 dias
+          dueDate.setDate(today.getDate() + 3);
           dueDateStr = dueDate.toISOString().split('T')[0];
         } else {
-          let dueDate = new Date(today.getFullYear(), today.getMonth(), sub.due_day);
+          let dueDate = new Date(today.getFullYear(), today.getMonth(), sub.due_day || currentDayOfMonth);
           if (sub.due_day < sub.generation_day) dueDate.setMonth(dueDate.getMonth() + 1);
           dueDateStr = dueDate.toISOString().split('T')[0];
         }
@@ -69,7 +72,7 @@ serve(async (req) => {
         const correlationID = crypto.randomUUID();
         const description = sub.description || `Fatura Contrato ${sub.contract_number || ''} - ${sub.frequency === 'weekly' ? 'Semanal' : 'Mensal'}`;
 
-        console.log(`[process-recurring-charges] Gerando cobrança para ${sub.customers.name} no valor de ${sub.amount}`);
+        console.log(`[process-recurring-charges] Gerando cobrança para ${sub.customers.name} (${sub.id})`);
 
         const wooviRes = await fetch('https://api.woovi.com/api/v1/charge', {
           method: 'POST',
@@ -88,6 +91,7 @@ serve(async (req) => {
         const { data: charge } = await supabaseClient.from('charges').insert({
           user_id: sub.user_id,
           customer_id: sub.customer_id,
+          subscription_id: sub.id, // Vínculo para auditoria
           amount: sub.amount,
           description: description,
           method: 'pix',
@@ -101,22 +105,28 @@ serve(async (req) => {
         }).select().single();
 
         if (charge) {
+          // MARCA O CONTRATO COMO PROCESSADO HOJE
+          await supabaseClient
+            .from('subscriptions')
+            .update({ last_generation_date: todayISO })
+            .eq('id', sub.id);
+
           processedCount++;
-          // Registro de Log de Notificação (Simples)
+          
           await supabaseClient.from('notification_logs').insert({
             charge_id: charge.id,
             type: 'system',
             status: 'success',
-            message: `Cobrança recorrente gerada automaticamente via contrato ${sub.contract_number || '---'}`
+            message: `Assinatura gerada. Trava anti-duplicidade ativada para ${todayISO}.`
           });
         }
 
-      } catch (err) { 
+      } catch (err: any) { 
         console.error(`[process-recurring-charges] Erro no contrato ${sub.id}:`, err.message); 
       }
     }
 
-    return new Response(JSON.stringify({ processed: true, count: processedCount }), { headers: corsHeaders });
+    return new Response(JSON.stringify({ success: true, processed: processedCount }), { headers: corsHeaders });
   } catch (error: any) {
     console.error("[process-recurring-charges] Erro Crítico:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders });
