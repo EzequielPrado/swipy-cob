@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from '@/integrations/supabase/auth';
 import { useTheme } from 'next-themes';
 import NotificationBell from './NotificationBell';
+import SwipyAIAssistant from './SwipyAIAssistant';
 
 interface SubmenuItem {
   label: string;
@@ -187,6 +188,8 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   };
   
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
+  const isSuperAdmin = profile?.is_admin && !activeMerchant;
+  const hasAIAssistant = activePlanFeatures.includes('ai_assistant') || isSuperAdmin;
 
   const visibleMenus = menuStructure.map(menu => {
     if (menu.requireSuperAdmin && !isAdmin) return null;
@@ -348,6 +351,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <span className="text-[9px] font-black uppercase">Menu</span>
            </button>
         </nav>
+
+        {/* SWIPY AI ASSISTANT (Aparece apenas se habilitado no plano ou for super admin) */}
+        {hasAIAssistant && <SwipyAIAssistant />}
       </main>
     </div>
   );
