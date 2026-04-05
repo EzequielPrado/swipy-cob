@@ -19,6 +19,13 @@ const MODULES = [
     ]
   },
   { 
+    id: 'atendimento_vip', 
+    label: 'Canais de Atendimento',
+    subFeatures: [
+      { id: 'suporte_vip', label: 'Falar com a Gestão (WhatsApp Direto)' }
+    ]
+  },
+  { 
     id: 'vendas', 
     label: 'Vendas e CRM',
     subFeatures: [

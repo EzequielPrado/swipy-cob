@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, LogOut, Bell, UserCog, BarChart3, MessagesSquare, CheckCircle2, Palette, ShoppingCart,
   Package, Landmark, Contact, ChevronDown, ChevronRight, Wallet, Factory, Zap, GraduationCap, XCircle, ShieldCheck,
   Moon, Sun, Menu, X, FileText, Globe, History, Activity, Megaphone, Calendar, Sparkles, FileDown, Truck, FileSpreadsheet, Wrench,
-  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2, CalendarClock, Palmtree, CreditCard
+  ReceiptText, Layers, ArrowRightLeft, FileArchive, Share2, CalendarClock, Palmtree, CreditCard, Headset
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
@@ -190,6 +190,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const activePlanFeatures = activeMerchant ? (activeMerchant.system_plans?.features || []) : (profile?.system_plans?.features || []);
   const isSuperAdmin = profile?.is_admin && !activeMerchant;
   const hasAIAssistant = activePlanFeatures.includes('ai_assistant') || isSuperAdmin;
+  const hasVipSupport = activePlanFeatures.includes('suporte_vip') || isSuperAdmin;
 
   const visibleMenus = menuStructure.map(menu => {
     if (menu.requireSuperAdmin && !isAdmin) return null;
@@ -306,7 +307,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               Olá, {profile?.company || 'Swipy ERP'}
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
+            {hasVipSupport && (
+              <a 
+                href="https://wa.me/553431994356?text=Olá,%20gostaria%20de%20falar%20com%20a%20gestão%20da%20Swipy." 
+                target="_blank" 
+                rel="noreferrer"
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-xl transition-all shadow-lg shadow-emerald-500/10 active:scale-95 group"
+              >
+                <Headset size={18} className="group-hover:rotate-12 transition-transform" />
+                <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Falar com Gestão</span>
+              </a>
+            )}
             <NotificationBell />
             {mounted && (
               <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 text-apple-muted bg-apple-offWhite rounded-xl border border-apple-border shadow-sm hover:bg-apple-light transition-all">
