@@ -26,49 +26,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from '@/utils/toast';
 
-// Carregador assíncrono robusto para o SDK do Belvo
+// Carregador assíncrono flexível: espera até 15 segundos para a Belvo inicializar
 const loadBelvoScript = (): Promise<any> => {
   return new Promise((resolve, reject) => {
+    // 1. Se a variável já foi injetada pelo index.html, retorna na hora.
     if ((window as any).belvo) {
-      resolve((window as any).belvo);
-      return;
+      return resolve((window as any).belvo);
     }
 
-    const existingScript = document.getElementById('belvo-sdk');
-    if (existingScript) {
-      let attempts = 0;
-      const interval = setInterval(() => {
-        if ((window as any).belvo) {
-          clearInterval(interval);
-          resolve((window as any).belvo);
-        }
+    // 2. Se por acaso a tag não existir no HTML, injetamos agora.
+    let script = document.getElementById('belvo-sdk') as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'belvo-sdk';
+      script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+
+    // 3. Loop de verificação: a cada 100ms, checa se a Belvo carregou.
+    let attempts = 0;
+    const maxAttempts = 150; // 15 segundos de tolerância máxima
+
+    const interval = setInterval(() => {
+      if ((window as any).belvo) {
+        clearInterval(interval);
+        resolve((window as any).belvo);
+      } else {
         attempts++;
-        if (attempts > 50) { // Timeout de 5 segundos
+        if (attempts >= maxAttempts) {
           clearInterval(interval);
-          reject(new Error("O script do Belvo demorou muito para carregar. Tente novamente."));
+          reject(new Error("A conexão com os servidores da Belvo está muito lenta. Verifique sua internet ou tente recarregar a página (F5)."));
         }
-      }, 100);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = 'belvo-sdk';
-    script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
-    script.async = true;
-    
-    script.onload = () => {
-      if ((window as any).belvo) resolve((window as any).belvo);
-      else reject(new Error("Script carregou, mas a variável 'belvo' não foi encontrada."));
-    };
-    
-    script.onerror = () => {
-      reject(new Error("Falha ao carregar o script do Belvo. Verifique se você está usando um AdBlocker."));
-    };
-    
-    document.body.appendChild(script);
+      }
+    }, 100);
   });
 };
-
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
@@ -201,7 +194,7 @@ const Integrations = () => {
   const handleConnectBelvo = async () => {
     setBelvoLoading(true);
     try {
-      // 1. Carrega o script do Belvo e aguarda ele estar pronto primeiro
+      // 1. Carrega o script do Belvo e aguarda ele estar pronto (timeout 15s)
       const belvoWidget = await loadBelvoScript();
 
       // 2. Busca o token no nosso backend
