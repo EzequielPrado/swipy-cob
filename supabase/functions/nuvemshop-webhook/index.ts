@@ -93,6 +93,9 @@ serve(async (req) => {
       const isPaid = order.payment_status === 'paid';
       const chargeStatus = isPaid ? 'pago' : 'pendente';
       const quoteStatus = isPaid ? 'picking' : 'approved';
+      
+      // Capturando a taxa do gateway enviada pela Nuvemshop
+      const gatewayFee = parseFloat(order.gateway_fee || '0');
 
       const { data: existingCharge } = await supabaseAdmin.from('charges')
         .select('id, quote_id')
@@ -104,6 +107,12 @@ serve(async (req) => {
         if (existingCharge.quote_id) {
            await supabaseAdmin.from('quotes').update({ status: quoteStatus }).eq('id', existingCharge.quote_id);
         }
+        
+        // Atualiza o status da despesa (taxa) se ela existir
+        await supabaseAdmin.from('expenses')
+          .update({ status: chargeStatus })
+          .eq('user_id', integration.user_id)
+          .ilike('description', `%Pedido #${order.number}%`);
         
         // LOG DE ATUALIZAÇÃO PARA AUDITORIA
         await supabaseAdmin.from('notification_logs').insert({
@@ -165,6 +174,44 @@ serve(async (req) => {
         }).select().single();
 
         if (chargeError) throw chargeError;
+
+        // SE HOUVER TAXA, REGISTRA COMO DESPESA E VINCULA AO PLANO DE CONTAS
+        if (gatewayFee > 0) {
+          let feeCategoryId = null;
+          
+          // Busca uma categoria de despesa de taxas
+          const { data: catData } = await supabaseAdmin.from('chart_of_accounts')
+            .select('id')
+            .eq('user_id', integration.user_id)
+            .eq('type', 'expense')
+            .ilike('name', '%taxa%')
+            .limit(1)
+            .maybeSingle();
+
+          if (catData) {
+            feeCategoryId = catData.id;
+          } else {
+            // Cria a categoria automaticamente se não existir
+            const { data: newCat } = await supabaseAdmin.from('chart_of_accounts').insert({
+              user_id: integration.user_id,
+              name: 'Taxas e Tarifas de Venda',
+              type: 'expense',
+              macro_group: 'financeiras',
+              code: '2.99' // Código genérico
+            }).select().single();
+            if (newCat) feeCategoryId = newCat.id;
+          }
+
+          // Lança a despesa
+          await supabaseAdmin.from('expenses').insert({
+            user_id: integration.user_id,
+            amount: gatewayFee,
+            description: `Taxa ${order.gateway_name || 'Gateway'} - Pedido #${order.number}`,
+            status: chargeStatus,
+            due_date: new Date().toISOString().split('T')[0],
+            category_id: feeCategoryId
+          });
+        }
 
         // LOG DE CRIAÇÃO PARA AUDITORIA (MASTER FEED)
         await supabaseAdmin.from('notification_logs').insert({
