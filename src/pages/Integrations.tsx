@@ -26,12 +26,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from '@/utils/toast';
 
-// Carregador assíncrono flexível: espera até 15 segundos para a Belvo inicializar
+// Carregador assíncrono que procura corretamente a variável "belvoSDK" (padrão oficial)
 const loadBelvoScript = (): Promise<any> => {
   return new Promise((resolve, reject) => {
-    // 1. Se a variável já foi injetada pelo index.html, retorna na hora.
-    if ((window as any).belvo) {
-      return resolve((window as any).belvo);
+    // 1. Se a variável correta já foi injetada pelo index.html, retorna na hora.
+    if ((window as any).belvoSDK) {
+      return resolve((window as any).belvoSDK);
     }
 
     // 2. Se por acaso a tag não existir no HTML, injetamos agora.
@@ -44,19 +44,19 @@ const loadBelvoScript = (): Promise<any> => {
       document.body.appendChild(script);
     }
 
-    // 3. Loop de verificação: a cada 100ms, checa se a Belvo carregou.
+    // 3. Loop de verificação: a cada 100ms, checa se o belvoSDK carregou.
     let attempts = 0;
-    const maxAttempts = 150; // 15 segundos de tolerância máxima
+    const maxAttempts = 150; // 15 segundos
 
     const interval = setInterval(() => {
-      if ((window as any).belvo) {
+      if ((window as any).belvoSDK) {
         clearInterval(interval);
-        resolve((window as any).belvo);
+        resolve((window as any).belvoSDK);
       } else {
         attempts++;
         if (attempts >= maxAttempts) {
           clearInterval(interval);
-          reject(new Error("A conexão com os servidores da Belvo está muito lenta. Verifique sua internet ou tente recarregar a página (F5)."));
+          reject(new Error("Falha ao abrir a interface da Belvo. Verifique se há algum bloqueador de pop-ups ativo."));
         }
       }
     }, 100);
@@ -194,7 +194,7 @@ const Integrations = () => {
   const handleConnectBelvo = async () => {
     setBelvoLoading(true);
     try {
-      // 1. Carrega o script do Belvo e aguarda ele estar pronto (timeout 15s)
+      // 1. Carrega o script do Belvo e aguarda ele estar pronto 
       const belvoWidget = await loadBelvoScript();
 
       // 2. Busca o token no nosso backend
