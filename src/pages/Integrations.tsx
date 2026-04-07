@@ -39,15 +39,6 @@ const Integrations = () => {
   const [belvoLoading, setBelvoLoading] = useState(false);
   const [belvoSyncing, setBelvoSyncing] = useState(false);
 
-  useEffect(() => {
-    // Injeta o script do Belvo Widget dinamicamente
-    const script = document.createElement('script');
-    script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
-  }, []);
-
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
     setLoading(true);
@@ -112,7 +103,6 @@ const Integrations = () => {
   };
 
   const handleSimulateOrder = async () => {
-    // ... Simulação mantida idêntica para o usuário não perder a feature de testes.
     if (!effectiveUserId) return;
     setLoading(true);
     try {
@@ -176,18 +166,22 @@ const Integrations = () => {
       if (!res.ok) throw new Error(data.error || "Erro ao obter token do Belvo.");
 
       // @ts-ignore
-      if (!window.belvo) throw new Error("Widget do Belvo não carregou. Tente recarregar a página.");
+      const belvoWidget = window.belvo;
+      
+      if (!belvoWidget) {
+        throw new Error("O motor do Belvo ainda está aquecendo. Aguarde 2 segundos e tente novamente.");
+      }
 
       // @ts-ignore
-      window.belvo.createWidget(data.access_token, {
+      belvoWidget.createWidget(data.access_token, {
         locale: 'pt',
         country_codes: ['BR'],
         callback: async (link: string, institution: string) => {
           await supabase.from('integrations').insert({
             user_id: effectiveUserId,
             provider: 'belvo',
-            access_token: link, // Usamos o access_token para guardar o link_id do banco
-            store_id: institution, // Salvamos o nome do banco
+            access_token: link, 
+            store_id: institution,
             status: 'active'
           });
           showSuccess('Conta bancária conectada com sucesso!');
@@ -249,7 +243,7 @@ const Integrations = () => {
           <button 
             onClick={fetchIntegrations}
             disabled={loading}
-            className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm disabled:opacity-50"
+            className="p-3 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black shadow-sm disabled:opacity-50"
           >
             <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
           </button>
