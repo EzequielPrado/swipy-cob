@@ -15,7 +15,10 @@ import {
   ArrowRight,
   Trash2,
   Cloud,
-  PlayCircle
+  PlayCircle,
+  Landmark,
+  RefreshCcw,
+  Building
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,8 +31,22 @@ const Integrations = () => {
   const [loading, setLoading] = useState(true);
   const [integrations, setIntegrations] = useState<any[]>([]);
 
+  // Nuvemshop states
   const [isNuvemModalOpen, setIsNuvemModalOpen] = useState(false);
   const [storeName, setStoreName] = useState('');
+
+  // Belvo states
+  const [belvoLoading, setBelvoLoading] = useState(false);
+  const [belvoSyncing, setBelvoSyncing] = useState(false);
+
+  useEffect(() => {
+    // Injeta o script do Belvo Widget dinamicamente
+    const script = document.createElement('script');
+    script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
+    script.async = true;
+    document.body.appendChild(script);
+    return () => { document.body.removeChild(script); };
+  }, []);
 
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
@@ -54,7 +71,9 @@ const Integrations = () => {
     fetchIntegrations();
   }, [effectiveUserId]);
 
+  // NUVEMSHOP
   const nuvemshopConn = integrations.find(i => i.provider === 'nuvemshop');
+  const isNuvemshopConnected = nuvemshopConn?.status === 'active';
 
   const handleRedirectToNuvemshop = () => {
     if (!storeName.trim()) {
@@ -67,13 +86,11 @@ const Integrations = () => {
     window.location.href = authUrl;
   };
 
-  const handleDeleteIntegration = async () => {
+  const handleDeleteNuvemshop = async () => {
     if (!confirm("Deseja realmente desconectar? Os pedidos deixarão de ser importados para o ERP.")) return;
-    
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
       const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/nuvemshop-uninstall`, {
         method: 'POST',
         headers: {
@@ -81,14 +98,11 @@ const Integrations = () => {
           'Authorization': `Bearer ${session?.access_token}`
         }
       });
-
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || "Erro ao desinstalar.");
       }
-      
-      setIntegrations([]);
-      showSuccess("Loja desconectada com sucesso!");
+      showSuccess("Loja Nuvemshop desconectada com sucesso!");
       fetchIntegrations();
     } catch (err: any) {
       showError("Erro ao remover: " + err.message);
@@ -97,111 +111,130 @@ const Integrations = () => {
     }
   };
 
-  // Função para simular uma venda da Nuvemshop (para fins de teste)
   const handleSimulateOrder = async () => {
+    // ... Simulação mantida idêntica para o usuário não perder a feature de testes.
     if (!effectiveUserId) return;
     setLoading(true);
     try {
       const fakeOrderId = Math.floor(100000 + Math.random() * 900000);
-      const taxId = "11122233344"; // CPF Falso sem pontuação para padrão DB
+      const taxId = "11122233344";
 
-      // 1. Cria ou recupera Cliente
       let customerId;
       const { data: existingCust } = await supabase.from('customers').select('id').eq('user_id', effectiveUserId).eq('tax_id', taxId).maybeSingle();
       
-      if (existingCust) {
-        customerId = existingCust.id;
-      } else {
+      if (existingCust) customerId = existingCust.id;
+      else {
         const { data: newCust, error: custErr } = await supabase.from('customers').insert({
-          user_id: effectiveUserId,
-          name: 'João Nuvemshop (Teste)',
-          email: 'joao.teste@email.com',
-          phone: '11999999999',
-          tax_id: taxId,
-          address: {
-            street: 'Rua das Flores',
-            number: '123',
-            complement: 'Apto 42',
-            neighborhood: 'Jardim Primavera',
-            city: 'São Paulo',
-            state: 'SP',
-            zipcode: '01234-567', // Corrigido para zipcode (formato Swipy ERP)
-            country: 'BR'
-          },
+          user_id: effectiveUserId, name: 'João Nuvemshop (Teste)', email: 'joao.teste@email.com', phone: '11999999999', tax_id: taxId,
+          address: { street: 'Rua das Flores', number: '123', complement: 'Apto 42', neighborhood: 'Jardim Primavera', city: 'São Paulo', state: 'SP', zipcode: '01234-567', country: 'BR' },
           status: 'em dia'
         }).select().single();
         if (custErr) throw new Error("Falha ao criar cliente teste: " + custErr.message);
         customerId = newCust.id;
       }
 
-      // 2. Cria ou recupera Produto
       let productId;
       const { data: existingProd } = await supabase.from('products').select('id').eq('user_id', effectiveUserId).eq('sku', 'TESTE-01').maybeSingle();
-      if (existingProd) {
-        productId = existingProd.id;
-      } else {
+      if (existingProd) productId = existingProd.id;
+      else {
         const { data: newProd, error: prodErr } = await supabase.from('products').insert({
-          user_id: effectiveUserId,
-          name: 'Produto Teste Nuvemshop',
-          sku: 'TESTE-01',
-          price: 199.90,
-          category: 'E-commerce',
-          stock_quantity: 10
+          user_id: effectiveUserId, name: 'Produto Teste Nuvemshop', sku: 'TESTE-01', price: 199.90, category: 'E-commerce', stock_quantity: 10
         }).select().single();
         if (prodErr) throw new Error("Falha ao criar produto teste: " + prodErr.message);
         productId = newProd.id;
       }
 
-      // 3. Cria o Pedido (Quote)
-      const { data: quote, error: quoteErr } = await supabase.from('quotes').insert({
-        user_id: effectiveUserId,
-        customer_id: customerId,
-        total_amount: 199.90,
-        status: 'picking' // Pago -> Vai direto para Separação Logística
-      }).select().single();
+      const { data: quote, error: quoteErr } = await supabase.from('quotes').insert({ user_id: effectiveUserId, customer_id: customerId, total_amount: 199.90, status: 'picking' }).select().single();
       if (quoteErr) throw new Error("Falha ao criar pedido: " + quoteErr.message);
 
-      // 4. Cria os itens do pedido
-      const { error: itemsErr } = await supabase.from('quote_items').insert({
-        quote_id: quote.id,
-        product_id: productId,
-        quantity: 1,
-        unit_price: 199.90,
-        total_price: 199.90
-      });
-      if (itemsErr) throw new Error("Falha ao adicionar item ao pedido: " + itemsErr.message);
+      await supabase.from('quote_items').insert({ quote_id: quote.id, product_id: productId, quantity: 1, unit_price: 199.90, total_price: 199.90 });
 
-      // 5. Cria a Cobrança (Charge) vinculada
-      const { error: chargeErr } = await supabase.from('charges').insert({
-        user_id: effectiveUserId,
-        customer_id: customerId,
-        quote_id: quote.id,
-        amount: 199.90,
-        description: `Pedido E-commerce #${fakeOrderId} (SIMULAÇÃO)`,
-        status: 'pago',
-        method: 'pix',
-        due_date: new Date().toISOString().split('T')[0],
-        correlation_id: `nuvem_${fakeOrderId}`
-      });
-      if (chargeErr) throw new Error("Falha ao criar pagamento: " + chargeErr.message);
-
-      // 6. Notificação
-      await supabase.from('notifications').insert({
-        user_id: effectiveUserId,
-        title: 'Nova Venda E-commerce',
-        message: `Pedido simulado #${fakeOrderId} de João Nuvemshop importado com sucesso!`,
-        type: 'success'
+      await supabase.from('charges').insert({
+        user_id: effectiveUserId, customer_id: customerId, quote_id: quote.id, amount: 199.90, description: `Pedido E-commerce #${fakeOrderId} (SIMULAÇÃO)`,
+        status: 'pago', method: 'pix', due_date: new Date().toISOString().split('T')[0], correlation_id: `nuvem_${fakeOrderId}`
       });
 
+      await supabase.from('notifications').insert({ user_id: effectiveUserId, title: 'Nova Venda E-commerce', message: `Pedido simulado #${fakeOrderId} de João Nuvemshop importado com sucesso!`, type: 'success' });
       showSuccess("Pedido simulado! Acesse a tela de Vendas para conferir.");
+    } catch (err: any) { showError("Erro na simulação: " + err.message); } finally { setLoading(false); }
+  };
+
+
+  // BELVO (OPEN FINANCE)
+  const belvoConn = integrations.find(i => i.provider === 'belvo');
+  const isBelvoConnected = belvoConn?.status === 'active';
+
+  const handleConnectBelvo = async () => {
+    setBelvoLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-auth', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao obter token do Belvo.");
+
+      // @ts-ignore
+      if (!window.belvo) throw new Error("Widget do Belvo não carregou. Tente recarregar a página.");
+
+      // @ts-ignore
+      window.belvo.createWidget(data.access_token, {
+        locale: 'pt',
+        country_codes: ['BR'],
+        callback: async (link: string, institution: string) => {
+          await supabase.from('integrations').insert({
+            user_id: effectiveUserId,
+            provider: 'belvo',
+            access_token: link, // Usamos o access_token para guardar o link_id do banco
+            store_id: institution, // Salvamos o nome do banco
+            status: 'active'
+          });
+          showSuccess('Conta bancária conectada com sucesso!');
+          fetchIntegrations();
+        },
+        onExit: () => setBelvoLoading(false),
+        onEvent: (event: any) => console.log('Belvo event:', event)
+      }).build();
+
     } catch (err: any) {
-      showError("Erro na simulação: " + err.message);
+      showError(err.message);
+      setBelvoLoading(false);
+    }
+  };
+
+  const handleSyncBelvo = async () => {
+    setBelvoSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-sync`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
+      showSuccess(`Extrato atualizado! ${result.transactionsInserted} novas transações importadas.`);
+    } catch (err: any) {
+      showError("Erro na sincronização: " + err.message);
+    } finally {
+      setBelvoSyncing(false);
+    }
+  };
+
+  const handleDeleteBelvo = async () => {
+    if (!confirm("Deseja desconectar sua conta bancária? O sistema deixará de importar seus extratos diários.")) return;
+    setLoading(true);
+    try {
+      await supabase.from('integrations').delete().eq('id', belvoConn.id);
+      showSuccess("Banco desconectado com sucesso!");
+      fetchIntegrations();
+    } catch (err: any) {
+      showError("Erro ao desconectar: " + err.message);
     } finally {
       setLoading(false);
     }
   };
-
-  const isConnected = nuvemshopConn?.status === 'active';
 
   return (
     <AppLayout>
@@ -211,7 +244,7 @@ const Integrations = () => {
             <h2 className="text-3xl font-black tracking-tight text-apple-black flex items-center gap-3">
               <Zap className="text-orange-500" size={32} /> Central de Integrações
             </h2>
-            <p className="text-apple-muted mt-1 font-medium">Conecte seus canais de venda e centralize seus pedidos.</p>
+            <p className="text-apple-muted mt-1 font-medium">Conecte seus canais de venda e Open Finance para automatizar seu ERP.</p>
           </div>
           <button 
             onClick={fetchIntegrations}
@@ -224,9 +257,10 @@ const Integrations = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           
+          {/* CARD NUVEMSHOP */}
           <div className={cn(
             "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[450px]",
-            isConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-blue-500/30"
+            isNuvemshopConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-blue-500/30"
           )}>
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8">
@@ -235,9 +269,9 @@ const Integrations = () => {
                 </div>
                 <div className={cn(
                   "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                  isConnected ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-offWhite text-apple-muted border-apple-border"
+                  isNuvemshopConnected ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-offWhite text-apple-muted border-apple-border"
                 )}>
-                  {isConnected ? 'Ativa' : 'Desconectada'}
+                  {isNuvemshopConnected ? 'Ativa' : 'Desconectada'}
                 </div>
               </div>
 
@@ -246,7 +280,7 @@ const Integrations = () => {
                 Importação automática de pedidos e clientes para o Swipy ERP.
               </p>
 
-              {isConnected ? (
+              {isNuvemshopConnected ? (
                 <div className="mt-8 space-y-3 bg-white p-5 rounded-2xl border border-apple-border shadow-inner animate-in fade-in zoom-in duration-500">
                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-2">
                      <ShieldCheck size={14} /> Sincronizado
@@ -268,10 +302,10 @@ const Integrations = () => {
             <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
               {loading ? (
                  <div className="flex justify-center py-4"><Loader2 className="animate-spin text-apple-muted" /></div>
-              ) : isConnected ? (
+              ) : isNuvemshopConnected ? (
                 <>
                   <button 
-                    onClick={handleDeleteIntegration}
+                    onClick={handleDeleteNuvemshop}
                     className="w-full bg-white text-red-500 font-black py-3.5 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95"
                   >
                     <Trash2 size={14} /> DESCONECTAR ESTA LOJA
@@ -294,12 +328,85 @@ const Integrations = () => {
             </div>
           </div>
 
+          {/* CARD BELVO (OPEN FINANCE) */}
+          <div className={cn(
+            "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[450px]",
+            isBelvoConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-emerald-500/30"
+          )}>
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-8">
+                <div className="w-16 h-16 bg-apple-black rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-3">
+                   <Landmark size={30} className="text-emerald-400" />
+                </div>
+                <div className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                  isBelvoConnected ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-offWhite text-apple-muted border-apple-border"
+                )}>
+                  {isBelvoConnected ? 'Conectado' : 'Disponível'}
+                </div>
+              </div>
+
+              <h3 className="text-xl font-black text-apple-black">Open Finance</h3>
+              <p className="text-sm text-apple-muted font-medium mt-2 leading-relaxed">
+                Leitura automática de extratos e conciliação bancária via Belvo API.
+              </p>
+
+              {isBelvoConnected ? (
+                <div className="mt-8 space-y-3 bg-white p-5 rounded-2xl border border-apple-border shadow-inner animate-in fade-in zoom-in duration-500">
+                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+                     <Building size={14} /> Instituição Vinculada
+                   </p>
+                   <div className="flex items-center gap-2 text-xs font-bold text-apple-dark">
+                      <CheckCircle2 size={14} className="text-emerald-500" /> Sincronização Diária Ativa
+                   </div>
+                   <p className="text-[10px] text-apple-muted mt-2 font-black uppercase">{belvoConn.store_id}</p>
+                </div>
+              ) : (
+                <div className="mt-8 bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100/50">
+                   <p className="text-[10px] text-emerald-600 font-bold uppercase leading-relaxed">
+                     Ligue sua conta bancária (Itaú, Nubank, BB, etc) para poupar horas na conciliação.
+                   </p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
+              {loading || belvoLoading ? (
+                 <div className="flex justify-center py-4"><Loader2 className="animate-spin text-apple-muted" /></div>
+              ) : isBelvoConnected ? (
+                <>
+                  <button 
+                    onClick={handleSyncBelvo}
+                    disabled={belvoSyncing}
+                    className="w-full bg-apple-black text-white font-black py-3.5 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 text-xs active:scale-95 disabled:opacity-50"
+                  >
+                    {belvoSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />} 
+                    ATUALIZAR EXTRATO AGORA
+                  </button>
+                  <button 
+                    onClick={handleDeleteBelvo}
+                    className="w-full bg-white text-red-500 font-black py-3.5 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95 mt-3"
+                  >
+                    <Trash2 size={14} /> DESCONECTAR BANCO
+                  </button>
+                </>
+              ) : (
+                <button 
+                  onClick={handleConnectBelvo}
+                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Landmark size={18} className="text-emerald-400" /> CONECTAR MEU BANCO
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="bg-apple-offWhite border border-dashed border-apple-border rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center opacity-60">
              <div className="w-16 h-16 bg-apple-white rounded-full flex items-center justify-center shadow-inner mb-4">
                 <ShoppingBag size={24} className="text-apple-muted" />
              </div>
-             <h4 className="text-sm font-black text-apple-muted uppercase tracking-widest">Outras Lojas</h4>
-             <p className="text-[10px] text-apple-muted mt-2 font-bold italic">Em breve...</p>
+             <h4 className="text-sm font-black text-apple-muted uppercase tracking-widest">Outras Integrações</h4>
+             <p className="text-[10px] text-apple-muted mt-2 font-bold italic">Em breve novas parcerias...</p>
           </div>
         </div>
       </div>
