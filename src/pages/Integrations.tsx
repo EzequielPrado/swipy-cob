@@ -17,51 +17,14 @@ import {
   Cloud,
   PlayCircle,
   Landmark,
-  RefreshCcw,
-  Building
+  Building,
+  Construction
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from '@/utils/toast';
-
-// Carregador resiliente: Verifica ambas as variáveis (belvo ou belvoSDK)
-const loadBelvoScript = (): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    const getBelvoObj = () => (window as any).belvo || (window as any).belvoSDK;
-
-    if (getBelvoObj()) {
-      return resolve(getBelvoObj());
-    }
-
-    let script = document.getElementById('belvo-sdk') as HTMLScriptElement;
-    if (!script) {
-      script = document.createElement('script');
-      script.id = 'belvo-sdk';
-      script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
-      script.async = true;
-      document.body.appendChild(script);
-    }
-
-    let attempts = 0;
-    const maxAttempts = 150; // 15 segundos
-
-    const interval = setInterval(() => {
-      const obj = getBelvoObj();
-      if (obj) {
-        clearInterval(interval);
-        resolve(obj);
-      } else {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          reject(new Error("Tempo esgotado ao carregar o painel do banco. Verifique sua conexão ou AdBlocker."));
-        }
-      }
-    }, 100);
-  });
-};
 
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
@@ -71,10 +34,6 @@ const Integrations = () => {
   // Nuvemshop states
   const [isNuvemModalOpen, setIsNuvemModalOpen] = useState(false);
   const [storeName, setStoreName] = useState('');
-
-  // Belvo states
-  const [belvoLoading, setBelvoLoading] = useState(false);
-  const [belvoSyncing, setBelvoSyncing] = useState(false);
 
   const fetchIntegrations = async () => {
     if (!effectiveUserId) return;
@@ -187,83 +146,6 @@ const Integrations = () => {
   };
 
 
-  // BELVO (OPEN FINANCE)
-  const belvoConn = integrations.find(i => i.provider === 'belvo');
-  const isBelvoConnected = belvoConn?.status === 'active';
-
-  const handleConnectBelvo = async () => {
-    setBelvoLoading(true);
-    try {
-      // 1. Gera o Token na API primeiro (Impede timeout do widget caso a rede atrase)
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-auth', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao obter token de autorização do Banco.");
-
-      // 2. Carrega o SDK do Belvo
-      const belvoWidget = await loadBelvoScript();
-
-      // 3. Monta o Widget
-      belvoWidget.createWidget(data.access_token, {
-        locale: 'pt',
-        country_codes: ['BR'],
-        callback: async (link: string, institution: string) => {
-          await supabase.from('integrations').insert({
-            user_id: effectiveUserId,
-            provider: 'belvo',
-            access_token: link, 
-            store_id: institution,
-            status: 'active'
-          });
-          showSuccess('Conta bancária conectada com sucesso!');
-          fetchIntegrations();
-        },
-        onExit: () => setBelvoLoading(false),
-        onEvent: (event: any) => console.log('Belvo event:', event)
-      }).build();
-
-    } catch (err: any) {
-      showError(err.message);
-      setBelvoLoading(false);
-    }
-  };
-
-  const handleSyncBelvo = async () => {
-    setBelvoSyncing(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-sync`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-
-      showSuccess(`Extrato atualizado! ${result.transactionsInserted} novas transações importadas.`);
-    } catch (err: any) {
-      showError("Erro na sincronização: " + err.message);
-    } finally {
-      setBelvoSyncing(false);
-    }
-  };
-
-  const handleDeleteBelvo = async () => {
-    if (!confirm("Deseja desconectar sua conta bancária? O sistema deixará de importar seus extratos diários.")) return;
-    setLoading(true);
-    try {
-      await supabase.from('integrations').delete().eq('id', belvoConn.id);
-      showSuccess("Banco desconectado com sucesso!");
-      fetchIntegrations();
-    } catch (err: any) {
-      showError("Erro ao desconectar: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <AppLayout>
       <div className="flex flex-col gap-8 pb-12">
@@ -356,21 +238,15 @@ const Integrations = () => {
             </div>
           </div>
 
-          {/* CARD BELVO (OPEN FINANCE) */}
-          <div className={cn(
-            "bg-apple-white border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all group overflow-hidden relative min-h-[450px]",
-            isBelvoConnected ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border hover:border-emerald-500/30"
-          )}>
+          {/* CARD BELVO (OPEN FINANCE) - EM BREVE */}
+          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between transition-all overflow-hidden relative min-h-[450px]">
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-8">
-                <div className="w-16 h-16 bg-apple-black rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform p-3">
+                <div className="w-16 h-16 bg-apple-black rounded-2xl flex items-center justify-center shadow-lg p-3">
                    <Landmark size={30} className="text-emerald-400" />
                 </div>
-                <div className={cn(
-                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                  isBelvoConnected ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-apple-offWhite text-apple-muted border-apple-border"
-                )}>
-                  {isBelvoConnected ? 'Conectado' : 'Disponível'}
+                <div className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-orange-50 text-orange-600 border-orange-200">
+                  Em Breve
                 </div>
               </div>
 
@@ -379,53 +255,21 @@ const Integrations = () => {
                 Leitura automática de extratos e conciliação bancária via Belvo API.
               </p>
 
-              {isBelvoConnected ? (
-                <div className="mt-8 space-y-3 bg-white p-5 rounded-2xl border border-apple-border shadow-inner animate-in fade-in zoom-in duration-500">
-                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 flex items-center gap-2">
-                     <Building size={14} /> Instituição Vinculada
-                   </p>
-                   <div className="flex items-center gap-2 text-xs font-bold text-apple-dark">
-                      <CheckCircle2 size={14} className="text-emerald-500" /> Sincronização Diária Ativa
-                   </div>
-                   <p className="text-[10px] text-apple-muted mt-2 font-black uppercase">{belvoConn.store_id}</p>
-                </div>
-              ) : (
-                <div className="mt-8 bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100/50">
-                   <p className="text-[10px] text-emerald-600 font-bold uppercase leading-relaxed">
-                     Ligue sua conta bancária (Itaú, Nubank, BB, etc) para poupar horas na conciliação.
-                   </p>
-                </div>
-              )}
+              <div className="mt-8 bg-orange-50/50 p-5 rounded-2xl border border-orange-100/50 flex gap-3">
+                 <Construction size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                 <p className="text-[10px] text-orange-600 font-bold uppercase leading-relaxed">
+                   Integração em fase final de homologação com a instituição parceira.
+                 </p>
+              </div>
             </div>
 
             <div className="mt-10 pt-6 border-t border-apple-border relative z-10">
-              {loading || belvoLoading ? (
-                 <div className="flex justify-center py-4"><Loader2 className="animate-spin text-apple-muted" /></div>
-              ) : isBelvoConnected ? (
-                <>
-                  <button 
-                    onClick={handleSyncBelvo}
-                    disabled={belvoSyncing}
-                    className="w-full bg-apple-black text-white font-black py-3.5 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 text-xs active:scale-95 disabled:opacity-50"
-                  >
-                    {belvoSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />} 
-                    ATUALIZAR EXTRATO AGORA
-                  </button>
-                  <button 
-                    onClick={handleDeleteBelvo}
-                    className="w-full bg-white text-red-500 font-black py-3.5 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2 text-xs shadow-sm active:scale-95 mt-3"
-                  >
-                    <Trash2 size={14} /> DESCONECTAR BANCO
-                  </button>
-                </>
-              ) : (
-                <button 
-                  onClick={handleConnectBelvo}
-                  className="w-full bg-apple-black text-white font-black py-4 rounded-2xl shadow-xl hover:bg-zinc-800 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Landmark size={18} className="text-emerald-400" /> CONECTAR MEU BANCO
-                </button>
-              )}
+               <button 
+                 disabled
+                 className="w-full bg-apple-offWhite text-apple-muted font-black py-4 rounded-2xl border border-apple-border flex items-center justify-center gap-2 cursor-not-allowed"
+               >
+                 <Landmark size={18} /> DISPONÍVEL EM BREVE
+               </button>
             </div>
           </div>
 
