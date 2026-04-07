@@ -26,6 +26,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from '@/utils/toast';
 
+// Carregador assíncrono robusto para o SDK do Belvo
+const loadBelvoScript = (): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    if ((window as any).belvo) {
+      resolve((window as any).belvo);
+      return;
+    }
+
+    const existingScript = document.getElementById('belvo-sdk');
+    if (existingScript) {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        if ((window as any).belvo) {
+          clearInterval(interval);
+          resolve((window as any).belvo);
+        }
+        attempts++;
+        if (attempts > 50) { // Timeout de 5 segundos
+          clearInterval(interval);
+          reject(new Error("O script do Belvo demorou muito para carregar. Tente novamente."));
+        }
+      }, 100);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'belvo-sdk';
+    script.src = 'https://cdn.belvo.io/belvo-widget-1-latest.js';
+    script.async = true;
+    
+    script.onload = () => {
+      if ((window as any).belvo) resolve((window as any).belvo);
+      else reject(new Error("Script carregou, mas a variável 'belvo' não foi encontrada."));
+    };
+    
+    script.onerror = () => {
+      reject(new Error("Falha ao carregar o script do Belvo. Verifique se você está usando um AdBlocker."));
+    };
+    
+    document.body.appendChild(script);
+  });
+};
+
+
 const Integrations = () => {
   const { effectiveUserId } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -157,6 +201,10 @@ const Integrations = () => {
   const handleConnectBelvo = async () => {
     setBelvoLoading(true);
     try {
+      // 1. Carrega o script do Belvo e aguarda ele estar pronto primeiro
+      const belvoWidget = await loadBelvoScript();
+
+      // 2. Busca o token no nosso backend
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-auth', {
         method: 'POST',
@@ -165,14 +213,7 @@ const Integrations = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao obter token do Belvo.");
 
-      // @ts-ignore
-      const belvoWidget = window.belvo;
-      
-      if (!belvoWidget) {
-        throw new Error("O motor do Belvo ainda está aquecendo. Aguarde 2 segundos e tente novamente.");
-      }
-
-      // @ts-ignore
+      // 3. Monta o Widget
       belvoWidget.createWidget(data.access_token, {
         locale: 'pt',
         country_codes: ['BR'],
