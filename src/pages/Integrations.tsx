@@ -26,15 +26,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from '@/utils/toast';
 
-// Carregador assíncrono que procura corretamente a variável "belvoSDK" (padrão oficial)
+// Carregador resiliente: Verifica ambas as variáveis (belvo ou belvoSDK)
 const loadBelvoScript = (): Promise<any> => {
   return new Promise((resolve, reject) => {
-    // 1. Se a variável correta já foi injetada pelo index.html, retorna na hora.
-    if ((window as any).belvoSDK) {
-      return resolve((window as any).belvoSDK);
+    const getBelvoObj = () => (window as any).belvo || (window as any).belvoSDK;
+
+    if (getBelvoObj()) {
+      return resolve(getBelvoObj());
     }
 
-    // 2. Se por acaso a tag não existir no HTML, injetamos agora.
     let script = document.getElementById('belvo-sdk') as HTMLScriptElement;
     if (!script) {
       script = document.createElement('script');
@@ -44,19 +44,19 @@ const loadBelvoScript = (): Promise<any> => {
       document.body.appendChild(script);
     }
 
-    // 3. Loop de verificação: a cada 100ms, checa se o belvoSDK carregou.
     let attempts = 0;
     const maxAttempts = 150; // 15 segundos
 
     const interval = setInterval(() => {
-      if ((window as any).belvoSDK) {
+      const obj = getBelvoObj();
+      if (obj) {
         clearInterval(interval);
-        resolve((window as any).belvoSDK);
+        resolve(obj);
       } else {
         attempts++;
         if (attempts >= maxAttempts) {
           clearInterval(interval);
-          reject(new Error("Falha ao abrir a interface da Belvo. Verifique se há algum bloqueador de pop-ups ativo."));
+          reject(new Error("Tempo esgotado ao carregar o painel do banco. Verifique sua conexão ou AdBlocker."));
         }
       }
     }, 100);
@@ -194,17 +194,17 @@ const Integrations = () => {
   const handleConnectBelvo = async () => {
     setBelvoLoading(true);
     try {
-      // 1. Carrega o script do Belvo e aguarda ele estar pronto 
-      const belvoWidget = await loadBelvoScript();
-
-      // 2. Busca o token no nosso backend
+      // 1. Gera o Token na API primeiro (Impede timeout do widget caso a rede atrase)
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/belvo-auth', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao obter token do Belvo.");
+      if (!res.ok) throw new Error(data.error || "Erro ao obter token de autorização do Banco.");
+
+      // 2. Carrega o SDK do Belvo
+      const belvoWidget = await loadBelvoScript();
 
       // 3. Monta o Widget
       belvoWidget.createWidget(data.access_token, {
