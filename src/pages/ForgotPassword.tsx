@@ -11,11 +11,19 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const getRedirectBase = () => {
+    const origin = window.location.origin.replace(/\/$/, '');
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return 'https://swipy.com';
+    }
+    return origin;
+  };
+
   const handleResetRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    const redirectBase = window.location.origin.replace(/\/$/, '');
+    const redirectBase = getRedirectBase();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${redirectBase}/resetar-senha`,
     });

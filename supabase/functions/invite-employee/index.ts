@@ -26,8 +26,9 @@ serve(async (req) => {
       throw new Error("E-mail e Nome são obrigatórios")
     }
 
-    const appUrl = Deno.env.get('APP_URL')?.trim() || 'https://mxkorxmazthagjaqwrfk.supabase.co'
-    const redirectTo = `${appUrl.replace(/\/$/, '')}/resetar-senha`
+    const appUrl = Deno.env.get('APP_URL')?.trim() || 'https://swipy.com'
+    const safeBaseUrl = appUrl.replace(/\/$/, '')
+    const redirectTo = `${safeBaseUrl}/resetar-senha`
 
     console.log("[invite-employee] Enviando convite oficial", { email, redirectTo })
 
