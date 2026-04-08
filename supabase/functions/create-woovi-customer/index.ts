@@ -24,7 +24,6 @@ serve(async (req) => {
     const { name, email, phone, taxID, address, correlationID } = body;
     const cleanTaxID = taxID.replace(/\D/g, '');
 
-    // 1. ANTIDUPLICIDADE NO ERP: Verifica se já existe antes de falar com a Woovi
     const { data: existing } = await supabaseClient
       .from('customers')
       .select('*')
@@ -35,15 +34,40 @@ serve(async (req) => {
     if (existing) {
       return new Response(JSON.stringify(existing), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200, // Retorna o existente com sucesso
+        status: 200,
       });
     }
 
-    // 2. Buscar a Woovi API Key
-    const { data: profile } = await supabaseClient.from('profiles').select('woovi_api_key').eq('id', user.id).single()
-    if (!profile?.woovi_api_key) throw new Error("Token Woovi não configurado.")
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('woovi_api_key')
+      .eq('id', user.id)
+      .single()
 
-    // 3. Chamar API da Woovi
+    if (!profile?.woovi_api_key) {
+      const { data: localCustomer, error: localError } = await supabaseClient
+        .from('customers')
+        .insert({
+          user_id: user.id,
+          name,
+          email,
+          phone,
+          tax_id: cleanTaxID,
+          correlation_id: correlationID,
+          woovi_id: null,
+          address
+        })
+        .select()
+        .single();
+
+      if (localError) throw localError;
+
+      return new Response(JSON.stringify(localCustomer), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     const response = await fetch('https://api.woovi.com/api/v1/customer', {
       method: 'POST',
       headers: { 'Authorization': profile.woovi_api_key, 'Content-Type': 'application/json' },
@@ -55,7 +79,6 @@ serve(async (req) => {
 
     const wooviId = wooviResult.customer?.identifier || wooviResult.customer?.id;
 
-    // 4. Salvar no Banco
     const { data: newCustomer, error: dbError } = await supabaseClient
       .from('customers')
       .insert({
