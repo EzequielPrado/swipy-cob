@@ -15,8 +15,9 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     
+    const redirectBase = window.location.origin.replace(/\/$/, '');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/resetar-senha`,
+      redirectTo: `${redirectBase}/resetar-senha`,
     });
 
     if (error) {

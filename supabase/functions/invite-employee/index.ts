@@ -13,53 +13,65 @@ serve(async (req) => {
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    )
 
     const authHeader = req.headers.get('Authorization')
     const { data: { user: inviter }, error: inviterError } = await supabaseAdmin.auth.getUser(authHeader?.replace('Bearer ', '') || '')
     
-    if (inviterError || !inviter) throw new Error("Não autorizado para convidar.")
+    if (inviterError || !inviter) throw new Error("Não autorizado para convidar")
 
-    const { email, fullName, systemRole, companyName } = await req.json();
+    const { email, fullName, systemRole, companyName } = await req.json()
 
     if (!email || !fullName) {
-      throw new Error("E-mail e Nome são obrigatórios.");
+      throw new Error("E-mail e Nome são obrigatórios")
     }
 
-    console.log(`[invite-employee] Enviando convite oficial para: ${email}`);
+    const appUrl = Deno.env.get('APP_URL')?.trim() || 'https://mxkorxmazthagjaqwrfk.supabase.co'
+    const redirectTo = `${appUrl.replace(/\/$/, '')}/resetar-senha`
 
-    // Usamos inviteUserByEmail para disparar o fluxo de e-mail do Supabase
+    console.log("[invite-employee] Enviando convite oficial", { email, redirectTo })
+
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       data: { 
         full_name: fullName, 
         company: companyName 
       },
-      // Redireciona o usuário para a tela de reset de senha após clicar no link do e-mail
-      redirectTo: `${req.headers.get('origin')}/resetar-senha`
-    });
+      redirectTo
+    })
 
-    if (inviteError) throw inviteError;
+    if (inviteError) {
+      console.error("[invite-employee] Falha no convite", { message: inviteError.message })
+      throw inviteError
+    }
 
-    const userId = inviteData.user.id;
+    const invitedUser = inviteData.user
+    if (!invitedUser?.id) {
+      throw new Error("Usuário convidado não foi retornado pelo Supabase")
+    }
 
-    // Vincula o perfil ao lojista que convidou (merchant_id)
-    await supabaseAdmin.from('profiles').update({
+    const { error: profileError } = await supabaseAdmin.from('profiles').update({
+      full_name: fullName,
+      company: companyName,
       system_role: systemRole,
       status: 'active',
-      merchant_id: inviter.id,
-      company: companyName
-    }).eq('id', userId);
+      merchant_id: inviter.id
+    }).eq('id', invitedUser.id)
 
-    return new Response(JSON.stringify({ success: true, userId, inviteSent: true }), {
+    if (profileError) {
+      console.error("[invite-employee] Falha ao atualizar perfil", { message: profileError.message, userId: invitedUser.id })
+      throw profileError
+    }
+
+    return new Response(JSON.stringify({ success: true, userId: invitedUser.id, inviteSent: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
-    });
+    })
 
   } catch (error: any) {
-    console.error("[invite-employee] Erro:", error.message);
+    console.error("[invite-employee] Erro", { message: error.message })
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
-    });
+    })
   }
 })
