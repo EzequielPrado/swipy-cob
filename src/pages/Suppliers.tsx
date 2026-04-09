@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import { cn } from "@/lib/utils";
-import { Search, Plus, Loader2, Building2, Trash2, Mail, Phone, Tag, ExternalLink } from 'lucide-react';
+import { Search, Plus, Loader2, Building2, Trash2, Tag, ExternalLink, Edit3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/integrations/supabase/auth';
-import { showError, showSuccess } from '@/utils/toast';
 import { useNavigate } from 'react-router-dom';
 import AddSupplierModal from '@/components/suppliers/AddSupplierModal';
+import EditSupplierModal from '@/components/suppliers/EditSupplierModal';
+import { showError, showSuccess } from '@/utils/toast';
 
 const Suppliers = () => {
   const { user } = useAuth();
@@ -17,6 +17,8 @@ const Suppliers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
 
   const fetchSuppliers = async () => {
     if (!user) return;
@@ -29,6 +31,24 @@ const Suppliers = () => {
   useEffect(() => { fetchSuppliers(); }, [user]);
 
   const filtered = suppliers.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const handleEdit = (e: React.MouseEvent, supplier: any) => {
+    e.stopPropagation();
+    setSelectedSupplier(supplier);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, supplier: any) => {
+    e.stopPropagation();
+    if (!confirm('Remover?')) return;
+    const { error } = await supabase.from('suppliers').delete().eq('id', supplier.id);
+    if (error) {
+      showError(error.message);
+      return;
+    }
+    showSuccess('Fornecedor removido');
+    fetchSuppliers();
+  };
 
   return (
     <AppLayout>
@@ -48,7 +68,7 @@ const Suppliers = () => {
               </thead>
               <tbody className="divide-y divide-apple-border">
                 {filtered.map((s) => (
-                  <tr key={s.id} onClick={() => navigate(`/fornecedores/${s.id}`)} className="hover:bg-apple-light transition-colors cursor-pointer group"><td className="px-8 py-5"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-orange-500 font-black">{s.name.charAt(0).toUpperCase()}</div><div><p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors flex items-center gap-2">{s.name} <ExternalLink size={12} className="opacity-0 group-hover:opacity-100" /></p><p className="text-[10px] text-apple-muted font-bold font-mono">{s.tax_id}</p></div></div></td><td className="px-8 py-5"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-apple-offWhite border border-apple-border text-apple-dark"><Tag size={10} /> {s.category || 'Geral'}</span></td><td className="px-8 py-5"><p className="text-xs text-apple-dark font-medium">{s.email || '---'}</p></td><td className="px-8 py-5 text-right"><button onClick={(e) => { e.stopPropagation(); if (confirm('Remover?')) supabase.from('suppliers').delete().eq('id', s.id).then(() => fetchSuppliers()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button></td></tr>
+                  <tr key={s.id} onClick={() => navigate(`/fornecedores/${s.id}`)} className="hover:bg-apple-light transition-colors cursor-pointer group"><td className="px-8 py-5"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-apple-offWhite border border-apple-border flex items-center justify-center text-orange-500 font-black">{s.name.charAt(0).toUpperCase()}</div><div><p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors flex items-center gap-2">{s.name} <ExternalLink size={12} className="opacity-0 group-hover:opacity-100" /></p><p className="text-[10px] text-apple-muted font-bold font-mono">{s.tax_id}</p></div></div></td><td className="px-8 py-5"><span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-apple-offWhite border border-apple-border text-apple-dark"><Tag size={10} /> {s.category || 'Geral'}</span></td><td className="px-8 py-5"><p className="text-xs text-apple-dark font-medium">{s.email || '---'}</p></td><td className="px-8 py-5 text-right"><div className="flex items-center justify-end gap-1"><button onClick={(e) => handleEdit(e, s)} className="p-2 text-apple-muted hover:text-blue-500"><Edit3 size={18}/></button><button onClick={(e) => handleDelete(e, s)} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={18}/></button></div></td></tr>
                 ))}
               </tbody>
             </table>
@@ -56,6 +76,7 @@ const Suppliers = () => {
         </div>
       </div>
       <AddSupplierModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={fetchSuppliers} />
+      <EditSupplierModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedSupplier(null); }} onSuccess={fetchSuppliers} supplier={selectedSupplier} />
     </AppLayout>
   );
 };

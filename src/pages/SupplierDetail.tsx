@@ -3,10 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Mail, Phone, MapPin, DollarSign, Loader2, History, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Loader2, History, TrendingDown, Edit3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { showError } from '@/utils/toast';
 import { cn } from "@/lib/utils";
+import EditSupplierModal from '@/components/suppliers/EditSupplierModal';
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -14,18 +15,20 @@ const SupplierDetail = () => {
   const [supplier, setSupplier] = useState<any>(null);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const fetchSupplier = async () => {
+    setLoading(true);
+    try {
+      const { data: suppData, error: suppError } = await supabase.from('suppliers').select('*').eq('id', id).single();
+      if (suppError) throw suppError;
+      setSupplier(suppData);
+      const { data: expData } = await supabase.from('expenses').select('*').eq('supplier_id', id).order('due_date', { ascending: false });
+      if (expData) setExpenses(expData);
+    } catch (err: any) { showError(err.message); navigate('/fornecedores'); } finally { setLoading(false); }
+  };
 
   useEffect(() => {
-    const fetchSupplier = async () => {
-      setLoading(true);
-      try {
-        const { data: suppData, error: suppError } = await supabase.from('suppliers').select('*').eq('id', id).single();
-        if (suppError) throw suppError;
-        setSupplier(suppData);
-        const { data: expData } = await supabase.from('expenses').select('*').eq('supplier_id', id).order('due_date', { ascending: false });
-        if (expData) setExpenses(expData);
-      } catch (err: any) { showError(err.message); navigate('/fornecedores'); } finally { setLoading(false); }
-    };
     fetchSupplier();
   }, [id, navigate]);
 
@@ -38,6 +41,7 @@ const SupplierDetail = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4"><Link to="/fornecedores" className="p-2 bg-apple-white border border-apple-border rounded-xl text-apple-muted hover:text-apple-black transition-all shadow-sm"><ArrowLeft size={20} /></Link><div><h2 className="text-2xl font-black text-apple-black tracking-tight">Ficha do Fornecedor</h2><p className="text-[10px] text-orange-500 uppercase font-black tracking-widest mt-1">Gestão de Compras</p></div></div>
+          <button onClick={() => setIsEditModalOpen(true)} className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-sm"><Edit3 size={16} /> Editar</button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -73,6 +77,8 @@ const SupplierDetail = () => {
           </div>
         </div>
       </div>
+
+      <EditSupplierModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} onSuccess={fetchSupplier} supplier={supplier} />
     </AppLayout>
   );
 };
