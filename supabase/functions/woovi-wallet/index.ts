@@ -111,39 +111,112 @@ serve(async (req) => {
     }
 
     if (action === 'transactions') {
-      const chargeRes = await fetch('https://api.woovi.com/api/v1/charge', {
+      const skip = parseInt(url.searchParams.get('skip') || '0');
+      const limit = parseInt(url.searchParams.get('limit') || '50');
+
+      // 1. Buscar transações PIX reais (entradas e saídas)
+      const txRes = await fetch(`https://api.woovi.com/api/v1/transaction?skip=${skip}&limit=${limit}`, {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const txData = txRes.ok ? await txRes.json() : { transactions: [] };
+
+      // 2. Buscar cobranças pagas (backup/complemento)
+      const chargeRes = await fetch(`https://api.woovi.com/api/v1/charge?status=COMPLETED&skip=0&limit=${limit}`, {
         method: 'GET',
         headers: { 'Authorization': appID }
       });
       const chargeData = chargeRes.ok ? await chargeRes.json() : { charges: [] };
       
+      // 3. Buscar saques (cashouts)
       const cashoutRes = await fetch('https://api.woovi.com/api/v1/cashout', {
         method: 'GET',
         headers: { 'Authorization': appID }
       });
       const cashoutData = cashoutRes.ok ? await cashoutRes.json() : { cashouts: [] };
 
-      const paidCharges = (chargeData.charges || [])
-        .filter((c: any) => c.status === 'COMPLETED')
-        .map((c: any) => ({
-          ...c,
-          type: 'IN',
-          value: c.value,
-          time: c.createdAt || c.updatedAt
-        }));
+      // Mapa de transactionIDs já processados para evitar duplicatas
+      const processedIds = new Set<string>();
 
-      const cashouts = (cashoutData.cashouts || []).map((c: any) => ({
-        ...c,
-        type: 'OUT',
-        value: -(c.value),
-        time: c.createdAt
-      }));
-
-      const allTransactions = [...paidCharges, ...cashouts].sort((a, b) => {
-        return new Date(b.time).getTime() - new Date(a.time).getTime();
+      // Normalizar transações PIX reais
+      const pixTransactions = (txData.transactions || []).map((tx: any) => {
+        const id = tx.transactionID || tx.endToEndId || tx.correlationID || crypto.randomUUID();
+        processedIds.add(id);
+        
+        const isOut = tx.type === 'OUT' || tx.type === 'WITHDRAWAL' || (tx.value < 0);
+        const rawValue = Math.abs(tx.value || 0);
+        
+        return {
+          id,
+          type: isOut ? 'OUT' : 'IN',
+          value: rawValue,
+          valueBRL: rawValue / 100,
+          description: tx.comment || tx.infoPagador || (isOut ? 'Transferência PIX enviada' : 'PIX recebido'),
+          customer: tx.payer?.name || tx.customer?.name || tx.destination?.name || '',
+          customerTaxId: tx.payer?.taxID?.taxID || tx.customer?.taxID?.taxID || '',
+          date: tx.time || tx.createdAt || tx.updatedAt || new Date().toISOString(),
+          endToEndId: tx.endToEndId || tx.raw?.endToEndId || '',
+          correlationID: tx.correlationID || '',
+          source: 'pix'
+        };
       });
 
-      return new Response(JSON.stringify({ transactions: allTransactions }), {
+      // Normalizar cobranças pagas (que talvez não retornem nas transactions)
+      const chargeTransactions = (chargeData.charges || [])
+        .filter((c: any) => c.status === 'COMPLETED')
+        .filter((c: any) => {
+          const id = c.transactionID || c.correlationID;
+          if (processedIds.has(id)) return false;
+          processedIds.add(id);
+          return true;
+        })
+        .map((c: any) => ({
+          id: c.transactionID || c.correlationID || crypto.randomUUID(),
+          type: 'IN',
+          value: c.value || 0,
+          valueBRL: (c.value || 0) / 100,
+          description: c.comment || c.additionalInfo?.[0]?.value || 'Cobrança PIX recebida',
+          customer: c.customer?.name || c.payer?.name || '',
+          customerTaxId: c.customer?.taxID?.taxID || c.payer?.taxID?.taxID || '',
+          date: c.paidAt || c.updatedAt || c.createdAt || new Date().toISOString(),
+          endToEndId: c.transactionID || '',
+          correlationID: c.correlationID || '',
+          source: 'charge'
+        }));
+
+      // Normalizar saques
+      const cashoutTransactions = (cashoutData.cashouts || []).map((c: any) => ({
+        id: c.correlationID || c.transactionID || crypto.randomUUID(),
+        type: 'OUT',
+        value: c.value || 0,
+        valueBRL: (c.value || 0) / 100,
+        description: c.comment || 'Saque / Transferência PIX',
+        customer: c.destination?.name || c.destinationAlias?.name || '',
+        customerTaxId: c.destination?.taxID?.taxID || '',
+        date: c.createdAt || new Date().toISOString(),
+        endToEndId: c.endToEndId || '',
+        correlationID: c.correlationID || '',
+        source: 'cashout'
+      }));
+
+      // Combinar e ordenar por data (mais recente primeiro)
+      const allTransactions = [...pixTransactions, ...chargeTransactions, ...cashoutTransactions]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Calcular totais
+      const totalIn = allTransactions.filter(t => t.type === 'IN').reduce((s, t) => s + t.valueBRL, 0);
+      const totalOut = allTransactions.filter(t => t.type === 'OUT').reduce((s, t) => s + t.valueBRL, 0);
+
+      return new Response(JSON.stringify({ 
+        transactions: allTransactions,
+        summary: {
+          totalIn,
+          totalOut,
+          net: totalIn - totalOut,
+          count: allTransactions.length
+        },
+        pageInfo: txData.pageInfo || { skip, limit, hasNextPage: false }
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
