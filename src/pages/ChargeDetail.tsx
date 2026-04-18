@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, Copy, Calendar, Trash2, Loader2, QrCode, FileText, Send, Landmark, CheckCircle2, Smartphone, Monitor, Tablet, ReceiptText, Factory, PackageSearch } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { cn } from "@/lib/utils";
 import { supabase } from '@/integrations/supabase/client';
 import { showError, showSuccess } from '@/utils/toast';
@@ -154,7 +155,7 @@ const ChargeDetail = () => {
                     </div>
                  </div>
                  <div className="bg-apple-offWhite border border-apple-border p-6 rounded-3xl flex flex-col items-center justify-center text-center max-w-[220px]">
-                    {charge.pix_qr_image_base64 ? <img src={charge.pix_qr_image_base64} className="w-32 h-32 mb-4 bg-white p-2 rounded-xl shadow-sm" /> : <QrCode size={48} className="text-apple-muted opacity-20 mb-4" />}
+                    {charge.pix_qr_image_base64 ? <img src={charge.pix_qr_image_base64} className="w-32 h-32 mb-4 bg-white p-2 rounded-xl shadow-sm" /> : charge.pix_qr_code ? <div className="mb-4 bg-white p-2 rounded-xl shadow-sm"><QRCodeSVG value={charge.pix_qr_code} size={128} /></div> : <QrCode size={48} className="text-apple-muted opacity-20 mb-4" />}
                     <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/pagar/${charge.id}`); showSuccess("Link copiado!"); }} className="w-full bg-orange-500 text-white text-[9px] font-black py-2.5 rounded-xl uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95">Copiar Checkout</button>
                  </div>
                </div>

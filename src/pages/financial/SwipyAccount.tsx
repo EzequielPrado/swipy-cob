@@ -56,6 +56,7 @@ const SwipyAccount = () => {
   const { user } = useAuth();
   
   const [balance, setBalance] = useState<{available: number, blocked: number, total: number} | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -76,8 +77,18 @@ const SwipyAccount = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('preferred_provider')
+        .eq('id', user?.id)
+        .single();
+      
+      setUserProfile(profile);
+      const provider = profile?.preferred_provider || 'woovi';
+      const functionName = provider === 'petta' ? 'petta-wallet' : 'woovi-wallet';
+
       // Busca saldo da API
-      const balanceResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=balance`, {
+      const balanceResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${functionName}?action=balance`, {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const balanceData = await balanceResponse.json();
@@ -89,7 +100,7 @@ const SwipyAccount = () => {
           total: balanceData.balance.total / 100
         });
       } else {
-        showError(balanceData.message || "Erro ao carregar saldo.");
+        showError(balanceData.message || `Erro ao carregar saldo do provedor ${provider}.`);
       }
       
     } catch (err: any) {
@@ -105,7 +116,16 @@ const SwipyAccount = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      const txResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=transactions&limit=100`, {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('preferred_provider')
+        .eq('id', user?.id)
+        .single();
+      
+      const provider = profile?.preferred_provider || 'woovi';
+      const functionName = provider === 'petta' ? 'petta-wallet' : 'woovi-wallet';
+
+      const txResponse = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${functionName}?action=transactions&limit=100`, {
         headers: { 'Authorization': `Bearer ${session?.access_token}` }
       });
       const txData = await txResponse.json();
@@ -328,7 +348,7 @@ const SwipyAccount = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-apple-black">Extrato</h3>
-                  <p className="text-xs text-apple-muted font-medium">Movimentações da sua conta Woovi</p>
+                  <p className="text-xs text-apple-muted font-medium">Movimentações da sua conta {userProfile?.preferred_provider === 'petta' ? 'Petta' : 'Woovi'}</p>
                 </div>
               </div>
 

@@ -73,6 +73,10 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    const cleanTaxID = formData.taxID.replace(/\D/g, '');
+    if (!formData.name) return showError("O nome do fornecedor é obrigatório.");
+    if (cleanTaxID.length < 11) return showError("Um CPF ou CNPJ válido é obrigatório.");
+
     setLoading(true);
 
     try {
@@ -81,7 +85,7 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        tax_id: formData.taxID,
+        tax_id: cleanTaxID,
         category: formData.category,
         address: formData.address
       });
@@ -125,7 +129,7 @@ const AddSupplierModal = ({ isOpen, onClose, onSuccess }: AddSupplierModalProps)
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>CNPJ / CPF</Label>
-                  <Input value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" placeholder="00.000.000/0001-00" />
+                <Input required value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} className="bg-zinc-950 border-zinc-800 h-12 rounded-xl" placeholder="00.000.000/0001-00" />
                 </div>
                 <div className="space-y-2">
                   <Label>Categoria</Label>

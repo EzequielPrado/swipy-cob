@@ -143,16 +143,22 @@ serve(async (req) => {
         const id = tx.transactionID || tx.endToEndId || tx.correlationID || crypto.randomUUID();
         processedIds.add(id);
         
-        const isOut = tx.type === 'OUT' || tx.type === 'WITHDRAWAL' || (tx.value < 0);
+        const rawType = String(tx.type || '').toUpperCase();
+        const isOut = (
+          ['OUT', 'WITHDRAWAL', 'WITHDRAW', 'FEE', 'CASHOUT'].includes(rawType) ||
+          (tx.value < 0)
+        );
         const rawValue = Math.abs(tx.value || 0);
         
+        const customerName = tx.payer?.name || tx.customer?.name || tx.destination?.name || '';
+
         return {
           id,
           type: isOut ? 'OUT' : 'IN',
           value: rawValue,
           valueBRL: rawValue / 100,
-          description: tx.comment || tx.infoPagador || (isOut ? 'Transferência PIX enviada' : 'PIX recebido'),
-          customer: tx.payer?.name || tx.customer?.name || tx.destination?.name || '',
+          description: tx.comment || tx.infoPagador || (isOut ? `Transferência PIX enviada [${rawType}]` : `PIX recebido [${rawType || 'SEM_TIPO'}]`),
+          customer: customerName,
           customerTaxId: tx.payer?.taxID?.taxID || tx.customer?.taxID?.taxID || '',
           date: tx.time || tx.createdAt || tx.updatedAt || new Date().toISOString(),
           endToEndId: tx.endToEndId || tx.raw?.endToEndId || '',

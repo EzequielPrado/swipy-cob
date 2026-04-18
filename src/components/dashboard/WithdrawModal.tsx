@@ -41,7 +41,15 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
     setLoading(true);
 
     try {
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/woovi-wallet?action=withdraw`, {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('preferred_provider')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+      const provider = profile?.preferred_provider || 'woovi';
+      const functionName = provider === 'petta' ? 'petta-wallet' : 'woovi-wallet';
+
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${functionName}?action=withdraw`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -55,7 +63,7 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Erro ao processar saque");
+      if (!response.ok) throw new Error(result.error || result.message || "Erro ao processar saque");
 
       showSuccess('Solicitação de saque enviada com sucesso!');
       onSuccess();

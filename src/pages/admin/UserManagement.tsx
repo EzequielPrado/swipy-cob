@@ -24,7 +24,16 @@ const UserManagement = () => {
   
   const [updating, setUpdating] = useState(false);
   const [editData, setEditData] = useState({ 
-    company: '', full_name: '', status: '', system_role: '', woovi_api_key: '', plan_id: 'none', accountant_id: 'none' 
+    company: '', 
+    full_name: '', 
+    status: '', 
+    system_role: '', 
+    woovi_api_key: '', 
+    petta_api_key: '',
+    petta_secret: '',
+    preferred_provider: 'woovi',
+    plan_id: 'none', 
+    accountant_id: 'none' 
   });
 
   const [createData, setCreateData] = useState({
@@ -99,6 +108,9 @@ const UserManagement = () => {
         status: editData.status,
         system_role: editData.system_role,
         woovi_api_key: editData.woovi_api_key,
+        petta_api_key: editData.petta_api_key,
+        petta_secret: editData.petta_secret,
+        preferred_provider: editData.preferred_provider,
         plan_id: editData.plan_id === 'none' ? null : editData.plan_id,
         accountant_id: editData.accountant_id === 'none' ? null : editData.accountant_id,
       };
@@ -178,7 +190,7 @@ const UserManagement = () => {
                       <span className="text-[10px] text-orange-500 font-bold uppercase">{u.system_plans?.name || 'SaaS Gratuito'}</span>
                     </td>
                     <td className="px-8 py-5 text-right">
-                      <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status || 'pending', system_role: u.system_role || 'Admin', woovi_api_key: u.woovi_api_key || '', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none' }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
+                      <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status || 'pending', system_role: u.system_role || 'Admin', woovi_api_key: u.woovi_api_key || '', petta_api_key: u.petta_api_key || '', petta_secret: u.petta_secret || '', preferred_provider: u.preferred_provider || 'woovi', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none' }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
                         <Settings2 size={16} />
                       </button>
                     </td>
@@ -295,9 +307,35 @@ const UserManagement = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-black text-apple-muted">Woovi API Key (App ID)</Label>
-              <Input type="password" value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" placeholder="Token da Instituição de Pagamento" />
+            <div className="space-y-4 pt-4 border-t border-apple-border">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Configurações de Banking (Provedores)</Label>
+              
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Provedor Ativo (Para novas cobranças)</Label>
+                <Select value={editData.preferred_provider} onValueChange={v => setEditData({...editData, preferred_provider: v})}>
+                  <SelectTrigger className="bg-apple-offWhite h-12 rounded-xl border-apple-border font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-apple-white border-apple-border">
+                    <SelectItem value="woovi">Woovi (OpenPix)</SelectItem>
+                    <SelectItem value="petta">Petta Banking</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold">Woovi API Key</Label>
+                  <Input type="password" value={editData.woovi_api_key} onChange={e => setEditData({...editData, woovi_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" placeholder="Token Woovi" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold">Petta API Key</Label>
+                  <Input type="password" value={editData.petta_api_key} onChange={e => setEditData({...editData, petta_api_key: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" placeholder="Token Petta" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Petta Client Secret</Label>
+                <Input type="password" value={editData.petta_secret} onChange={e => setEditData({...editData, petta_secret: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" placeholder="Secret Petta" />
+              </div>
             </div>
 
             <DialogFooter className="pt-4 border-t border-apple-border">

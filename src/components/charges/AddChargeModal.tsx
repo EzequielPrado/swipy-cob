@@ -59,7 +59,16 @@ const AddChargeModal = ({ isOpen, onClose, onSuccess }: AddChargeModalProps) => 
     try {
       const origin = window.location.origin;
 
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-charge`, {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('preferred_provider')
+        .eq('id', user?.id)
+        .single();
+
+      const provider = profile?.preferred_provider || 'woovi';
+      const functionName = provider === 'petta' ? 'create-petta-charge' : 'create-woovi-charge';
+
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${functionName}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

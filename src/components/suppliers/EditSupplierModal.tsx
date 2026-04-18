@@ -94,6 +94,10 @@ const EditSupplierModal = ({ isOpen, onClose, onSuccess, supplier }: EditSupplie
     e.preventDefault();
     if (!supplier) return;
 
+    const cleanTaxID = formData.taxID.replace(/\D/g, '');
+    if (!formData.name) return showError("O nome do fornecedor é obrigatório.");
+    if (cleanTaxID.length < 11) return showError("Um CPF ou CNPJ válido é obrigatório.");
+
     setLoading(true);
     try {
       const { error } = await supabase
@@ -102,7 +106,7 @@ const EditSupplierModal = ({ isOpen, onClose, onSuccess, supplier }: EditSupplie
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
-          tax_id: formData.taxID,
+          tax_id: cleanTaxID,
           category: formData.category,
           address: formData.address
         })
@@ -145,7 +149,7 @@ const EditSupplierModal = ({ isOpen, onClose, onSuccess, supplier }: EditSupplie
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>CNPJ / CPF</Label>
-                  <Input value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" />
+                  <Input required value={formData.taxID} onChange={(e) => setFormData({...formData, taxID: e.target.value})} className="bg-apple-offWhite border-apple-border h-12 rounded-xl" />
                 </div>
                 <div className="space-y-2">
                   <Label>Categoria</Label>

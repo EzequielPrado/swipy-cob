@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Copy, CheckCircle2, Loader2, ShieldCheck, Landmark, Building2, User, FileText, AlertTriangle } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { showSuccess, showError } from '@/utils/toast';
 
 const Checkout = () => {
@@ -202,6 +203,8 @@ const Checkout = () => {
                   alt="QR Code PIX" 
                   className="w-[200px] h-[200px]"
                 />
+              ) : charge.pix_qr_code ? (
+                <QRCodeSVG value={charge.pix_qr_code} size={200} />
               ) : (
                 <div className="w-[200px] h-[200px] flex items-center justify-center text-apple-muted border border-dashed border-apple-border rounded-2xl">
                   <div className="flex flex-col items-center gap-2">

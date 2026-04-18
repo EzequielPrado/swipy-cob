@@ -87,32 +87,66 @@ const AddCustomerModal = ({ isOpen, onClose, onSuccess }: AddCustomerModalProps)
     setLoading(true);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('woovi_api_key, petta_api_key, preferred_provider')
+        .eq('id', user.id)
+        .single();
+
       const correlationID = crypto.randomUUID();
       const fullAddress = {
         ...formData.address,
         rg: formData.rg
       };
 
-      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-customer`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          taxID: cleanTaxID,
-          correlationID,
-          address: fullAddress
-        })
-      });
+      const provider = profile?.preferred_provider || 'woovi';
 
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao processar cadastro");
+      // Se não tem token configurado para o provedor ativo, cadastra apenas localmente
+      const hasToken = provider === 'woovi' ? !!profile?.woovi_api_key : !!profile?.petta_api_key;
+
+      if (!hasToken) {
+        const { error: dbError } = await supabase
+          .from('customers')
+          .insert({
+            user_id: user.id,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            tax_id: cleanTaxID,
+            correlation_id: correlationID,
+            address: fullAddress,
+            woovi_id: null
+          });
+
+        if (dbError) throw dbError;
+      } else {
+        // Roteia para a Edge Function do provedor ativo
+        const functionName = provider === 'petta' ? 'create-petta-customer' : 'create-woovi-customer';
+        
+        const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/${functionName}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            taxID: cleanTaxID,
+            correlationID,
+            address: fullAddress
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || `Erro ao processar cadastro no provedor ${provider}`);
+        }
       }
 
       showSuccess('Cliente cadastrado com sucesso!');
