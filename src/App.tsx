@@ -10,7 +10,8 @@ import { AuthProvider, useAuth } from "./integrations/supabase/auth";
 import { ThemeProvider } from "./components/ThemeProvider";
 
 import OverviewDashboard from "./pages/OverviewDashboard";
-import AccountantDashboard from "./pages/AccountantDashboard"; 
+import AccountantDashboard from "./pages/AccountantDashboard";
+import WalletHome from "./pages/WalletHome";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -112,7 +113,8 @@ const App = () => (
               <Route path="/orcamento/:id" element={<QuotePublicView />} />
               <Route path="/emp/:slug" element={<PublicBooking />} />
               
-              <Route path="/" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><WalletHome /></ProtectedRoute>} />
+              <Route path="/visao-geral" element={<ProtectedRoute><OverviewDashboard /></ProtectedRoute>} />
               <Route path="/contador" element={<ProtectedRoute><AccountantDashboard /></ProtectedRoute>} />
 
               {/* VENDAS */}
@@ -149,7 +151,7 @@ const App = () => (
               <Route path="/financeiro/dre" element={<ProtectedRoute><DRE /></ProtectedRoute>} />
               <Route path="/financeiro/plano-contas" element={<ProtectedRoute><ChartOfAccounts /></ProtectedRoute>} />
               <Route path="/financeiro/conciliacao" element={<ProtectedRoute><Reconciliation /></ProtectedRoute>} />
-              <Route path="/conta-swipy" element={<ProtectedRoute><SwipyAccount /></ProtectedRoute>} />
+              <Route path="/conta-swipy" element={<Navigate to="/" replace />} />
 
               {/* RH */}
               <Route path="/rh/dashboard" element={<ProtectedRoute><HRDashboard /></ProtectedRoute>} />

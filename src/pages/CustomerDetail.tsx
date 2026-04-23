@@ -17,6 +17,8 @@ const CustomerDetail = () => {
   const [loading, setLoading] = useState(true);
   
   const [networkScore, setNetworkScore] = useState({ score: 100, label: 'Excelente', color: 'text-emerald-500' });
+  const [computedStatus, setComputedStatus] = useState<string>('em dia');
+  const [totalOverdue, setTotalOverdue] = useState(0);
 
   useEffect(() => {
     const fetchCustomer = async () => {
@@ -27,7 +29,28 @@ const CustomerDetail = () => {
         setCustomer(custData);
 
         const { data: chargeData } = await supabase.from('charges').select('*').eq('customer_id', id).order('created_at', { ascending: false });
-        if (chargeData) setCharges(chargeData);
+        if (chargeData) {
+          setCharges(chargeData);
+
+          // Calcular status real baseado nas cobranças
+          const today = new Date().toISOString().split('T')[0];
+          const hasOverdue = chargeData.some(c => 
+            c.status === 'atrasado' || 
+            (c.status === 'pendente' && c.due_date && c.due_date < today)
+          );
+          const overdueAmount = chargeData
+            .filter(c => c.status === 'atrasado' || (c.status === 'pendente' && c.due_date && c.due_date < today))
+            .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+          const realStatus = hasOverdue ? 'inadimplente' : 'em dia';
+          setComputedStatus(realStatus);
+          setTotalOverdue(overdueAmount);
+
+          // Sincronizar no banco se diferente
+          if (custData.status !== realStatus) {
+            await supabase.from('customers').update({ status: realStatus }).eq('id', id);
+          }
+        }
 
         const cleanTaxId = custData.tax_id?.replace(/\D/g, '');
         const { data: globalCharges } = await supabase.from('charges').select('status, customers!inner(tax_id)');
@@ -68,8 +91,8 @@ const CustomerDetail = () => {
              <div className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm", networkScore.color)}>
                <Zap size={12} className="inline mr-1.5" /> Score Rede: {networkScore.score}
              </div>
-             <span className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm", customer.status === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100")}>
-               Sua Loja: {customer.status}
+             <span className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm", computedStatus === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100")}>
+               Sua Loja: {computedStatus}
              </span>
           </div>
         </div>

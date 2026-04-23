@@ -143,16 +143,16 @@ const Charges = () => {
             <h2 className="text-3xl font-bold tracking-tight text-apple-black">Contas a Receber</h2>
             <p className="text-apple-muted mt-1 font-medium">Gerencie cobranças automáticas e lançamentos manuais de receita.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
              <button 
               onClick={() => setIsManualModalOpen(true)}
-              className="bg-apple-white hover:bg-apple-offWhite text-apple-black font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-2 border border-apple-border shadow-sm"
+              className="flex-1 sm:flex-none justify-center bg-apple-white hover:bg-apple-offWhite text-apple-black font-semibold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 border border-apple-border shadow-sm"
             >
               <DollarSign size={18} className="text-emerald-500" /> Lançar Manual
             </button>
             <button 
               onClick={() => setIsAutoModalOpen(true)}
-              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl transition-all flex items-center gap-2 shadow-sm"
+              className="flex-1 sm:flex-none justify-center bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-sm"
             >
               <QrCode size={18} /> Nova Cobrança Pix
             </button>
@@ -165,113 +165,115 @@ const Charges = () => {
               <Loader2 className="animate-spin text-orange-500" size={32} />
             </div>
           ) : (
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
-                <tr>
-                  <th className="px-8 py-5">Cliente / Origem</th>
-                  <th className="px-8 py-5">Valor</th>
-                  <th className="px-8 py-5">Vencimento</th>
-                  <th className="px-8 py-5">Tipo</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {charges.length === 0 ? (
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left min-w-[800px]">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
                   <tr>
-                    <td colSpan={6} className="px-8 py-10 text-center text-apple-muted font-medium">Nenhum lançamento encontrado.</td>
+                    <th className="px-8 py-5">Cliente / Origem</th>
+                    <th className="px-8 py-5">Valor</th>
+                    <th className="px-8 py-5">Vencimento</th>
+                    <th className="px-8 py-5">Tipo</th>
+                    <th className="px-8 py-5">Status</th>
+                    <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
-                ) : (
-                  charges.map((charge) => (
-                    <tr 
-                      key={charge.id} 
-                      className="hover:bg-apple-light transition-colors cursor-pointer group"
-                      onClick={() => navigate(`/financeiro/cobrancas/${charge.id}`)}
-                    >
-                      <td className="px-8 py-4">
-                        <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors">{charge.customers?.name || 'Cliente removido'}</p>
-                        <p className="text-[10px] text-apple-muted truncate max-w-[200px] font-medium">{charge.description || 'Sem descrição'}</p>
-                      </td>
-                      <td className="px-8 py-4 text-sm font-black text-apple-black">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className="text-sm text-apple-dark font-medium">
-                          {new Date(charge.due_date).toLocaleDateString('pt-BR')}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border",
-                          charge.method === 'manual' ? "bg-apple-light text-apple-muted border-apple-border" : "bg-orange-50 text-orange-600 border-orange-100"
-                        )}>
-                          {charge.method === 'manual' ? 'Manual' : 'Automática'}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
-                          charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                          charge.status === 'atrasado' ? "bg-red-50 text-red-600 border-red-100" : 
-                          "bg-orange-50 text-orange-600 border-orange-100"
-                        )}>
-                          {charge.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {charge.status !== 'pago' && (
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {charges.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-8 py-10 text-center text-apple-muted font-medium">Nenhum lançamento encontrado.</td>
+                    </tr>
+                  ) : (
+                    charges.map((charge) => (
+                      <tr 
+                        key={charge.id} 
+                        className="hover:bg-apple-light transition-colors cursor-pointer group"
+                        onClick={() => navigate(`/financeiro/cobrancas/${charge.id}`)}
+                      >
+                        <td className="px-8 py-4">
+                          <p className="text-sm font-bold text-apple-black group-hover:text-orange-500 transition-colors">{charge.customers?.name || 'Cliente removido'}</p>
+                          <p className="text-[10px] text-apple-muted truncate max-w-[200px] font-medium">{charge.description || 'Sem descrição'}</p>
+                        </td>
+                        <td className="px-8 py-4 text-sm font-black text-apple-black">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(charge.amount)}
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className="text-sm text-apple-dark font-medium">
+                            {new Date(charge.due_date).toLocaleDateString('pt-BR')}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border",
+                            charge.method === 'manual' ? "bg-apple-light text-apple-muted border-apple-border" : "bg-orange-50 text-orange-600 border-orange-100"
+                          )}>
+                            {charge.method === 'manual' ? 'Manual' : 'Automática'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight border",
+                            charge.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            charge.status === 'atrasado' ? "bg-red-50 text-red-600 border-red-100" : 
+                            "bg-orange-50 text-orange-600 border-orange-100"
+                          )}>
+                            {charge.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {charge.status !== 'pago' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkAsPaidQuick(charge);
+                                }}
+                                disabled={actionLoading === charge.id}
+                                title="Confirmar Pagamento" 
+                                className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-50"
+                              >
+                                {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16}/>}
+                              </button>
+                            )}
+                            {charge.status === 'pago' && (
+                              <button 
+                                onClick={(e) => handleOpenFiscal(e, charge)}
+                                title="Emitir Nota Fiscal" 
+                                className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                              >
+                                <FileText size={16}/>
+                              </button>
+                            )}
+                            {charge.method !== 'manual' && charge.status !== 'pago' && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyInternalCheckoutLink(charge.id);
+                                }} 
+                                title="Copiar Link de Checkout" 
+                                className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors"
+                              >
+                                <Copy size={16}/>
+                              </button>
+                            )}
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMarkAsPaidQuick(charge);
+                                handleDelete(charge);
                               }}
                               disabled={actionLoading === charge.id}
-                              title="Confirmar Pagamento" 
-                              className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-50"
+                              title="Excluir Lançamento" 
+                              className="p-2.5 text-apple-muted hover:text-red-500 transition-colors disabled:opacity-50"
                             >
-                              {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16}/>}
+                              {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
                             </button>
-                          )}
-                          {charge.status === 'pago' && (
-                            <button 
-                              onClick={(e) => handleOpenFiscal(e, charge)}
-                              title="Emitir Nota Fiscal" 
-                              className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
-                            >
-                              <FileText size={16}/>
-                            </button>
-                          )}
-                          {charge.method !== 'manual' && charge.status !== 'pago' && (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyInternalCheckoutLink(charge.id);
-                              }} 
-                              title="Copiar Link de Checkout" 
-                              className="p-2.5 text-apple-muted hover:text-orange-500 transition-colors"
-                            >
-                              <Copy size={16}/>
-                            </button>
-                          )}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(charge);
-                            }}
-                            disabled={actionLoading === charge.id}
-                            title="Excluir Lançamento" 
-                            className="p-2.5 text-apple-muted hover:text-red-500 transition-colors disabled:opacity-50"
-                          >
-                            {actionLoading === charge.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16}/>}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

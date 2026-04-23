@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -229,24 +229,268 @@ serve(async (req) => {
 
     if (action === 'withdraw') {
       const { amount, pixKey, pixKeyType } = await req.json()
-      const response = await fetch(`https://api.woovi.com/api/v1/cashout`, {
+
+      // Buscar a chave Pix de origem (da conta do lojista)
+      const accRes = await fetch('https://api.woovi.com/api/v1/account', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const accData = await accRes.json();
+      
+      // Extrair a chave pix da conta de origem
+      let fromPixKey = '';
+      if (accData.account?.pixKeys?.length > 0) {
+        fromPixKey = accData.account.pixKeys[0].value || accData.account.pixKeys[0].key || '';
+      } else if (accData.accounts?.[0]?.pixKeys?.length > 0) {
+        fromPixKey = accData.accounts[0].pixKeys[0].value || accData.accounts[0].pixKeys[0].key || '';
+      }
+
+      // Se não encontrou chave da conta, tenta usar o email do dono
+      if (!fromPixKey) {
+        // Fallback: tentar o endpoint de subaccount se disponível
+        const subRes = await fetch('https://api.woovi.com/api/v1/subaccount', {
+          method: 'GET',
+          headers: { 'Authorization': appID }
+        });
+        const subData = subRes.ok ? await subRes.json() : {};
+        if (subData.subaccounts?.[0]?.pixKeys?.length > 0) {
+          fromPixKey = subData.subaccounts[0].pixKeys[0].value || subData.subaccounts[0].pixKeys[0].key || '';
+        }
+      }
+
+      if (!fromPixKey) {
+        return new Response(JSON.stringify({ 
+          error: true, 
+          message: "Nenhuma chave Pix de origem encontrada na sua conta Woovi. Configure uma chave Pix primeiro." 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      // Usar o endpoint POST /api/v1/transfer (API oficial da Woovi)
+      const response = await fetch(`https://api.woovi.com/api/v1/transfer`, {
         method: 'POST',
         headers: { 
           'Authorization': appID,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ value: Math.round(amount * 100), pixKey, pixKeyType })
+        body: JSON.stringify({ 
+          value: Math.round(amount * 100), 
+          fromPixKey: fromPixKey,
+          toPixKey: pixKey
+        })
       })
       
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Erro no Saque: ${errorText}`)
+        const errorData = await response.json().catch(() => ({}));
+        const errorText = errorData?.error || errorData?.message || await response.text().catch(() => 'Erro desconhecido');
+        throw new Error(`Falha na transferência: ${typeof errorText === 'string' ? errorText : JSON.stringify(errorText)}`)
       }
 
       const data = await response.json()
-      return new Response(JSON.stringify(data), { 
+      return new Response(JSON.stringify({ success: true, transfer: data }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
+    }
+
+    // ============ ACCOUNT INFO ============
+    if (action === 'account') {
+      const accRes = await fetch('https://api.woovi.com/api/v1/account', {
+        method: 'GET',
+        headers: { 'Authorization': appID }
+      });
+      const accData = await accRes.json();
+
+      if (!accRes.ok) {
+        throw new Error(`Erro ao buscar conta: ${JSON.stringify(accData)}`);
+      }
+
+      // Normalizar a resposta
+      const account = accData.account || accData.accounts?.[0] || null;
+      
+      return new Response(JSON.stringify({ 
+        account: account ? {
+          accountId: account.accountId || account.id || '',
+          name: account.name || account.owner?.name || '',
+          taxId: account.taxID?.taxID || account.owner?.taxID?.taxID || '',
+          type: account.type || 'default',
+          pixKeys: (account.pixKeys || []).map((k: any) => ({
+            key: k.value || k.key || '',
+            type: k.type || k.kind || 'UNKNOWN',
+            createdAt: k.createdAt || ''
+          })),
+          balance: {
+            available: account.balance?.available ?? account.balance ?? 0,
+            blocked: account.balance?.blocked ?? account.balance?.locked ?? 0,
+            total: account.balance?.total ?? 0
+          },
+          owner: {
+            name: account.owner?.name || account.name || '',
+            taxId: account.owner?.taxID?.taxID || account.taxID?.taxID || '',
+            email: account.owner?.email || ''
+          }
+        } : null,
+        raw: accData 
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============ LIST PIX KEYS ============
+    if (action === 'pixkeys') {
+      let response;
+      const getUrls = [
+        'https://api.openpix.com.br/api/v1/pix-keys',
+        'https://api.woovi.com/api/v1/pix-keys'
+      ];
+
+      for (const apiUrl of getUrls) {
+        try {
+          response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: { 'Authorization': appID }
+          });
+          if (response.status !== 404) break;
+        } catch { /* try next */ }
+      }
+
+      const rawText = await response?.text() || '';
+      let data: any = {};
+      try { data = JSON.parse(rawText); } catch { /* ignore */ }
+
+      if (!response?.ok) {
+        throw new Error(`Erro ao listar chaves Pix: ${data?.error || data?.message || rawText}`);
+      }
+
+      const keyList = data.pixKeys || data.keys || data.items || data.data || (Array.isArray(data) ? data : []);
+
+      const formattedKeys = keyList.map((k: any) => ({
+        key: k.pixKey || k.key || k.value || k.address || '',
+        type: k.type || k.kind || 'UNKNOWN',
+        createdAt: k.createdAt || new Date().toISOString()
+      })).filter((k: any) => k.key);
+
+      return new Response(JSON.stringify({ pixKeys: formattedKeys }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============ CREATE PIX KEY ============
+    if (action === 'create-pixkey') {
+      const body = await req.json();
+      const { key, type } = body; // type: CPF, CNPJ, EMAIL, PHONE, EVP
+
+      if (!type) {
+        throw new Error("O tipo da chave Pix é obrigatório (CPF, CNPJ, EMAIL, PHONE ou EVP).");
+      }
+
+      // Para EVP, não precisa de key
+      if (type !== 'EVP' && !key) {
+        throw new Error("O valor da chave Pix é obrigatório para este tipo.");
+      }
+
+      const pixKeyBody: any = { type };
+      if (type !== 'EVP') {
+        pixKeyBody.key = key;
+      }
+
+      // Tentar múltiplas URLs (woovi e openpix são o mesmo serviço)
+      let response;
+      let lastError = '';
+      
+      const urls = [
+        'https://api.openpix.com.br/api/v1/pix-keys',
+        'https://api.woovi.com/api/v1/pix-keys'
+      ];
+
+      for (const apiUrl of urls) {
+        try {
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': appID,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(pixKeyBody)
+          });
+          
+          // Se não for 404, usamos essa resposta
+          if (response.status !== 404) break;
+          lastError = `${apiUrl} retornou 404`;
+        } catch (e: any) {
+          lastError = e.message;
+        }
+      }
+
+      if (!response || response.status === 404) {
+        throw new Error(`Endpoint de chave Pix não encontrado. ${lastError}`);
+      }
+
+      // Parse seguro da resposta (pode não ser JSON)
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Resposta inesperada da API (${response.status}): ${responseText.substring(0, 200)}`);
+      }
+
+      if (!response.ok) {
+        let errMsg = '';
+        if (typeof data === 'string') errMsg = data;
+        else if (data?.error && typeof data.error === 'string') errMsg = data.error;
+        else if (data?.message && typeof data.message === 'string') errMsg = data.message;
+        else if (data?.error?.message) errMsg = data.error.message;
+        else errMsg = JSON.stringify(data);
+        
+        throw new Error(`Erro API: ${errMsg}`);
+      }
+
+      return new Response(JSON.stringify({ success: true, pixKey: data }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============ DELETE PIX KEY ============
+    if (action === 'delete-pixkey') {
+      const body = await req.json();
+      const { key } = body;
+
+      if (!key) {
+        throw new Error("A chave Pix a ser removida é obrigatória.");
+      }
+
+      let response;
+      const deleteUrls = [
+        `https://api.openpix.com.br/api/v1/pix-keys/${encodeURIComponent(key)}`,
+        `https://api.woovi.com/api/v1/pix-keys/${encodeURIComponent(key)}`
+      ];
+
+      for (const apiUrl of deleteUrls) {
+        try {
+          response = await fetch(apiUrl, {
+            method: 'DELETE',
+            headers: { 'Authorization': appID }
+          });
+          if (response.status !== 404) break;
+        } catch { /* try next */ }
+      }
+
+      if (!response || response.status === 404) {
+        throw new Error("Endpoint de exclusão de chave Pix não encontrado.");
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        let errMsg = text;
+        try { const d = JSON.parse(text); errMsg = d?.error || d?.message || text; } catch { /* use raw */ }
+        throw new Error(`Erro ao remover chave Pix: ${errMsg}`);
+      }
+
+      return new Response(JSON.stringify({ success: true }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     throw new Error("Ação inválida")

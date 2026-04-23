@@ -27,14 +27,47 @@ const Customers = () => {
     if (!user) return;
     setLoading(true);
     
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    // Buscar clientes e cobranças em paralelo
+    const [customersRes, chargesRes] = await Promise.all([
+      supabase.from('customers').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('charges').select('customer_id, status, due_date, amount').eq('user_id', user.id)
+    ]);
 
-    if (!error && data) {
-      setCustomers(data);
+    if (!customersRes.error && customersRes.data) {
+      const allCharges = chargesRes.data || [];
+      const today = new Date().toISOString().split('T')[0];
+
+      // Calcular status real de cada cliente baseado nas cobranças
+      const customersWithStatus = customersRes.data.map(customer => {
+        const custCharges = allCharges.filter(c => c.customer_id === customer.id);
+        
+        // Verificar se tem cobranças atrasadas
+        const hasOverdue = custCharges.some(c => 
+          c.status === 'atrasado' || 
+          (c.status === 'pendente' && c.due_date && c.due_date < today)
+        );
+
+        // Calcular total devido
+        const totalOverdue = custCharges
+          .filter(c => c.status === 'atrasado' || (c.status === 'pendente' && c.due_date && c.due_date < today))
+          .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+        return {
+          ...customer,
+          computed_status: hasOverdue ? 'inadimplente' : 'em dia',
+          total_overdue: totalOverdue
+        };
+      });
+
+      setCustomers(customersWithStatus);
+
+      // Atualizar o campo status no banco (assíncrono, sem bloquear a UI)
+      customersWithStatus.forEach(async (c) => {
+        const newStatus = c.computed_status;
+        if (c.status !== newStatus) {
+          await supabase.from('customers').update({ status: newStatus }).eq('id', c.id);
+        }
+      });
     }
     setLoading(false);
   };
@@ -201,15 +234,22 @@ const Customers = () => {
                         <td className="px-8 py-5">
                           <span className={cn(
                             "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                            customer.status === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                            "bg-orange-50 text-orange-600 border-orange-100"
+                            (customer.computed_status || customer.status) === 'em dia' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                            "bg-red-50 text-red-600 border-red-100"
                           )}>
                             <div className={cn(
-                              "w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]",
-                              customer.status === 'em dia' ? "bg-emerald-500" : "bg-orange-500 animate-pulse"
+                              "w-1.5 h-1.5 rounded-full",
+                              (customer.computed_status || customer.status) === 'em dia' 
+                                ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" 
+                                : "bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"
                             )} />
-                            {customer.status}
+                            {(customer.computed_status || customer.status)}
                           </span>
+                          {customer.total_overdue > 0 && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1">
+                              Dívida: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(customer.total_overdue)}
+                            </p>
+                          )}
                         </td>
                         <td className="px-8 py-5 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-all">

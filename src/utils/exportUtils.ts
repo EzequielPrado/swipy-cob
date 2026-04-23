@@ -9,7 +9,7 @@ export const exportToCSV = (data: any[], filename: string) => {
     Email: item.email,
     Telefone: item.phone || '',
     Documento: item.tax_id,
-    Status: item.status || '',
+    Status: item.computed_status || item.status || '',
     CriadoEm: new Date(item.created_at).toLocaleDateString('pt-BR')
   }));
 
@@ -53,7 +53,7 @@ export const exportToPDF = (data: any[], title: string, filename: string) => {
     item.name,
     item.email,
     item.tax_id,
-    item.status?.toUpperCase() || 'N/A'
+    (item.computed_status || item.status || 'N/A').toUpperCase()
   ]);
 
   autoTable(doc, {

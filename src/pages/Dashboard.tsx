@@ -14,7 +14,9 @@ import {
   Scale,
   CalendarDays,
   PieChart as PieChartIcon,
-  Activity
+  Activity,
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -75,6 +77,7 @@ const Dashboard = () => {
   });
 
   const [wallet, setWallet] = useState({ available: 0, total: 0, loading: true });
+  const [inadimplencia, setInadimplencia] = useState({ total: 0, count: 0 });
 
   const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -159,6 +162,21 @@ const Dashboard = () => {
       });
       setWallet({ available: (wooviRes?.balance?.available || 0) / 100, total: currentTotalCash, loading: false });
 
+      // 5. Calcular Inadimplência (todas as cobranças atrasadas, sem filtro de mês)
+      const { data: allCharges } = await supabase
+        .from('charges')
+        .select('amount, status, due_date, customer_id')
+        .eq('user_id', user.id);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const overdueCharges = (allCharges || []).filter(c => 
+        c.status === 'atrasado' || 
+        (c.status === 'pendente' && c.due_date && c.due_date < todayStr)
+      );
+      const totalOverdue = overdueCharges.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+      const uniqueCustomers = new Set(overdueCharges.map(c => c.customer_id).filter(Boolean));
+      setInadimplencia({ total: totalOverdue, count: uniqueCustomers.size });
+
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
@@ -196,6 +214,33 @@ const Dashboard = () => {
             <p className={cn("text-4xl font-black", finance.lucroLiquido >= 0 ? "text-emerald-600" : "text-red-600")}>{currencyFormatter.format(finance.lucroLiquido)}</p>
           </div>
         </div>
+
+        {/* CARD DE INADIMPLÊNCIA */}
+        {inadimplencia.total > 0 && (
+          <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 p-6 rounded-[2rem] shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center border border-red-200">
+                  <AlertTriangle size={22} className="text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                    Inadimplência Ativa
+                  </h3>
+                  <p className="text-3xl font-black text-red-600">{currencyFormatter.format(inadimplencia.total)}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-red-500">
+                  <Users size={14} />
+                  <span className="text-sm font-black">{inadimplencia.count}</span>
+                </div>
+                <p className="text-[9px] text-red-400 font-bold uppercase tracking-widest mt-0.5">cliente{inadimplencia.count !== 1 ? 's' : ''} devendo</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
            <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
@@ -257,16 +302,16 @@ const Dashboard = () => {
                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><Wallet size={100} className="text-orange-500" /></div>
                  <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-2">Liquidez Imediata (Consolidado)</p>
                  <h4 className="text-4xl font-black text-white">{currencyFormatter.format(wallet.total)}</h4>
-                 <div className="mt-8 pt-8 border-t border-white/10 flex gap-10">
+                 <div className="mt-8 pt-8 border-t border-white/10 flex flex-col sm:flex-row gap-6 sm:gap-10">
                     <div><p className="text-[9px] text-zinc-500 font-black uppercase">Na Woovi</p><p className="text-lg font-bold text-emerald-400">{currencyFormatter.format(wallet.available)}</p></div>
-                    <div className="h-10 w-px bg-white/10" />
+                    <div className="h-px w-full sm:h-10 sm:w-px bg-white/10" />
                     <div><p className="text-[9px] text-zinc-500 font-black uppercase">Receita Recorrente</p><p className="text-lg font-bold text-orange-400">{currencyFormatter.format(finance.mrr)}</p></div>
                  </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Receber no Período</p><p className="text-2xl font-black text-apple-black">{currencyFormatter.format(finance.aReceber)}</p></div>
-                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Pagar no Período</p><p className="text-2xl font-black text-red-500">{currencyFormatter.format(finance.aPagar)}</p></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm overflow-hidden"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Receber no Período</p><p className="text-xl sm:text-2xl font-black text-apple-black truncate">{currencyFormatter.format(finance.aReceber)}</p></div>
+                 <div className="bg-apple-white border border-apple-border p-6 rounded-3xl shadow-sm overflow-hidden"><p className="text-[9px] font-black text-apple-muted uppercase mb-2">A Pagar no Período</p><p className="text-xl sm:text-2xl font-black text-red-500 truncate">{currencyFormatter.format(finance.aPagar)}</p></div>
               </div>
            </div>
         </div>

@@ -225,81 +225,83 @@ const Expenses = () => {
       <div className="flex flex-col gap-8 pb-12">
         <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
           <div><h2 className="text-3xl font-bold tracking-tight text-apple-black">Contas a Pagar</h2><p className="text-apple-muted mt-1 font-medium">Controle suas obrigações categorizadas no plano de contas.</p></div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[180px] bg-apple-white border-apple-border h-11 rounded-xl text-orange-500 font-bold"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[180px] bg-apple-white border-apple-border h-11 rounded-xl text-orange-500 font-bold"><SelectValue /></SelectTrigger>
               <SelectContent className="bg-apple-white border-apple-border">{monthOptions.map(opt => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}</SelectContent>
             </Select>
-            <button onClick={openAddModal} className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm"><Plus size={18} /> Nova Despesa</button>
+            <button onClick={openAddModal} className="w-full sm:w-auto justify-center bg-red-500 hover:bg-red-600 text-white font-semibold flex-1 px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm"><Plus size={18} /> Nova Despesa</button>
           </div>
         </div>
 
         <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden min-h-[400px] shadow-sm">
           {loading ? (<div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-orange-500" size={32} /></div>) : (
-            <table className="w-full text-left">
-              <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
-                <tr><th className="px-8 py-5">Descrição / Fornecedor</th><th className="px-8 py-5">Vencimento</th><th className="px-8 py-5">Valor</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
-              </thead>
-              <tbody className="divide-y divide-apple-border">
-                {expenses.length === 0 ? (
-                  <tr><td colSpan={5} className="py-20 text-center text-apple-muted italic">Nenhuma despesa para o período selecionado.</td></tr>
-                ) : expenses.map((exp) => (
-                  <tr key={exp.id} className="hover:bg-apple-light transition-colors group">
-                    <td className="px-8 py-5">
-                      <p className="text-sm font-bold text-apple-black">{exp.description}</p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="inline-flex items-center gap-1 text-[9px] text-apple-muted uppercase font-black"><Layers size={10} className="text-orange-500" /> {exp.chart_of_accounts?.name || 'Geral'}</span>
-                        {exp.suppliers && (
-                          <span className="inline-flex items-center gap-1 text-[9px] text-blue-600 uppercase font-black"><Building2 size={10} /> {exp.suppliers.name}</span>
-                        )}
-                        {exp.receipt_url && (
-                          <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md uppercase font-black hover:bg-emerald-100 transition-colors">
-                            <Paperclip size={10} /> Anexo
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-8 py-5 text-sm text-apple-dark font-medium">{new Date(exp.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                    <td className="px-8 py-5 text-sm font-black text-apple-black">{currencyFormatter.format(exp.amount)}</td>
-                    <td className="px-8 py-5">
-                       <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", exp.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100")}>{exp.status}</span>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                       <div className="flex items-center justify-end gap-1">
-                          {exp.status !== 'pago' && (
-                            <button 
-                              onClick={() => { 
-                                setSelectedExpense(exp); 
-                                setPayFormData({ accountId: '' }); 
-                                setPayReceiptFile(null); // Reseta o file state do pagamento
-                                setIsPayModalOpen(true); 
-                              }}
-                              className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
-                              title="Marcar como Pago"
-                            >
-                              <CheckCircle2 size={18} />
-                            </button>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left min-w-[800px]">
+                <thead className="bg-apple-offWhite text-apple-muted text-[10px] uppercase font-bold tracking-[0.2em] border-b border-apple-border">
+                  <tr><th className="px-8 py-5">Descrição / Fornecedor</th><th className="px-8 py-5">Vencimento</th><th className="px-8 py-5">Valor</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Ações</th></tr>
+                </thead>
+                <tbody className="divide-y divide-apple-border">
+                  {expenses.length === 0 ? (
+                    <tr><td colSpan={5} className="py-20 text-center text-apple-muted italic">Nenhuma despesa para o período selecionado.</td></tr>
+                  ) : expenses.map((exp) => (
+                    <tr key={exp.id} className="hover:bg-apple-light transition-colors group">
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-apple-black">{exp.description}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="inline-flex items-center gap-1 text-[9px] text-apple-muted uppercase font-black"><Layers size={10} className="text-orange-500" /> {exp.chart_of_accounts?.name || 'Geral'}</span>
+                          {exp.suppliers && (
+                            <span className="inline-flex items-center gap-1 text-[9px] text-blue-600 uppercase font-black"><Building2 size={10} /> {exp.suppliers.name}</span>
                           )}
-                          <button onClick={() => { 
-                            setEditingId(exp.id); 
-                            setFormData({ 
-                              description: exp.description, 
-                              amount: exp.amount.toString().replace('.', ','), 
-                              categoryId: exp.category_id || '', 
-                              dueDate: exp.due_date, 
-                              supplierId: exp.supplier_id || 'none',
-                              receiptUrl: exp.receipt_url || ''
-                            }); 
-                            setReceiptFile(null);
-                            setIsModalOpen(true); 
-                          }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
-                          <button onClick={() => { if(confirm('Excluir?')) supabase.from('expenses').delete().eq('id', exp.id).then(() => fetchData()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16}/></button>
-                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          {exp.receipt_url && (
+                            <a href={exp.receipt_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md uppercase font-black hover:bg-emerald-100 transition-colors">
+                              <Paperclip size={10} /> Anexo
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-8 py-5 text-sm text-apple-dark font-medium">{new Date(exp.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                      <td className="px-8 py-5 text-sm font-black text-apple-black">{currencyFormatter.format(exp.amount)}</td>
+                      <td className="px-8 py-5">
+                         <span className={cn("px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border", exp.status === 'pago' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-orange-50 text-orange-600 border-orange-100")}>{exp.status}</span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                         <div className="flex items-center justify-end gap-1">
+                            {exp.status !== 'pago' && (
+                              <button 
+                                onClick={() => { 
+                                  setSelectedExpense(exp); 
+                                  setPayFormData({ accountId: '' }); 
+                                  setPayReceiptFile(null); // Reseta o file state do pagamento
+                                  setIsPayModalOpen(true); 
+                                }}
+                                className="p-2.5 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+                                title="Marcar como Pago"
+                              >
+                                <CheckCircle2 size={18} />
+                              </button>
+                            )}
+                            <button onClick={() => { 
+                              setEditingId(exp.id); 
+                              setFormData({ 
+                                description: exp.description, 
+                                amount: exp.amount.toString().replace('.', ','), 
+                                categoryId: exp.category_id || '', 
+                                dueDate: exp.due_date, 
+                                supplierId: exp.supplier_id || 'none',
+                                receiptUrl: exp.receipt_url || ''
+                              }); 
+                              setReceiptFile(null);
+                              setIsModalOpen(true); 
+                            }} className="p-2 text-apple-muted hover:text-blue-500"><Edit2 size={16}/></button>
+                            <button onClick={() => { if(confirm('Excluir?')) supabase.from('expenses').delete().eq('id', exp.id).then(() => fetchData()); }} className="p-2 text-apple-muted hover:text-red-500"><Trash2 size={16}/></button>
+                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
