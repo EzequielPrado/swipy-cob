@@ -61,32 +61,33 @@ const PublicBooking = () => {
     try {
       const cleanTaxId = formData.taxId.replace(/\D/g, '');
       
-      const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('user_id', merchant.id)
-        .eq('tax_id', cleanTaxId)
-        .maybeSingle();
+      // Chamar a Edge Function para criar o cliente e sincronizar com Woovi/Parceiro
+      const response = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/create-woovi-customer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          taxID: cleanTaxId,
+          correlationID: crypto.randomUUID(),
+          merchantId: merchant.id,
+          address: {
+            zipcode: '', // Campos vazios pois o portal simplificado não pede endereço completo
+            street: '',
+            number: '',
+            neighborhood: '',
+            city: '',
+            state: '',
+            country: 'Brasil'
+          }
+        })
+      });
 
-      let customerId;
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-        await supabase.from('customers').update({ phone: formData.phone, email: formData.email }).eq('id', customerId);
-      } else {
-        const { data: newCust, error: custErr } = await supabase
-          .from('customers')
-          .insert({
-            user_id: merchant.id,
-            name: formData.name,
-            tax_id: cleanTaxId,
-            email: formData.email,
-            phone: formData.phone,
-            status: 'em dia'
-          })
-          .select().single();
-        if (custErr) throw custErr;
-        customerId = newCust.id;
-      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Erro ao registrar cliente no sistema.");
+      
+      const customerId = result.id;
 
       let fileUrl = null;
       if (selectedFile) {

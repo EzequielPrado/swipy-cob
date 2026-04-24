@@ -18,8 +18,9 @@ const Register = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
+    accountType: 'PJ', // 'PF' ou 'PJ'
     fullName: '', cpf: '', email: '', phone: '',
-    company: '', tradeName: '', website: '', instagram: '',
+    company: '', tradeName: '', cnpj: '', website: '', instagram: '',
     password: '', confirmPassword: '', planId: ''
   });
 
@@ -41,7 +42,19 @@ const Register = () => {
 
   const nextStep = () => {
     if (step === 1 && (!formData.fullName || !formData.cpf || !formData.email || !formData.phone)) return showError("Preencha os dados do responsável.");
-    if (step === 2 && (!formData.company || !formData.tradeName)) return showError("Razão social e Nome fantasia são obrigatórios.");
+    if (step === 1 && formData.accountType === 'PF') {
+      // Se for PF, podemos pular ou simplificar o Passo 2.
+      // Por enquanto, vamos apenas garantir que os dados de "empresa" sejam preenchidos com os dados pessoais.
+      setFormData(prev => ({ 
+        ...prev, 
+        company: prev.fullName, 
+        tradeName: prev.fullName,
+        cnpj: prev.cpf 
+      }));
+      setStep(3); // Pula direto para senha se for PF? Ou vai para o Passo 2 mais simples?
+      return;
+    }
+    if (step === 2 && (!formData.company || !formData.tradeName || !formData.cnpj)) return showError("Razão social, Nome fantasia e CNPJ são obrigatórios.");
     if (step === 3) {
       if (formData.password.length < 6) return showError("A senha deve ter pelo menos 6 caracteres.");
       if (formData.password !== formData.confirmPassword) return showError("As senhas não conferem.");
@@ -61,9 +74,11 @@ const Register = () => {
         password: formData.password,
         options: {
           data: {
+            account_type: formData.accountType,
             full_name: formData.fullName,
             company: formData.company,
             cpf: formData.cpf,
+            cnpj: formData.cnpj,
             phone: formData.phone,
             trade_name: formData.tradeName,
             website: formData.website,
@@ -76,13 +91,17 @@ const Register = () => {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Não foi possível criar o usuário. Tente outro e-mail.");
 
-      const onboardRes = await fetch(`https://mxkorxmazthagjaqwrfk.supabase.co/functions/v1/onboard-merchant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: authData.user.id, planId: formData.planId })
+      const { data: onboardData, error: onboardError } = await supabase.functions.invoke('onboard-merchant', {
+        body: { 
+          userId: authData.user.id, 
+          planId: formData.planId,
+          cnpj: formData.cnpj
+        }
       });
-
-      const onboardData = await onboardRes.json();
+      
+      if (onboardError) {
+        console.error("[onboard-merchant] Erro na função:", onboardError);
+      }
       
       showSuccess('Cadastro finalizado com sucesso!');
 
@@ -134,6 +153,28 @@ const Register = () => {
             
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="flex bg-apple-offWhite p-1 rounded-2xl border border-apple-border mb-4">
+                  <button 
+                    type="button"
+                    onClick={() => setFormData({...formData, accountType: 'PJ'})}
+                    className={cn(
+                      "flex-1 py-3 text-[10px] font-black rounded-xl transition-all",
+                      formData.accountType === 'PJ' ? "bg-white text-orange-500 shadow-sm" : "text-apple-muted"
+                    )}
+                  >
+                    PESSOA JURÍDICA (PJ)
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setFormData({...formData, accountType: 'PF'})}
+                    className={cn(
+                      "flex-1 py-3 text-[10px] font-black rounded-xl transition-all",
+                      formData.accountType === 'PF' ? "bg-white text-orange-500 shadow-sm" : "text-apple-muted"
+                    )}
+                  >
+                    PESSOA FÍSICA (PF)
+                  </button>
+                </div>
                 <p className="text-[10px] font-black text-orange-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6"><User size={12} /> 1. Administrador da Conta</p>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-apple-muted ml-1">Nome completo</label>
@@ -164,6 +205,10 @@ const Register = () => {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-apple-muted ml-1">Nome Fantasia (Marca)</label>
                   <input name="tradeName" required value={formData.tradeName} onChange={handleChange} placeholder="Como sua marca é conhecida" className="w-full bg-apple-offWhite border border-apple-border rounded-2xl px-4 py-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-apple-black" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-apple-muted ml-1">CNPJ da Empresa</label>
+                  <input name="cnpj" required value={formData.cnpj} onChange={handleChange} placeholder="00.000.000/0000-00" className="w-full bg-apple-offWhite border border-orange-200 rounded-2xl px-4 py-4 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-apple-black font-black text-orange-600" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

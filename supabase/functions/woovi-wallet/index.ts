@@ -228,68 +228,109 @@ serve(async (req) => {
     }
 
     if (action === 'withdraw') {
-      const { amount, pixKey, pixKeyType } = await req.json()
+      const body = await req.json();
+      const { amount, pixKey: rawPixKey, pixKeyType } = body;
 
-      // Buscar a chave Pix de origem (da conta do lojista)
-      const accRes = await fetch('https://api.woovi.com/api/v1/account', {
-        method: 'GET',
-        headers: { 'Authorization': appID }
-      });
-      const accData = await accRes.json();
-      
-      // Extrair a chave pix da conta de origem
-      let fromPixKey = '';
-      if (accData.account?.pixKeys?.length > 0) {
-        fromPixKey = accData.account.pixKeys[0].value || accData.account.pixKeys[0].key || '';
-      } else if (accData.accounts?.[0]?.pixKeys?.length > 0) {
-        fromPixKey = accData.accounts[0].pixKeys[0].value || accData.accounts[0].pixKeys[0].key || '';
-      }
-
-      // Se não encontrou chave da conta, tenta usar o email do dono
-      if (!fromPixKey) {
-        // Fallback: tentar o endpoint de subaccount se disponível
-        const subRes = await fetch('https://api.woovi.com/api/v1/subaccount', {
-          method: 'GET',
-          headers: { 'Authorization': appID }
-        });
-        const subData = subRes.ok ? await subRes.json() : {};
-        if (subData.subaccounts?.[0]?.pixKeys?.length > 0) {
-          fromPixKey = subData.subaccounts[0].pixKeys[0].value || subData.subaccounts[0].pixKeys[0].key || '';
+      // Limpar a chave Pix (remover caracteres não numéricos se for CPF, CNPJ ou Telefone)
+      let pixKey = rawPixKey;
+      if (['CPF', 'CNPJ', 'PHONE'].includes(pixKeyType)) {
+        pixKey = rawPixKey.replace(/\D/g, '');
+        // Se for telefone e não tiver o prefixo do país, assume Brasil (+55)
+        if (pixKeyType === 'PHONE' && !rawPixKey.startsWith('+')) {
+          pixKey = `+55${pixKey}`;
         }
       }
 
-      if (!fromPixKey) {
-        return new Response(JSON.stringify({ 
-          error: true, 
-          message: "Nenhuma chave Pix de origem encontrada na sua conta Woovi. Configure uma chave Pix primeiro." 
-        }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+      // Gerar um correlationID único para esta operação
+      const correlationID = `withdraw-${crypto.randomUUID()}`;
       
-      // Usar o endpoint POST /api/v1/transfer (API oficial da Woovi)
-      const response = await fetch(`https://api.woovi.com/api/v1/transfer`, {
+      const payload = {
+        type: 'PIX_KEY',
+        value: Math.round(amount * 100), // Valor em centavos
+        destinationAlias: pixKey,
+        destinationAliasType: pixKeyType,
+        correlationID: correlationID,
+        comment: 'Saque Swipy Pix',
+        metadata: {
+          source: 'swipy-platform',
+          withdraw_id: correlationID
+        }
+      };
+
+      console.log(`[woovi-wallet] Enviando solicitação para Woovi com AppID: ${appID.substring(0, 5)}...`);
+
+      // Etapa 1: Solicitar o pagamento
+      const paymentRes = await fetch('https://api.woovi.com/api/v1/payment', {
         method: 'POST',
         headers: { 
           'Authorization': appID,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          value: Math.round(amount * 100), 
-          fromPixKey: fromPixKey,
-          toPixKey: pixKey
-        })
-      })
+        body: JSON.stringify(payload)
+      });
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorText = errorData?.error || errorData?.message || await response.text().catch(() => 'Erro desconhecido');
-        throw new Error(`Falha na transferência: ${typeof errorText === 'string' ? errorText : JSON.stringify(errorText)}`)
+      const paymentData = await paymentRes.json().catch(() => ({}));
+
+      if (!paymentRes.ok) {
+        console.error(`[woovi-wallet] Erro na solicitação de pagamento (Status ${paymentRes.status}):`, JSON.stringify(paymentData));
+        
+        // Extrair mensagem de erro amigável (Woovi às vezes envia {error: true, message: "..."})
+        let errMsg = 'Erro desconhecido';
+        if (typeof paymentData.message === 'string') errMsg = paymentData.message;
+        else if (typeof paymentData.error === 'string') errMsg = paymentData.error;
+        else if (paymentData.errors?.[0]?.message) errMsg = paymentData.errors[0].message;
+        else if (typeof paymentData === 'string') errMsg = paymentData;
+
+        return new Response(JSON.stringify({ 
+          error: "API_ERROR", 
+          message: `Erro ao solicitar pagamento: ${errMsg}`,
+          details: paymentData
+        }), { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
       }
 
-      const data = await response.json()
-      return new Response(JSON.stringify({ success: true, transfer: data }), { 
+      console.log(`[woovi-wallet] Pagamento solicitado com sucesso. Aprovando agora...`);
+
+      // Etapa 2: Aprovar o pagamento imediatamente
+      const approveRes = await fetch('https://api.woovi.com/api/v1/payment/approve', {
+        method: 'POST',
+        headers: { 
+          'Authorization': appID,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          correlationID: correlationID
+        })
+      });
+      
+      const approveData = await approveRes.json().catch(() => ({}));
+
+      if (!approveRes.ok) {
+        console.error(`[woovi-wallet] Erro na aprovação do pagamento (Status ${approveRes.status}):`, JSON.stringify(approveData));
+        
+        let errMsg = 'Erro desconhecido na aprovação';
+        if (typeof approveData.message === 'string') errMsg = approveData.message;
+        else if (typeof approveData.error === 'string') errMsg = approveData.error;
+
+        return new Response(JSON.stringify({ 
+          error: "API_ERROR", 
+          message: `Erro ao aprovar pagamento: ${errMsg}`,
+          details: approveData
+        }), { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      console.log(`[woovi-wallet] Saque concluído com sucesso:`, approveData);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        payment: paymentData,
+        approval: approveData 
+      }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       })
     }

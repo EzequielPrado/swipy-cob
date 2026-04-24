@@ -7,6 +7,8 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log(`[onboard-merchant] Recebendo nova requisição: ${req.method}`);
+  
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
@@ -15,7 +17,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { userId, planId } = await req.json()
+    const { userId, planId, cnpj: bodyCnpj } = await req.json()
 
     const { data: merchant } = await supabaseAdmin.from('profiles').select('*').eq('id', userId).single()
     const { data: plan } = await supabaseAdmin.from('system_plans').select('*').eq('id', planId).single()
@@ -104,18 +106,19 @@ serve(async (req) => {
     }
 
     try {
-      const cleanTaxId = merchant.cpf?.replace(/\D/g, '') || '';
-      const taxType = cleanTaxId.length > 11 ? 'BR:CNPJ' : 'BR:CPF';
+      const cleanCpf = merchant.cpf?.replace(/\D/g, '') || '';
+      const cleanCnpj = (bodyCnpj || merchant.cnpj)?.replace(/\D/g, '') || cleanCpf; // Prioriza o CNPJ vindo do body
+      const taxType = cleanCnpj.length > 11 ? 'BR:CNPJ' : 'BR:CPF';
 
       const [firstName, ...lastNameParts] = (merchant.full_name || '').split(' ');
-      const lastName = lastNameParts.join(' ') || firstName; 
+      const lastName = lastNameParts.join(' ') || firstName;
 
       const partnerPayload = {
         preRegistration: {
           name: merchant.company || merchant.full_name,
           website: merchant.website || 'https://swipy.com',
           taxID: {
-            taxID: cleanTaxId,
+            taxID: cleanCnpj,
             type: taxType
           }
         },
@@ -123,19 +126,31 @@ serve(async (req) => {
           firstName: firstName || 'Admin',
           lastName: lastName || 'Swipy',
           email: userEmail,
-          phone: merchant.phone?.replace(/\D/g, '') || '',
+          phone: (() => {
+            const digits = (merchant.phone || '').replace(/\D/g, '');
+            const finalPhone = digits.startsWith('55') ? `+${digits}` : `+55${digits}`;
+            console.log(`[onboard-merchant] Enviando telefone para Woovi: ${finalPhone}`);
+            return finalPhone;
+          })(),
           taxID: {
-            taxID: cleanTaxId,
-            type: taxType
+            taxID: cleanCpf,
+            type: cleanCpf.length > 11 ? 'BR:CNPJ' : 'BR:CPF'
           }
         }
       };
 
+      console.log(`[onboard-merchant] Payload completo para Woovi:`, JSON.stringify(partnerPayload));
+
+      const rawWooviKey = (Deno.env.get('WOOVI_API_KEY') || '').trim();
+      console.log(`[onboard-merchant] Verificando chave: Presente=${!!rawWooviKey}, Tamanho=${rawWooviKey.length}, Início=${rawWooviKey.substring(0, 8)}...`);
+      
+      const wooviApiKey = rawWooviKey.startsWith('Bearer ') ? rawWooviKey : `Bearer ${rawWooviKey}`;
+      
       console.log(`[onboard-merchant] Chamando API Partner Woovi para registrar empresa...`);
       const partnerRes = await fetch('https://api.woovi.com/api/v1/partner/company', {
         method: 'POST',
         headers: { 
-          'Authorization': admin.woovi_api_key, 
+          'Authorization': wooviApiKey, 
           'Content-Type': 'application/json' 
         },
         body: JSON.stringify(partnerPayload)
@@ -143,10 +158,24 @@ serve(async (req) => {
 
       if (!partnerRes.ok) {
         const partnerError = await partnerRes.text();
-        console.error(`[onboard-merchant] Falha ao criar Partner na Woovi:`, partnerError);
+        console.error(`[onboard-merchant] Falha ao criar Partner na Woovi. Status: ${partnerRes.status}. Resposta:`, partnerError);
       } else {
         await partnerRes.json();
         console.log(`[onboard-merchant] Conta Partner criada com sucesso na Woovi.`);
+
+        // NOVO: Chama a API de KYC Onboarding
+        await fetch('https://api.woovi.com/api/v1/kyc/onboarding', {
+          method: 'POST',
+          headers: { 
+            'Authorization': wooviApiKey, 
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({
+            taxID: cleanCnpj,
+            type: taxType === 'BR:CNPJ' ? 'COMPANY' : 'INDIVIDUAL'
+          })
+        });
+        console.log(`[onboard-merchant] KYC Onboarding enviado.`);
       }
     } catch (partnerErr: any) {
       console.error(`[onboard-merchant] Erro ao executar API Partner:`, partnerErr.message);

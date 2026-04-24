@@ -63,7 +63,7 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.message || "Erro ao processar saque");
+      if (!response.ok) throw new Error(result.message || result.error || "Erro ao processar saque");
 
       showSuccess('Solicitação de saque enviada com sucesso!');
       onSuccess();
@@ -107,7 +107,7 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
                 <SelectItem value="CNPJ">CNPJ</SelectItem>
                 <SelectItem value="EMAIL">E-mail</SelectItem>
                 <SelectItem value="PHONE">Telefone</SelectItem>
-                <SelectItem value="RANDOM">Chave Aleatória</SelectItem>
+                <SelectItem value="EVP">Chave Aleatória (EVP)</SelectItem>
               </SelectContent>
             </Select>
           </div>
