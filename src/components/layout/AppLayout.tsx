@@ -16,6 +16,7 @@ import { useTheme } from 'next-themes';
 import NotificationBell from './NotificationBell';
 import SwipyAIAssistant from './SwipyAIAssistant';
 import { motion, AnimatePresence } from 'framer-motion';
+import SetupPinModal from '../dashboard/SetupPinModal';
 
 interface SubmenuItem {
   label: string;
@@ -162,7 +163,7 @@ const menuSections: MenuSection[] = [
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, systemRole, isAdmin, profile, activeMerchant, setActiveMerchant } = useAuth();
+  const { user, signOut, systemRole, isAdmin, profile, activeMerchant, setActiveMerchant, refreshProfile } = useAuth();
   const { theme, setTheme } = useTheme();
   
   const [openMenus, setOpenMenus] = useState<string[]>([]);
@@ -392,7 +393,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   Sessão: {activeMerchant.company}
                 </p>
               </div>
-              <button onClick={() => { setActiveMerchant(null); navigate('/contador'); }} className="text-white text-[9px] font-black underline bg-white/10 px-2 py-1 rounded-md hover:bg-white/20 transition-all">ENCERRAR</button>
+              <button onClick={() => { setActiveMerchant(null); navigate(isAdmin ? '/admin/usuarios' : '/contador'); }} className="text-white text-[9px] font-black underline bg-white/10 px-2 py-1 rounded-md hover:bg-white/20 transition-all">ENCERRAR</button>
            </div>
         )}
 
@@ -470,6 +471,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
         {/* SWIPY AI ASSISTANT */}
         {hasAIAssistant && <SwipyAIAssistant />}
+
+        {profile?.status === 'active' && !profile?.transaction_pin && (
+          <SetupPinModal 
+            isOpen={true} 
+            onClose={() => {}} 
+            onSuccess={refreshProfile} 
+            userId={user?.id || ''} 
+          />
+        )}
       </main>
     </div>
   );

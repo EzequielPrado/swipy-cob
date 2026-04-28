@@ -17,6 +17,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalUsers: 0, totalCharges: 0, activeSubs: 0, totalVolumePaid: 0, totalCustomers: 0 });
   const [recentCharges, setRecentCharges] = useState<any[]>([]);
+  const [merchantsReturn, setMerchantsReturn] = useState<any[]>([]);
+  const [saasMetrics, setSaasMetrics] = useState({ mrr: 0, arpu: 0, ltv: 0 });
+  const [delinquencyReport, setDelinquencyReport] = useState<any[]>([]);
+
+  // Simulador de Crescimento
+  const [simTaxaFixa, setSimTaxaFixa] = useState(1.50);
+  const [simNovasEmpresas, setSimNovasEmpresas] = useState(10);
+  const [simTicketPlano, setSimTicketPlano] = useState(99.00);
+  const [simTransacoesPorEmpresa, setSimTransacoesPorEmpresa] = useState(100);
   const [globalCustomers, setGlobalCustomers] = useState<any[]>([]);
   const [availableRules, setAvailableRules] = useState<any[]>([]);
   const [plansDistribution, setPlansDistribution] = useState<any[]>([]);
@@ -32,17 +41,20 @@ const AdminDashboard = () => {
   const fetchGlobalData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, chargesRes, subsRes, custRes, rulesRes, plansRes] = await Promise.all([
-        supabase.from('profiles').select('id, company, full_name, plan_id, system_plans(name)'),
+      const [profilesRes, chargesRes, subsRes, custRes, rulesRes, plansRes, allChargesRes] = await Promise.all([
+        supabase.from('profiles').select('id, company, full_name, plan_id, status, system_plans(name, price), transaction_fee_fixed'),
         supabase.from('charges').select('id, amount, status, user_id, customer_id, customers(name)').order('created_at', { ascending: false }).limit(30),
         supabase.from('subscriptions').select('id').eq('status', 'active'),
         supabase.from('customers').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('billing_rules').select('id, label, day_offset').eq('is_active', true).order('day_offset', { ascending: true }),
-        supabase.from('system_plans').select('id, name')
+        supabase.from('system_plans').select('id, name'),
+        supabase.from('charges').select('user_id, amount, status, due_date, created_at')
       ]);
 
       const allProfiles = profilesRes.data || [];
-      const totalPaid = (chargesRes.data || []).filter(c => c.status === 'pago').reduce((acc, c) => acc + Number(c.amount), 0);
+      const allCharges = allChargesRes.data || [];
+      const allPaidCharges = allCharges.filter(c => c.status === 'pago');
+      const totalPaid = allPaidCharges.reduce((acc, c) => acc + Number(c.amount), 0);
       
       setStats({ 
         totalUsers: allProfiles.length, 
@@ -51,6 +63,80 @@ const AdminDashboard = () => {
         totalVolumePaid: totalPaid,
         totalCustomers: custRes.data?.length || 0
       });
+
+      // Calcular retorno por lojista
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const returnData = allProfiles
+        .filter(profile => profile.company && profile.company.trim() !== '')
+        .filter(profile => profile.company !== profile.full_name)
+        .map(profile => {
+        const merchantCharges = allPaidCharges.filter(c => c.user_id === profile.id);
+        
+        const currentMonthCharges = merchantCharges.filter(c => {
+          if (!c.created_at) return false;
+          const date = new Date(c.created_at);
+          return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+        });
+
+        const tpvTotal = merchantCharges.reduce((acc, c) => acc + Number(c.amount), 0);
+        const tpvMonth = currentMonthCharges.reduce((acc, c) => acc + Number(c.amount), 0);
+        const feeFixed = profile.transaction_fee_fixed || 0;
+        
+        const txCountTotal = merchantCharges.length;
+        const txCountMonth = currentMonthCharges.length;
+        
+        const returnTotal = txCountTotal * feeFixed;
+        const returnMonth = txCountMonth * feeFixed;
+
+        return {
+          id: profile.id,
+          company: profile.company || 'Pessoa Física',
+          fullName: profile.full_name,
+          plan: profile.system_plans?.name || 'SaaS Gratuito',
+          tpvMonth,
+          txCountMonth,
+          returnMonth,
+          returnTotal,
+          feeFixed
+        };
+      }).sort((a, b) => b.returnMonth - a.returnMonth);
+
+      setMerchantsReturn(returnData);
+
+      // Calcular Métricas SaaS
+      const activeMerchants = allProfiles.filter(p => p.plan_id);
+      const mrr = activeMerchants.reduce((acc, p) => acc + (p.system_plans?.price || 0), 0);
+      const arpu = activeMerchants.length > 0 ? mrr / activeMerchants.length : 0;
+      const ltv = arpu * 12;
+
+      setSaasMetrics({ mrr, arpu, ltv });
+
+      // Calcular Inadimplência
+      const nowStr = new Date().toISOString().split('T')[0];
+      const overdueCharges = allCharges.filter(c => c.status === 'pendente' && c.due_date && c.due_date < nowStr);
+
+      const delinquencyData = allProfiles
+        .filter(profile => profile.company && profile.company.trim() !== '')
+        .map(profile => {
+          const merchantOverdue = overdueCharges.filter(c => c.user_id === profile.id);
+          const totalOverdue = merchantOverdue.reduce((acc, c) => acc + Number(c.amount), 0);
+          const countOverdue = merchantOverdue.length;
+
+          return {
+            id: profile.id,
+            company: profile.company,
+            fullName: profile.full_name,
+            totalOverdue,
+            countOverdue
+          };
+        })
+        .filter(d => d.totalOverdue > 0)
+        .sort((a, b) => b.totalOverdue - a.totalOverdue);
+
+      setDelinquencyReport(delinquencyData);
 
       if (rulesRes.data) setAvailableRules(rulesRes.data);
 
@@ -171,6 +257,33 @@ const AdminDashboard = () => {
           </button>
         </div>
 
+        {/* MÉTRICAS SAAS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-7 shadow-sm relative overflow-hidden group">
+            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+              <DollarSign size={14} className="text-emerald-500" /> MRR (Receita Recorrente)
+            </p>
+            <p className="text-4xl font-black text-apple-black">{currency.format(saasMetrics.mrr)}</p>
+            <p className="text-[10px] text-apple-muted mt-2 font-bold flex items-center gap-1">Soma dos planos ativos</p>
+          </div>
+          
+          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-7 shadow-sm relative overflow-hidden group">
+            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+              <TrendingUp size={14} className="text-blue-500" /> ARPU (Ticket Médio)
+            </p>
+            <p className="text-4xl font-black text-apple-black">{currency.format(saasMetrics.arpu)}</p>
+            <p className="text-[10px] text-apple-muted mt-2 font-bold flex items-center gap-1">Por lojista ativo</p>
+          </div>
+
+          <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-7 shadow-sm relative overflow-hidden group">
+            <p className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+              <ShieldCheck size={14} className="text-orange-500" /> LTV Estimado
+            </p>
+            <p className="text-4xl font-black text-apple-black">{currency.format(saasMetrics.ltv)}</p>
+            <p className="text-[10px] text-apple-muted mt-2 font-bold flex items-center gap-1">Projeção 12 meses</p>
+          </div>
+        </div>
+
         {/* KPIs GLOBAIS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-apple-white border border-apple-border p-7 rounded-[2rem] shadow-sm relative overflow-hidden group">
@@ -194,6 +307,104 @@ const AdminDashboard = () => {
             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><CalendarCheck size={100} /></div>
           </div>
         </div>
+
+        {/* SIMULADOR DE CRESCIMENTO */}
+        {(() => {
+          const qtdEmpresasAtuais = stats.totalUsers;
+          const mrrAtual = saasMetrics.mrr;
+          const taxasAtuais = merchantsReturn.reduce((acc, m) => acc + m.returnMonth, 0);
+          const receitaMensalAtual = mrrAtual + taxasAtuais;
+          
+          const totalEmpresasProjetadas = qtdEmpresasAtuais + simNovasEmpresas;
+          const mrrProjetado = (qtdEmpresasAtuais * (saasMetrics.arpu || simTicketPlano)) + (simNovasEmpresas * simTicketPlano);
+          const taxasProjetadas = totalEmpresasProjetadas * simTransacoesPorEmpresa * simTaxaFixa;
+          const receitaMensalProjetada = mrrProjetado + taxasProjetadas;
+          const lucroAdicional = receitaMensalProjetada - receitaMensalAtual;
+
+          return (
+            <div className="bg-apple-white border border-apple-border p-8 rounded-[2.5rem] shadow-sm">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                  <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
+                    <TrendingUp size={16} className="text-orange-500" /> Simulador de Crescimento Swipy
+                  </h3>
+                  <p className="text-apple-muted text-xs font-medium mt-1">Projete cenários de faturamento alterando as variáveis do seu negócio.</p>
+                </div>
+                <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-2xl font-black text-sm border border-orange-100 flex items-center gap-2">
+                  <span>Lucro Adicional:</span>
+                  <span>{currency.format(lucroAdicional)} /mês</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted flex justify-between">
+                    <span>Taxa Fixa (R$)</span>
+                    <span className="text-orange-500">{currency.format(simTaxaFixa)}</span>
+                  </Label>
+                  <input 
+                    type="range" min="0.50" max="10.00" step="0.10" 
+                    value={simTaxaFixa} onChange={e => setSimTaxaFixa(Number(e.target.value))}
+                    className="w-full h-2 bg-apple-offWhite rounded-lg appearance-none cursor-pointer accent-orange-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted flex justify-between">
+                    <span>Novas Empresas</span>
+                    <span className="text-orange-500">+{simNovasEmpresas}</span>
+                  </Label>
+                  <input 
+                    type="range" min="1" max="100" step="1" 
+                    value={simNovasEmpresas} onChange={e => setSimNovasEmpresas(Number(e.target.value))}
+                    className="w-full h-2 bg-apple-offWhite rounded-lg appearance-none cursor-pointer accent-orange-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted flex justify-between">
+                    <span>Ticket Plano (R$)</span>
+                    <span className="text-orange-500">{currency.format(simTicketPlano)}</span>
+                  </Label>
+                  <input 
+                    type="range" min="29.00" max="499.00" step="10" 
+                    value={simTicketPlano} onChange={e => setSimTicketPlano(Number(e.target.value))}
+                    className="w-full h-2 bg-apple-offWhite rounded-lg appearance-none cursor-pointer accent-orange-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-black text-apple-muted flex justify-between">
+                    <span>Tx / Mês por Empresa</span>
+                    <span className="text-orange-500">{simTransacoesPorEmpresa}</span>
+                  </Label>
+                  <input 
+                    type="range" min="10" max="1000" step="10" 
+                    value={simTransacoesPorEmpresa} onChange={e => setSimTransacoesPorEmpresa(Number(e.target.value))}
+                    className="w-full h-2 bg-apple-offWhite rounded-lg appearance-none cursor-pointer accent-orange-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-apple-offWhite p-6 rounded-3xl border border-apple-border">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-apple-muted block">Receita Atual</span>
+                  <span className="text-lg font-bold text-apple-black">{currency.format(receitaMensalAtual)}</span>
+                  <span className="text-[9px] text-apple-muted block font-medium mt-0.5">Planos + Taxas do mês</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase text-apple-muted block">Nova Receita Projetada</span>
+                  <span className="text-xl font-black text-emerald-600">{currency.format(receitaMensalProjetada)}</span>
+                  <span className="text-[9px] text-emerald-600 block font-black mt-0.5">Crescimento de {((receitaMensalProjetada / (receitaMensalAtual || 1) - 1) * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <span className="text-[10px] font-black uppercase text-apple-muted block">Empresas Projetadas</span>
+                  <span className="text-lg font-bold text-orange-500">{totalEmpresasProjetadas}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* AUTOMAÇÕES */}
@@ -338,6 +549,116 @@ const AdminDashboard = () => {
                   </tbody>
                </table>
              </div>
+          </div>
+        </div>
+
+        {/* MONITOR DE INADIMPLÊNCIA */}
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
+          <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
+            <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
+              <AlertTriangle size={16} className="text-red-500" /> Monitor de Inadimplência Global
+            </h3>
+            <div className="text-right">
+              <span className="text-[10px] font-black uppercase text-apple-muted block">Total Vencido na Rua</span>
+              <span className="text-xl font-black text-red-600">
+                {currency.format(delinquencyReport.reduce((acc, d) => acc + d.totalOverdue, 0))}
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
+                <tr>
+                  <th className="px-8 py-5">Empresa / Responsável</th>
+                  <th className="px-8 py-5 text-center">Qtd Títulos Vencidos</th>
+                  <th className="px-8 py-5 text-right">Valor Total Vencido</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-apple-border">
+                {delinquencyReport.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-8 py-6 text-center text-xs text-apple-muted font-bold">
+                      Nenhuma cobrança vencida encontrada. Parabéns!
+                    </td>
+                  </tr>
+                ) : (
+                  delinquencyReport.map((d) => (
+                    <tr key={d.id} className="hover:bg-red-50/20 transition-colors">
+                      <td className="px-8 py-4">
+                        <p className="text-sm font-black text-apple-black">{d.company}</p>
+                        <p className="text-[10px] text-apple-muted font-bold">{d.fullName}</p>
+                      </td>
+                      <td className="px-8 py-4 text-center font-black text-red-500">
+                        {d.countOverdue}
+                      </td>
+                      <td className="px-8 py-4 text-right font-black text-red-600">
+                        {currency.format(d.totalOverdue)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* RELATÓRIO DE RETORNO POR LOJISTA */}
+        <div className="bg-apple-white border border-apple-border rounded-[2.5rem] overflow-hidden shadow-sm">
+          <div className="p-8 border-b border-apple-border bg-apple-offWhite flex items-center justify-between">
+            <h3 className="text-xs font-black text-apple-black uppercase tracking-widest flex items-center gap-2">
+              <DollarSign size={16} className="text-orange-500" /> Retorno Financeiro por Lojista (Transações)
+            </h3>
+            <div className="text-right">
+              <span className="text-[10px] font-black uppercase text-apple-muted block">Retorno Total Acumulado</span>
+              <span className="text-xl font-black text-emerald-600">
+                {currency.format(merchantsReturn.reduce((acc, m) => acc + m.swipyReturn, 0))}
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-apple-offWhite text-apple-muted text-[9px] font-black uppercase tracking-[0.2em]">
+                <tr>
+                  <th className="px-8 py-5">Empresa / Responsável</th>
+                  <th className="px-8 py-5">Plano Atual</th>
+                  <th className="px-8 py-5 text-right">TPV (Mês Atual)</th>
+                  <th className="px-8 py-5 text-center">Tx (Mês)</th>
+                  <th className="px-8 py-5 text-center">Taxa</th>
+                  <th className="px-8 py-5 text-right">Retorno (Mês)</th>
+                  <th className="px-8 py-5 text-right">Retorno (Total)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-apple-border">
+                {merchantsReturn.map((m) => (
+                  <tr key={m.id} className="hover:bg-apple-light transition-colors">
+                    <td className="px-8 py-4">
+                      <p className="text-sm font-black text-apple-black">{m.company}</p>
+                      <p className="text-[10px] text-apple-muted font-bold">{m.fullName}</p>
+                    </td>
+                    <td className="px-8 py-4">
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-50 text-orange-600 border border-orange-100">
+                        {m.plan}
+                      </span>
+                    </td>
+                    <td className="px-8 py-4 text-right font-bold text-apple-black">
+                      {currency.format(m.tpvMonth)}
+                    </td>
+                    <td className="px-8 py-4 text-center font-black text-blue-600">
+                      {m.txCountMonth}
+                    </td>
+                    <td className="px-8 py-4 text-center font-black text-orange-500">
+                      {currency.format(m.feeFixed)}
+                    </td>
+                    <td className="px-8 py-4 text-right font-black text-emerald-600">
+                      {currency.format(m.returnMonth)}
+                    </td>
+                    <td className="px-8 py-4 text-right font-bold text-apple-muted">
+                      {currency.format(m.returnTotal)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

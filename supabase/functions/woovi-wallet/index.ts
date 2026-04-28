@@ -23,13 +23,19 @@ serve(async (req) => {
     
     if (authError || !user) throw new Error("Não autorizado")
 
-    const { data: profile } = await supabaseClient
-      .from('profiles')
+    const { data: creds } = await supabaseClient
+      .from('merchant_credentials')
       .select('woovi_api_key')
       .eq('id', user.id)
       .single()
 
-    const appID = profile?.woovi_api_key?.trim();
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('woovi_api_key, transaction_pin')
+      .eq('id', user.id)
+      .single()
+
+    const appID = (creds?.woovi_api_key || profile?.woovi_api_key)?.trim();
 
     if (!appID) {
       return new Response(JSON.stringify({ error: "MISSING_KEY", message: "Token Woovi não configurado." }), { 
@@ -229,7 +235,20 @@ serve(async (req) => {
 
     if (action === 'withdraw') {
       const body = await req.json();
-      const { amount, pixKey: rawPixKey, pixKeyType } = body;
+      const { amount, pixKey: rawPixKey, pixKeyType, pin } = body;
+
+      if (!profile?.transaction_pin) {
+        throw new Error("PIN de transação não configurado. Por favor, configure seu PIN no painel.")
+      }
+
+      const msgBuffer = new TextEncoder().encode(pin || '');
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (profile.transaction_pin !== hashHex) {
+        throw new Error("PIN de transação incorreto.")
+      }
 
       // Limpar a chave Pix (remover caracteres não numéricos se for CPF, CNPJ ou Telefone)
       let pixKey = rawPixKey;

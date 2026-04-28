@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/integrations/supabase/auth';
+import { useNavigate } from 'react-router-dom';
 import { Search, Loader2, Building2, ShieldCheck, Settings2, GraduationCap, UserPlus, Mail, User, ShieldAlert, Briefcase, CheckCircle2 } from 'lucide-react';
 import { showError, showSuccess } from '@/utils/toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -12,6 +14,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const UserManagement = () => {
+  const navigate = useNavigate();
+  const { setActiveMerchant } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [accountants, setAccountants] = useState<any[]>([]);
@@ -33,7 +37,8 @@ const UserManagement = () => {
     petta_secret: '',
     preferred_provider: 'woovi',
     plan_id: 'none', 
-    accountant_id: 'none' 
+    accountant_id: 'none',
+    transaction_fee_fixed: 0
   });
 
   const [createData, setCreateData] = useState({
@@ -46,13 +51,26 @@ const UserManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, plansRes, accRes] = await Promise.all([
+      const [profilesRes, credsRes, plansRes, accRes] = await Promise.all([
         supabase.from('profiles').select('*, system_plans(name)').order('updated_at', { ascending: false }),
+        supabase.from('merchant_credentials').select('*'),
         supabase.from('system_plans').select('*'),
         supabase.from('profiles').select('id, full_name, company').eq('system_role', 'Contador')
       ]);
 
-      if (profilesRes.data) setUsers(profilesRes.data);
+      if (profilesRes.data) {
+        const creds = credsRes.data || [];
+        const enriched = profilesRes.data.map(p => {
+          const cred = creds.find(c => c.id === p.id);
+          return {
+            ...p,
+            woovi_api_key: cred?.woovi_api_key || p.woovi_api_key || '',
+            petta_api_key: cred?.petta_api_key || p.petta_api_key || '',
+            petta_secret: cred?.petta_secret || p.petta_secret || ''
+          };
+        });
+        setUsers(enriched);
+      }
       if (plansRes.data) setPlans(plansRes.data);
       if (accRes.data) setAccountants(accRes.data);
     } catch (err) { 
@@ -102,21 +120,32 @@ const UserManagement = () => {
     setUpdating(true);
     
     try {
-      const payload = {
+      const profilePayload = {
         company: editData.company,
         full_name: editData.full_name,
         status: editData.status,
         system_role: editData.system_role,
-        woovi_api_key: editData.woovi_api_key,
-        petta_api_key: editData.petta_api_key,
-        petta_secret: editData.petta_secret,
         preferred_provider: editData.preferred_provider,
         plan_id: editData.plan_id === 'none' ? null : editData.plan_id,
         accountant_id: editData.accountant_id === 'none' ? null : editData.accountant_id,
+        transaction_fee_fixed: Number(editData.transaction_fee_fixed) || 0,
       };
 
-      const { error } = await supabase.from('profiles').update(payload).eq('id', selectedUser.id);
-      if (error) throw error;
+      const credsPayload = {
+        id: selectedUser.id,
+        woovi_api_key: editData.woovi_api_key,
+        petta_api_key: editData.petta_api_key,
+        petta_secret: editData.petta_secret,
+        updated_at: new Date().toISOString()
+      };
+
+      const [profileError, credsError] = await Promise.all([
+        supabase.from('profiles').update(profilePayload).eq('id', selectedUser.id),
+        supabase.from('merchant_credentials').upsert(credsPayload)
+      ]);
+
+      if (profileError.error) throw profileError.error;
+      if (credsError.error) throw credsError.error;
 
       showSuccess('Usuário atualizado com sucesso!');
       setIsEditModalOpen(false);
@@ -189,8 +218,20 @@ const UserManagement = () => {
                     <td className="px-8 py-5">
                       <span className="text-[10px] text-orange-500 font-bold uppercase">{u.system_plans?.name || 'SaaS Gratuito'}</span>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status || 'pending', system_role: u.system_role || 'Admin', woovi_api_key: u.woovi_api_key || '', petta_api_key: u.petta_api_key || '', petta_secret: u.petta_secret || '', preferred_provider: u.preferred_provider || 'woovi', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none' }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
+                    <td className="px-8 py-5 text-right flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => { 
+                          setActiveMerchant(u); 
+                          showSuccess(`Acessando como ${u.company || u.full_name}`);
+                          navigate('/');
+                        }} 
+                        className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-zinc-950 text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                        title="Acessar Painel do Lojista"
+                      >
+                        <ShieldCheck size={14} /> Acessar
+                      </button>
+
+                      <button onClick={() => { setSelectedUser(u); setEditData({ company: u.company || '', full_name: u.full_name || '', status: u.status || 'pending', system_role: u.system_role || 'Admin', woovi_api_key: u.woovi_api_key || '', petta_api_key: u.petta_api_key || '', petta_secret: u.petta_secret || '', preferred_provider: u.preferred_provider || 'woovi', plan_id: u.plan_id || 'none', accountant_id: u.accountant_id || 'none', transaction_fee_fixed: u.transaction_fee_fixed || 0 }); setIsEditModalOpen(true); }} className="p-2.5 bg-apple-offWhite hover:bg-orange-500 hover:text-white rounded-xl text-apple-muted transition-all border border-apple-border shadow-sm">
                         <Settings2 size={16} />
                       </button>
                     </td>
@@ -283,6 +324,19 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-apple-muted">Taxa Fixa por Transação (R$)</Label>
+              <Input 
+                type="number" 
+                step="0.01" 
+                min="0" 
+                value={editData.transaction_fee_fixed} 
+                onChange={e => setEditData({...editData, transaction_fee_fixed: Number(e.target.value)})} 
+                className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-bold" 
+                placeholder="Ex: 1.50"
+              />
             </div>
 
             <div className="space-y-2">

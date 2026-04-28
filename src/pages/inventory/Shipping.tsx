@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { jsPDF } from "jspdf";
 
 const Shipping = () => {
   const { effectiveUserId } = useAuth(); // Usando effectiveUserId para consistência
@@ -22,6 +23,148 @@ const Shipping = () => {
   const [processing, setProcessing] = useState(false);
   const [invoicingId, setInvoicingId] = useState<string | null>(null);
   const [shipData, setShipData] = useState({ carrier: '', trackingCode: '' });
+
+  // Frenet Logistics states
+  const [isFrenetModalOpen, setIsFrenetModalOpen] = useState(false);
+  const [cepOrigem, setCepOrigem] = useState('01311-200');
+  const [cepDestino, setCepDestino] = useState('');
+  const [frenetQuotes, setFrenetQuotes] = useState<any[]>([]);
+  const [loadingQuotes, setLoadingQuotes] = useState(false);
+
+  const handleQuoteShipping = async (order: any) => {
+    setSelectedOrder(order);
+    const cleanCep = order.customers?.postal_code || '01310-100';
+    setCepDestino(cleanCep);
+    setIsFrenetModalOpen(true);
+    setFrenetQuotes([]);
+  };
+
+  const executeFrenetQuote = async () => {
+    setLoadingQuotes(true);
+    try {
+      const { data: frenetConn } = await supabase.from('integrations')
+        .select('access_token')
+        .eq('user_id', effectiveUserId)
+        .eq('provider', 'frenet')
+        .maybeSingle();
+
+      const sellerCep = cepOrigem.replace(/\D/g, '');
+      const recipientCep = cepDestino.replace(/\D/g, '');
+
+      if (frenetConn?.access_token) {
+        try {
+          const response = await fetch(`https://api.frenet.com.br/shipping/quote`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'token': frenetConn.access_token
+            },
+            body: JSON.stringify({
+              "SellerCEP": sellerCep,
+              "RecipientCEP": recipientCep,
+              "ShipmentInvoiceValue": selectedOrder?.total_amount || 100,
+              "ShippingItemArray": [{
+                "Weight": 1,
+                "Length": 15,
+                "Height": 10,
+                "Width": 15,
+                "Quantity": 1
+              }]
+            })
+          });
+
+          const data = await response.json();
+          if (response.ok && data.ShippingSevicesArray && data.ShippingSevicesArray.length > 0) {
+            const realQuotes = data.ShippingSevicesArray
+              .filter((s: any) => !s.Error)
+              .map((s: any, idx: number) => ({
+                id: idx,
+                carrier: `${s.Carrier} - ${s.ServiceDescription}`,
+                price: parseFloat(s.ShippingPrice),
+                time: `${s.DeliveryTime} dias`
+              }));
+
+            if (realQuotes.length > 0) {
+              setFrenetQuotes(realQuotes);
+              showSuccess("Fretes reais calculados!");
+              return;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("Frenet API offline ou token inválido, usando fallback:", apiErr);
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const mockedQuotes = [
+        { id: 1, carrier: "Correios - PAC", price: 18.90, time: "5 a 8 dias" },
+        { id: 2, carrier: "Correios - SEDEX", price: 29.50, time: "1 a 3 dias" },
+        { id: 3, carrier: "Jadlog - Package", price: 24.30, time: "4 dias" },
+        { id: 4, carrier: "Loggi Express", price: 32.10, time: "2 dias" }
+      ];
+      setFrenetQuotes(mockedQuotes);
+      showSuccess("Cotações simuladas carregadas!");
+    } catch (err: any) {
+      showError("Erro ao cotar frete: " + err.message);
+    } finally {
+      setLoadingQuotes(false);
+    }
+  };
+
+  const handleGenerateLabel = (quote: any) => {
+    if (!selectedOrder) return;
+    try {
+      const doc = new jsPDF({ format: [100, 150] });
+      doc.setFillColor(249, 115, 22);
+      doc.rect(0, 0, 100, 15, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("SWIPY LOGÍSTICA", 10, 10);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(0, 15, 100, 15);
+      doc.setTextColor(50, 50, 50);
+      doc.setFontSize(11);
+      doc.text(`ROTA: ${quote.carrier.toUpperCase()}`, 10, 25);
+      doc.setFontSize(8);
+      doc.text(`PEDIDO: #${selectedOrder.id.split('-')[0].toUpperCase()}`, 10, 32);
+      doc.line(5, 38, 95, 38);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("DESTINATÁRIO:", 10, 48);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(selectedOrder.customers?.name || 'Cliente Swipy', 10, 56);
+      doc.text(`${selectedOrder.customers?.address || 'Endereço não informado'}`, 10, 64);
+      doc.text(`CEP: ${cepDestino}`, 10, 72);
+      doc.line(5, 80, 95, 80);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("REMETENTE:", 10, 90);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text("Central Swipy ERP", 10, 98);
+      doc.text("Logística Integrada Frenet", 10, 104);
+      doc.text(`CEP Origem: ${cepOrigem}`, 10, 110);
+      doc.setFillColor(0, 0, 0);
+      doc.rect(15, 125, 70, 15, 'F');
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(8);
+      doc.text("* SWIPY-LOG-FRN-001 *", 30, 145);
+
+      doc.save(`Etiqueta_Frete_${selectedOrder.id.split('-')[0]}.pdf`);
+      showSuccess("Etiqueta gerada!");
+
+      setShipData({
+        carrier: quote.carrier,
+        trackingCode: `FRN-${Math.floor(100000 + Math.random() * 900000)}BR`
+      });
+      setIsFrenetModalOpen(false);
+      setIsShipModalOpen(true);
+    } catch (err: any) {
+      showError("Erro ao gerar etiqueta: " + err.message);
+    }
+  };
 
   const fetchQueue = async () => {
     if (!effectiveUserId) return;
@@ -192,6 +335,13 @@ const Shipping = () => {
                   )}
                   
                   <button 
+                    onClick={() => handleQuoteShipping(order)}
+                    className="w-full bg-orange-50 text-orange-600 font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-orange-200 hover:bg-orange-500 hover:text-white transition-all shadow-sm active:scale-95 text-xs"
+                  >
+                    <Truck size={16} /> COTAR FRETE (FRENET)
+                  </button>
+                  
+                  <button 
                     onClick={() => { setSelectedOrder(order); setIsShipModalOpen(true); }}
                     className="w-full bg-apple-black text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all group-hover:bg-orange-500"
                   >
@@ -245,6 +395,65 @@ const Shipping = () => {
              >
                {processing ? <Loader2 className="animate-spin" /> : <><Truck size={20} /> FINALIZAR E DESPACHAR</>}
              </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isFrenetModalOpen} onOpenChange={setIsFrenetModalOpen}>
+        <DialogContent className="bg-apple-white border-apple-border text-apple-black sm:max-w-[450px] rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 border-b border-apple-border bg-apple-offWhite">
+            <DialogTitle className="text-xl font-black flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-md">
+                <Truck size={20} />
+              </div>
+              Hub Logístico Frenet
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-apple-muted">CEP Origem</Label>
+                  <Input value={cepOrigem} onChange={e => setCepOrigem(e.target.value)} className="bg-apple-offWhite h-11 border-apple-border rounded-xl font-bold" />
+               </div>
+               <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-apple-muted">CEP Destino</Label>
+                  <Input value={cepDestino} onChange={e => setCepDestino(e.target.value)} className="bg-apple-offWhite h-11 border-apple-border rounded-xl font-bold" />
+               </div>
+            </div>
+
+            <button 
+              onClick={executeFrenetQuote}
+              disabled={loadingQuotes}
+              className="w-full bg-apple-black text-white font-black py-3.5 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-zinc-800 disabled:opacity-50 text-xs shadow-md"
+            >
+              {loadingQuotes ? <Loader2 className="animate-spin" size={16} /> : "CALCULAR FRETE"}
+            </button>
+
+            {frenetQuotes.length > 0 && (
+              <div className="space-y-3 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                 <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">Opções de Envio</Label>
+                 <div className="divide-y divide-apple-border border border-apple-border rounded-2xl overflow-hidden bg-apple-offWhite/50">
+                    {frenetQuotes.map(q => (
+                       <div key={q.id} className="p-4 flex justify-between items-center hover:bg-apple-offWhite transition-colors">
+                          <div>
+                             <p className="text-xs font-black text-apple-black">{q.carrier}</p>
+                             <p className="text-[10px] text-apple-muted font-medium mt-0.5">Prazo: {q.time}</p>
+                          </div>
+                          <div className="text-right flex items-center gap-4">
+                             <span className="text-sm font-black text-orange-600 font-mono">
+                               {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(q.price)}
+                             </span>
+                             <button 
+                               onClick={() => handleGenerateLabel(q)}
+                               className="bg-apple-black text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-orange-500 transition-colors shadow-sm active:scale-95 flex items-center gap-1"
+                             >
+                               <FileText size={12} /> ETIQUETA
+                             </button>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

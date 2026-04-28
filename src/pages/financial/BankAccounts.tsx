@@ -112,17 +112,18 @@ const BankAccounts = () => {
           ) : (
             accounts.map((acc) => {
               const isSwipy = acc.type === 'swipy';
+              const isOpenFinance = acc.name.includes('(Open Finance)') || acc.name.includes('Belvo');
               
               return (
                 <div key={acc.id} className={cn(
                   "bg-apple-white border rounded-[2rem] p-8 shadow-sm group relative overflow-hidden flex flex-col justify-between transition-all",
-                  isSwipy ? "border-orange-500/20 bg-orange-50/5" : "border-apple-border"
+                  isSwipy ? "border-orange-500/20 bg-orange-50/5" : isOpenFinance ? "border-emerald-500/20 bg-emerald-50/5 shadow-emerald-500/5" : "border-apple-border"
                 )}>
                   <div className="relative z-10">
                     <div className="flex justify-between items-start mb-6">
                       <div className={cn(
                         "w-12 h-12 rounded-2xl flex items-center justify-center border shadow-inner",
-                        isSwipy ? "bg-orange-500 text-white border-orange-600" : "bg-apple-offWhite text-apple-muted border-apple-border"
+                        isSwipy ? "bg-orange-500 text-white border-orange-600" : isOpenFinance ? "bg-emerald-600 text-white border-emerald-600" : "bg-apple-offWhite text-apple-muted border-apple-border"
                       )}>
                         {isSwipy ? <ShieldCheck size={24} /> : <Landmark size={24} />}
                       </div>
@@ -147,10 +148,10 @@ const BankAccounts = () => {
                     
                     <h3 className="text-xl font-black text-apple-black flex items-center gap-2">
                       {acc.name}
-                      {isSwipy && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                      {(isSwipy || isOpenFinance) && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                     </h3>
                     <p className="text-[10px] text-apple-muted font-black uppercase tracking-widest mt-1">
-                      {isSwipy ? 'Instituição de Pagamento' : acc.type}
+                      {isSwipy ? 'Instituição de Pagamento' : isOpenFinance ? 'Open Finance API' : acc.type}
                     </p>
                   </div>
 
@@ -160,11 +161,12 @@ const BankAccounts = () => {
                     </p>
                     <p className={cn(
                       "text-2xl font-black",
-                      isSwipy ? "text-orange-500" : "text-apple-dark"
+                      isSwipy ? "text-orange-500" : isOpenFinance ? "text-emerald-600" : "text-apple-dark"
                     )}>
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(acc.balance)}
                     </p>
                     {isSwipy && <p className="text-[9px] text-orange-400 font-bold mt-1 uppercase">Atualizado via Woovi</p>}
+                    {isOpenFinance && <p className="text-[9px] text-emerald-600 font-bold mt-1 uppercase flex items-center gap-1"><ShieldCheck size={12} /> Conectado via Belvo (Open Finance)</p>}
                   </div>
                 </div>
               );

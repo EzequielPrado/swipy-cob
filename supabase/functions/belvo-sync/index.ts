@@ -57,7 +57,7 @@ serve(async (req) => {
     
     if (accounts.length > 0) {
        const firstAcc = accounts[0];
-       const accName = `${firstAcc.institution.name} - ${firstAcc.name}`;
+       const accName = `${firstAcc.institution.name} - ${firstAcc.name} (Open Finance)`;
        
        const { data: existingAcc } = await supabaseAdmin
          .from('bank_accounts')

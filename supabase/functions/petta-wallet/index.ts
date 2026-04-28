@@ -23,13 +23,19 @@ serve(async (req) => {
     if (authError || !user) throw new Error("Não autorizado")
 
     // Buscar credenciais Petta do perfil do usuário
-    const { data: profile } = await supabaseClient
-      .from('profiles')
+    const { data: creds } = await supabaseClient
+      .from('merchant_credentials')
       .select('petta_api_key')
       .eq('id', user.id)
       .single()
 
-    const apiKey = profile?.petta_api_key?.trim();
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('petta_api_key, transaction_pin')
+      .eq('id', user.id)
+      .single()
+
+    const apiKey = (creds?.petta_api_key || profile?.petta_api_key)?.trim();
 
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "MISSING_KEY", message: "Token Petta não configurado." }), { 
@@ -150,7 +156,20 @@ serve(async (req) => {
 
     // ==================== SAQUE (WITHDRAW) ====================
     if (action === 'withdraw') {
-      const { amount, pixKey, pixKeyType } = await req.json()
+      const { amount, pixKey, pixKeyType, pin } = await req.json()
+      
+      if (!profile?.transaction_pin) {
+        throw new Error("PIN de transação não configurado. Por favor, configure seu PIN no painel.")
+      }
+
+      const msgBuffer = new TextEncoder().encode(pin || '');
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (profile.transaction_pin !== hashHex) {
+        throw new Error("PIN de transação incorreto.")
+      }
       
       const response = await fetch(`${PETTA_BASE_URL}/withdrawals`, {
         method: 'POST',

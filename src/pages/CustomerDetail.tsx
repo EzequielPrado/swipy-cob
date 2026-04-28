@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, MapPin, FileText, DollarSign, ShieldCheck, CheckCircle2, RefreshCcw, Loader2, Clock, History, AlertTriangle, Zap } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, MapPin, FileText, DollarSign, ShieldCheck, CheckCircle2, RefreshCcw, Loader2, Clock, History, AlertTriangle, Zap, Cloud } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { showError } from '@/utils/toast';
+import { showError, showSuccess } from '@/utils/toast';
 import { cn } from "@/lib/utils";
 import CustomerDocumentsSection from '@/components/customers/CustomerDocumentsSection';
 
@@ -49,6 +49,35 @@ const CustomerDetail = () => {
           // Sincronizar no banco se diferente
           if (custData.status !== realStatus) {
             await supabase.from('customers').update({ status: realStatus }).eq('id', id);
+            
+            if (custData.address?.enhance_org_id) {
+              const { data: enhanceIntegr } = await supabase
+                .from('integrations')
+                .select('*')
+                .eq('user_id', custData.user_id)
+                .eq('provider', 'enhance')
+                .maybeSingle();
+
+              if (enhanceIntegr && enhanceIntegr.status === 'active') {
+                const enhanceApi = enhanceIntegr.store_id;
+                const enhanceToken = enhanceIntegr.access_token;
+                const customerOrgId = custData.address.enhance_org_id;
+                const enhanceStatus = realStatus === 'inadimplente' ? 'suspended' : 'active';
+                
+                try {
+                  await fetch(`${enhanceApi}/orgs/${customerOrgId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${enhanceToken}`
+                    },
+                    body: JSON.stringify({ status: enhanceStatus })
+                  });
+                } catch (e) {
+                  console.error("Enhance API automation failed:", e);
+                }
+              }
+            }
           }
         }
 
@@ -110,6 +139,56 @@ const CustomerDetail = () => {
                 <div className="flex items-center gap-3 text-sm text-apple-dark font-medium"><Phone size={16} className="text-orange-500" /><span>{customer.phone || 'N/A'}</span></div>
                 <div className="flex items-start gap-3 text-sm text-apple-dark font-medium"><MapPin size={16} className="text-orange-500 mt-1 shrink-0" /><span className="leading-relaxed">{customer.address?.street ? `${customer.address.street}, ${customer.address.number}` : 'Endereço não cadastrado'}</span></div>
               </div>
+            </div>
+
+            {/* Vínculo Enhance Panel */}
+            <div className="bg-apple-white border border-apple-border rounded-[2.5rem] p-10 shadow-sm">
+              <h4 className="text-[10px] font-black text-sky-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                <Cloud size={16} /> Enhance Hosting
+              </h4>
+              <p className="text-sm font-black text-apple-black mb-1">Vincular Conta do Servidor</p>
+              <p className="text-[10px] text-apple-muted font-medium mb-6 leading-relaxed">Associe este cliente a um ID no painel Enhance para gerenciar suspensão.</p>
+
+              {customer.address?.enhance_org_id ? (
+                <div className="space-y-4">
+                  <div className="bg-sky-50 border border-sky-100 p-4 rounded-2xl">
+                    <p className="text-[10px] text-sky-800 font-bold uppercase tracking-wider mb-1">Org ID Conectado</p>
+                    <p className="text-sm font-mono font-black text-sky-950">{customer.address.enhance_org_id}</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      const updAddress = { ...customer.address };
+                      delete updAddress.enhance_org_id;
+                      const { data } = await supabase.from('customers').update({ address: updAddress }).eq('id', id).select().single();
+                      if (data) { setCustomer(data); showSuccess("Vínculo removido!"); }
+                    }}
+                    className="w-full bg-white text-red-500 font-bold text-xs py-3 rounded-xl border border-red-100 hover:bg-red-50 active:scale-95 transition-all"
+                  >
+                    Desvincular
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Org ID (ex: 1045)" 
+                    id="enhance_inp"
+                    className="w-full bg-apple-offWhite border border-apple-border rounded-xl px-4 py-3 text-xs font-bold font-mono outline-none focus:border-sky-500"
+                  />
+                  <button 
+                    onClick={async () => {
+                      const val = (document.getElementById('enhance_inp') as HTMLInputElement).value;
+                      if (!val.trim()) return showError("Informe o Org ID");
+                      const updAddress = { ...customer.address, enhance_org_id: val.trim() };
+                      const { data } = await supabase.from('customers').update({ address: updAddress }).eq('id', id).select().single();
+                      if (data) { setCustomer(data); showSuccess("Cliente vinculado ao Enhance!"); }
+                    }}
+                    className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1 shadow-md shadow-sky-600/10 active:scale-95 transition-all"
+                  >
+                    Vincular
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="bg-apple-black p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">

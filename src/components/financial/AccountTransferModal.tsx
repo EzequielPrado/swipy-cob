@@ -17,7 +17,15 @@ interface AccountTransferModalProps {
 }
 
 const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferModalProps) => {
-  const { user } = useAuth(); // Usar o ID real logado para não bloquear no RLS
+  const { user, profile } = useAuth(); // Usar o ID real logado para não bloquear no RLS
+
+  const hashPin = async (plainPin: string): Promise<string> => {
+    const msgBuffer = new TextEncoder().encode(plainPin);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+  };
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   
@@ -26,7 +34,8 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
     destinationAccountId: '',
     amount: '',
     description: 'Transferência entre contas',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    pin: ''
   });
 
   useEffect(() => {
@@ -61,8 +70,17 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
       return showError("Insira um valor numérico válido.");
     }
 
+    if (!formData.pin || formData.pin.length !== 6) {
+      return showError("Informe o PIN de segurança de 6 dígitos.");
+    }
+
     setLoading(true);
     try {
+      // Validar PIN
+      const pinHash = await hashPin(formData.pin);
+      if (profile?.transaction_pin && profile.transaction_pin !== pinHash) {
+        throw new Error("PIN de segurança incorreto.");
+      }
       // 1. Pegar dados das contas selecionadas
       const originAcc = accounts.find(a => a.id === formData.originAccountId);
       const destAcc = accounts.find(a => a.id === formData.destinationAccountId);
@@ -115,7 +133,8 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
         destinationAccountId: '',
         amount: '',
         description: 'Transferência entre contas',
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
+        pin: ''
       });
       
       onSuccess();
@@ -204,6 +223,20 @@ const AccountTransferModal = ({ isOpen, onClose, onSuccess }: AccountTransferMod
               className="bg-apple-offWhite border-apple-border h-12 rounded-xl" 
               value={formData.description} 
               onChange={e => setFormData({...formData, description: e.target.value})} 
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-apple-muted ml-1">PIN de Segurança (6 dígitos)</Label>
+            <Input 
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              required 
+              placeholder="000000" 
+              className="bg-apple-offWhite border-apple-border h-12 rounded-xl font-black text-center text-xl tracking-[0.3em]" 
+              value={formData.pin} 
+              onChange={e => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})} 
             />
           </div>
 

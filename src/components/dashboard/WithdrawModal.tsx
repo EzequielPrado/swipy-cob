@@ -21,7 +21,8 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
   const [formData, setFormData] = useState({
     amount: '',
     pixKey: '',
-    pixKeyType: 'CPF'
+    pixKeyType: 'CPF',
+    pin: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +59,8 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
         body: JSON.stringify({
           amount: amountNum,
           pixKey: formData.pixKey,
-          pixKeyType: formData.pixKeyType
+          pixKeyType: formData.pixKeyType,
+          pin: formData.pin
         })
       });
 
@@ -137,6 +139,21 @@ const WithdrawModal = ({ isOpen, onClose, onSuccess, availableBalance }: Withdra
                 onChange={(e) => setFormData({...formData, amount: e.target.value})}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pin">PIN de Segurança (6 dígitos)</Label>
+            <Input 
+              id="pin" 
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              required
+              placeholder="000000"
+              className="bg-zinc-950 border-zinc-800 h-11 text-center text-xl tracking-[0.3em] font-bold"
+              value={formData.pin}
+              onChange={(e) => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})}
+            />
           </div>
 
           <DialogFooter className="pt-2">
